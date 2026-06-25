@@ -21,8 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 
-const WEBHOOK_URL =
-  "https://creativebilalakram2.app.n8n.cloud/webhook/3aacc2c2-521b-4406-af35-4784f02ab2cd";
+const WEBHOOK_URL = "/api/leads";
 const STORAGE_KEY = "lead-gen-results-v1";
 
 export const Route = createFileRoute("/")({
@@ -114,8 +113,18 @@ function Index() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error(`Webhook failed: ${res.status} ${res.statusText}`);
-      const data = await res.json();
+      const text = await res.text();
+      if (!res.ok) {
+        throw new Error(
+          `Webhook failed: ${res.status} ${res.statusText}${text ? ` — ${text.slice(0, 200)}` : ""}`,
+        );
+      }
+      let data: unknown = [];
+      try {
+        data = text ? JSON.parse(text) : [];
+      } catch {
+        throw new Error("Upstream returned non-JSON response");
+      }
       // n8n may return array directly, or { data: [...] }, or single object
       let arr: Lead[] = [];
       if (Array.isArray(data)) arr = data;
