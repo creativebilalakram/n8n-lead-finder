@@ -10,11 +10,17 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiPublicLeadsStatusRouteImport } from './routes/api/public/leads.status'
 import { Route as ApiPublicLeadsStartRouteImport } from './routes/api/public/leads.start'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicLeadsStatusRoute = ApiPublicLeadsStatusRouteImport.update({
+  id: '/api/public/leads/status',
+  path: '/api/public/leads/status',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicLeadsStartRoute = ApiPublicLeadsStartRouteImport.update({
@@ -26,27 +32,31 @@ const ApiPublicLeadsStartRoute = ApiPublicLeadsStartRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/public/leads/start': typeof ApiPublicLeadsStartRoute
+  '/api/public/leads/status': typeof ApiPublicLeadsStatusRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/public/leads/start': typeof ApiPublicLeadsStartRoute
+  '/api/public/leads/status': typeof ApiPublicLeadsStatusRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/api/public/leads/start': typeof ApiPublicLeadsStartRoute
+  '/api/public/leads/status': typeof ApiPublicLeadsStatusRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/public/leads/start'
+  fullPaths: '/' | '/api/public/leads/start' | '/api/public/leads/status'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/public/leads/start'
-  id: '__root__' | '/' | '/api/public/leads/start'
+  to: '/' | '/api/public/leads/start' | '/api/public/leads/status'
+  id: '__root__' | '/' | '/api/public/leads/start' | '/api/public/leads/status'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApiPublicLeadsStartRoute: typeof ApiPublicLeadsStartRoute
+  ApiPublicLeadsStatusRoute: typeof ApiPublicLeadsStatusRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -56,6 +66,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/leads/status': {
+      id: '/api/public/leads/status'
+      path: '/api/public/leads/status'
+      fullPath: '/api/public/leads/status'
+      preLoaderRoute: typeof ApiPublicLeadsStatusRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/leads/start': {
@@ -71,6 +88,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApiPublicLeadsStartRoute: ApiPublicLeadsStartRoute,
+  ApiPublicLeadsStatusRoute: ApiPublicLeadsStatusRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

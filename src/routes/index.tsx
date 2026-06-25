@@ -21,12 +21,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 
-// Call n8n directly — the Cloudflare Worker proxy times out at ~100s,
-// but Apify scraping can run for several minutes. Browsers have no such
-// limit, and n8n.cloud webhooks return permissive CORS headers.
-const WEBHOOK_URL =
-  "https://creativebilalakram2.app.n8n.cloud/webhook/3aacc2c2-521b-4406-af35-4784f02ab2cd";
+// n8n removed — the whole workflow now runs inside this app.
+// Start the Apify run, then poll status until it succeeds. The two
+// server calls each return in seconds, so we never hit the Worker
+// ~100s timeout no matter how long Apify takes.
+const START_URL = "/api/public/leads/start";
+const STATUS_URL = "/api/public/leads/status";
 const STORAGE_KEY = "lead-gen-results-v1";
+const POLL_INTERVAL_MS = 5000;
+const POLL_MAX_MS = 15 * 60 * 1000; // 15 min hard cap
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -112,30 +115,49 @@ function Index() {
         ratingMax: Number(maxRating),
         activeOwnerDays: Number(activeOwnerDays),
       };
-      const res = await fetch(WEBHOOK_URL, {
+
+      // 1) Start the Apify run
+      const startRes = await fetch(START_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const text = await res.text();
-      if (!res.ok) {
-        throw new Error(
-          `Webhook failed: ${res.status} ${res.statusText}${text ? ` — ${text.slice(0, 200)}` : ""}`,
-        );
+      const startText = await startRes.text();
+      if (!startRes.ok) {
+        throw new Error(`Start failed: ${startRes.status} — ${startText.slice(0, 200)}`);
       }
-      let data: unknown = [];
-      try {
-        data = text ? JSON.parse(text) : [];
-      } catch {
-        throw new Error("Upstream returned non-JSON response");
+      const { runId } = JSON.parse(startText) as { runId: string };
+      if (!runId) throw new Error("No runId returned");
+
+      // 2) Poll status until SUCCEEDED / FAILED / timeout
+      const qs = new URLSearchParams({
+        runId,
+        reviewsMin: String(payload.reviewsMin),
+        reviewsMax: String(payload.reviewsMax),
+        ratingMin: String(payload.ratingMin),
+        ratingMax: String(payload.ratingMax),
+        activeOwnerDays: String(payload.activeOwnerDays),
+      });
+      const deadline = Date.now() + POLL_MAX_MS;
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+        const sRes = await fetch(`${STATUS_URL}?${qs.toString()}`);
+        const sText = await sRes.text();
+        if (!sRes.ok) {
+          throw new Error(`Status failed: ${sRes.status} — ${sText.slice(0, 200)}`);
+        }
+        const sJson = JSON.parse(sText) as {
+          status: string;
+          leads?: Lead[];
+          error?: string;
+        };
+        if (sJson.status === "SUCCEEDED") return sJson.leads ?? [];
+        if (["FAILED", "ABORTED", "TIMED-OUT"].includes(sJson.status)) {
+          throw new Error(sJson.error || `Apify run ${sJson.status}`);
+        }
+        // else RUNNING / READY — keep polling
       }
-      // n8n may return array directly, or { data: [...] }, or single object
-      let arr: Lead[] = [];
-      if (Array.isArray(data)) arr = data;
-      else if (Array.isArray((data as { data?: unknown }).data))
-        arr = (data as { data: Lead[] }).data;
-      else if (data && typeof data === "object") arr = [data as Lead];
-      return arr;
+      throw new Error("Timed out waiting for Apify run to finish");
     },
     onSuccess: (data) => {
       setLeads(data);
@@ -208,7 +230,7 @@ function Index() {
         <header className="mb-10 text-center">
           <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/60 px-4 py-1.5 text-xs font-medium text-slate-600 backdrop-blur">
             <Sparkles className="h-3.5 w-3.5 text-indigo-500" />
-            Powered by n8n + Apify
+            Powered by Apify
           </div>
           <h1 className="mt-4 text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">
             LeadForge
