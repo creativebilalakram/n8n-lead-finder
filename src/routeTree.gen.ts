@@ -16,6 +16,7 @@ import { Route as HistoryIdRouteImport } from './routes/history.$id'
 import { Route as ApiPublicLeadsStatusRouteImport } from './routes/api/public/leads.status'
 import { Route as ApiPublicLeadsStartRouteImport } from './routes/api/public/leads.start'
 import { Route as ApiPublicApifyRunsRouteImport } from './routes/api/public/apify.runs'
+import { Route as ApiPublicApifyImportRouteImport } from './routes/api/public/apify.import'
 
 const SearchRoute = SearchRouteImport.update({
   id: '/search',
@@ -52,12 +53,18 @@ const ApiPublicApifyRunsRoute = ApiPublicApifyRunsRouteImport.update({
   path: '/api/public/apify/runs',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicApifyImportRoute = ApiPublicApifyImportRouteImport.update({
+  id: '/api/public/apify/import',
+  path: '/api/public/apify/import',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/history': typeof HistoryRouteWithChildren
   '/search': typeof SearchRoute
   '/history/$id': typeof HistoryIdRoute
+  '/api/public/apify/import': typeof ApiPublicApifyImportRoute
   '/api/public/apify/runs': typeof ApiPublicApifyRunsRoute
   '/api/public/leads/start': typeof ApiPublicLeadsStartRoute
   '/api/public/leads/status': typeof ApiPublicLeadsStatusRoute
@@ -67,6 +74,7 @@ export interface FileRoutesByTo {
   '/history': typeof HistoryRouteWithChildren
   '/search': typeof SearchRoute
   '/history/$id': typeof HistoryIdRoute
+  '/api/public/apify/import': typeof ApiPublicApifyImportRoute
   '/api/public/apify/runs': typeof ApiPublicApifyRunsRoute
   '/api/public/leads/start': typeof ApiPublicLeadsStartRoute
   '/api/public/leads/status': typeof ApiPublicLeadsStatusRoute
@@ -77,6 +85,7 @@ export interface FileRoutesById {
   '/history': typeof HistoryRouteWithChildren
   '/search': typeof SearchRoute
   '/history/$id': typeof HistoryIdRoute
+  '/api/public/apify/import': typeof ApiPublicApifyImportRoute
   '/api/public/apify/runs': typeof ApiPublicApifyRunsRoute
   '/api/public/leads/start': typeof ApiPublicLeadsStartRoute
   '/api/public/leads/status': typeof ApiPublicLeadsStatusRoute
@@ -88,6 +97,7 @@ export interface FileRouteTypes {
     | '/history'
     | '/search'
     | '/history/$id'
+    | '/api/public/apify/import'
     | '/api/public/apify/runs'
     | '/api/public/leads/start'
     | '/api/public/leads/status'
@@ -97,6 +107,7 @@ export interface FileRouteTypes {
     | '/history'
     | '/search'
     | '/history/$id'
+    | '/api/public/apify/import'
     | '/api/public/apify/runs'
     | '/api/public/leads/start'
     | '/api/public/leads/status'
@@ -106,6 +117,7 @@ export interface FileRouteTypes {
     | '/history'
     | '/search'
     | '/history/$id'
+    | '/api/public/apify/import'
     | '/api/public/apify/runs'
     | '/api/public/leads/start'
     | '/api/public/leads/status'
@@ -115,6 +127,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   HistoryRoute: typeof HistoryRouteWithChildren
   SearchRoute: typeof SearchRoute
+  ApiPublicApifyImportRoute: typeof ApiPublicApifyImportRoute
   ApiPublicApifyRunsRoute: typeof ApiPublicApifyRunsRoute
   ApiPublicLeadsStartRoute: typeof ApiPublicLeadsStartRoute
   ApiPublicLeadsStatusRoute: typeof ApiPublicLeadsStatusRoute
@@ -171,6 +184,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicApifyRunsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/apify/import': {
+      id: '/api/public/apify/import'
+      path: '/api/public/apify/import'
+      fullPath: '/api/public/apify/import'
+      preLoaderRoute: typeof ApiPublicApifyImportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -189,6 +209,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   HistoryRoute: HistoryRouteWithChildren,
   SearchRoute: SearchRoute,
+  ApiPublicApifyImportRoute: ApiPublicApifyImportRoute,
   ApiPublicApifyRunsRoute: ApiPublicApifyRunsRoute,
   ApiPublicLeadsStartRoute: ApiPublicLeadsStartRoute,
   ApiPublicLeadsStatusRoute: ApiPublicLeadsStatusRoute,
