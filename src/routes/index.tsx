@@ -169,7 +169,7 @@ function Index() {
     toast.success("Results cleared");
   };
 
-  const tierCounts = leads.reduce(
+  const tierCounts = leads.reduce<{ hot: number; warm: number; mild: number; other: number }>(
     (acc, l) => {
       const t = (l.leadTier || "").toLowerCase();
       if (t === "hot") acc.hot++;
