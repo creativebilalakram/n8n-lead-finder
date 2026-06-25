@@ -10,33 +10,43 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiPublicLeadsStartRouteImport } from './routes/api/public/leads.start'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicLeadsStartRoute = ApiPublicLeadsStartRouteImport.update({
+  id: '/api/public/leads/start',
+  path: '/api/public/leads/start',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/api/public/leads/start': typeof ApiPublicLeadsStartRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/api/public/leads/start': typeof ApiPublicLeadsStartRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/api/public/leads/start': typeof ApiPublicLeadsStartRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/api/public/leads/start'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/api/public/leads/start'
+  id: '__root__' | '/' | '/api/public/leads/start'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ApiPublicLeadsStartRoute: typeof ApiPublicLeadsStartRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +58,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/leads/start': {
+      id: '/api/public/leads/start'
+      path: '/api/public/leads/start'
+      fullPath: '/api/public/leads/start'
+      preLoaderRoute: typeof ApiPublicLeadsStartRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ApiPublicLeadsStartRoute: ApiPublicLeadsStartRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
