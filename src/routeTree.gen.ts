@@ -15,6 +15,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as HistoryIdRouteImport } from './routes/history.$id'
 import { Route as ApiPublicLeadsStatusRouteImport } from './routes/api/public/leads.status'
 import { Route as ApiPublicLeadsStartRouteImport } from './routes/api/public/leads.start'
+import { Route as ApiPublicApifyRunsRouteImport } from './routes/api/public/apify.runs'
 
 const SearchRoute = SearchRouteImport.update({
   id: '/search',
@@ -46,12 +47,18 @@ const ApiPublicLeadsStartRoute = ApiPublicLeadsStartRouteImport.update({
   path: '/api/public/leads/start',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicApifyRunsRoute = ApiPublicApifyRunsRouteImport.update({
+  id: '/api/public/apify/runs',
+  path: '/api/public/apify/runs',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/history': typeof HistoryRouteWithChildren
   '/search': typeof SearchRoute
   '/history/$id': typeof HistoryIdRoute
+  '/api/public/apify/runs': typeof ApiPublicApifyRunsRoute
   '/api/public/leads/start': typeof ApiPublicLeadsStartRoute
   '/api/public/leads/status': typeof ApiPublicLeadsStatusRoute
 }
@@ -60,6 +67,7 @@ export interface FileRoutesByTo {
   '/history': typeof HistoryRouteWithChildren
   '/search': typeof SearchRoute
   '/history/$id': typeof HistoryIdRoute
+  '/api/public/apify/runs': typeof ApiPublicApifyRunsRoute
   '/api/public/leads/start': typeof ApiPublicLeadsStartRoute
   '/api/public/leads/status': typeof ApiPublicLeadsStatusRoute
 }
@@ -69,6 +77,7 @@ export interface FileRoutesById {
   '/history': typeof HistoryRouteWithChildren
   '/search': typeof SearchRoute
   '/history/$id': typeof HistoryIdRoute
+  '/api/public/apify/runs': typeof ApiPublicApifyRunsRoute
   '/api/public/leads/start': typeof ApiPublicLeadsStartRoute
   '/api/public/leads/status': typeof ApiPublicLeadsStatusRoute
 }
@@ -79,6 +88,7 @@ export interface FileRouteTypes {
     | '/history'
     | '/search'
     | '/history/$id'
+    | '/api/public/apify/runs'
     | '/api/public/leads/start'
     | '/api/public/leads/status'
   fileRoutesByTo: FileRoutesByTo
@@ -87,6 +97,7 @@ export interface FileRouteTypes {
     | '/history'
     | '/search'
     | '/history/$id'
+    | '/api/public/apify/runs'
     | '/api/public/leads/start'
     | '/api/public/leads/status'
   id:
@@ -95,6 +106,7 @@ export interface FileRouteTypes {
     | '/history'
     | '/search'
     | '/history/$id'
+    | '/api/public/apify/runs'
     | '/api/public/leads/start'
     | '/api/public/leads/status'
   fileRoutesById: FileRoutesById
@@ -103,6 +115,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   HistoryRoute: typeof HistoryRouteWithChildren
   SearchRoute: typeof SearchRoute
+  ApiPublicApifyRunsRoute: typeof ApiPublicApifyRunsRoute
   ApiPublicLeadsStartRoute: typeof ApiPublicLeadsStartRoute
   ApiPublicLeadsStatusRoute: typeof ApiPublicLeadsStatusRoute
 }
@@ -151,6 +164,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicLeadsStartRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/apify/runs': {
+      id: '/api/public/apify/runs'
+      path: '/api/public/apify/runs'
+      fullPath: '/api/public/apify/runs'
+      preLoaderRoute: typeof ApiPublicApifyRunsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -169,6 +189,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   HistoryRoute: HistoryRouteWithChildren,
   SearchRoute: SearchRoute,
+  ApiPublicApifyRunsRoute: ApiPublicApifyRunsRoute,
   ApiPublicLeadsStartRoute: ApiPublicLeadsStartRoute,
   ApiPublicLeadsStatusRoute: ApiPublicLeadsStatusRoute,
 }
