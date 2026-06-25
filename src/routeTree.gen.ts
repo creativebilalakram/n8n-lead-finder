@@ -9,9 +9,33 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SearchRouteImport } from './routes/search'
+import { Route as HistoryRouteImport } from './routes/history'
+import { Route as IndexRouteImport } from './routes/index'
+import { Route as HistoryIdRouteImport } from './routes/history.$id'
 import { Route as ApiPublicLeadsStatusRouteImport } from './routes/api/public/leads.status'
 import { Route as ApiPublicLeadsStartRouteImport } from './routes/api/public/leads.start'
 
+const SearchRoute = SearchRouteImport.update({
+  id: '/search',
+  path: '/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HistoryRoute = HistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HistoryIdRoute = HistoryIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => HistoryRoute,
+} as any)
 const ApiPublicLeadsStatusRoute = ApiPublicLeadsStatusRouteImport.update({
   id: '/api/public/leads/status',
   path: '/api/public/leads/status',
@@ -24,33 +48,95 @@ const ApiPublicLeadsStartRoute = ApiPublicLeadsStartRouteImport.update({
 } as any)
 
 export interface FileRoutesByFullPath {
+  '/': typeof IndexRoute
+  '/history': typeof HistoryRouteWithChildren
+  '/search': typeof SearchRoute
+  '/history/$id': typeof HistoryIdRoute
   '/api/public/leads/start': typeof ApiPublicLeadsStartRoute
   '/api/public/leads/status': typeof ApiPublicLeadsStatusRoute
 }
 export interface FileRoutesByTo {
+  '/': typeof IndexRoute
+  '/history': typeof HistoryRouteWithChildren
+  '/search': typeof SearchRoute
+  '/history/$id': typeof HistoryIdRoute
   '/api/public/leads/start': typeof ApiPublicLeadsStartRoute
   '/api/public/leads/status': typeof ApiPublicLeadsStatusRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
+  '/': typeof IndexRoute
+  '/history': typeof HistoryRouteWithChildren
+  '/search': typeof SearchRoute
+  '/history/$id': typeof HistoryIdRoute
   '/api/public/leads/start': typeof ApiPublicLeadsStartRoute
   '/api/public/leads/status': typeof ApiPublicLeadsStatusRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/api/public/leads/start' | '/api/public/leads/status'
+  fullPaths:
+    | '/'
+    | '/history'
+    | '/search'
+    | '/history/$id'
+    | '/api/public/leads/start'
+    | '/api/public/leads/status'
   fileRoutesByTo: FileRoutesByTo
-  to: '/api/public/leads/start' | '/api/public/leads/status'
-  id: '__root__' | '/api/public/leads/start' | '/api/public/leads/status'
+  to:
+    | '/'
+    | '/history'
+    | '/search'
+    | '/history/$id'
+    | '/api/public/leads/start'
+    | '/api/public/leads/status'
+  id:
+    | '__root__'
+    | '/'
+    | '/history'
+    | '/search'
+    | '/history/$id'
+    | '/api/public/leads/start'
+    | '/api/public/leads/status'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
+  IndexRoute: typeof IndexRoute
+  HistoryRoute: typeof HistoryRouteWithChildren
+  SearchRoute: typeof SearchRoute
   ApiPublicLeadsStartRoute: typeof ApiPublicLeadsStartRoute
   ApiPublicLeadsStatusRoute: typeof ApiPublicLeadsStatusRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/search': {
+      id: '/search'
+      path: '/search'
+      fullPath: '/search'
+      preLoaderRoute: typeof SearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/history': {
+      id: '/history'
+      path: '/history'
+      fullPath: '/history'
+      preLoaderRoute: typeof HistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/history/$id': {
+      id: '/history/$id'
+      path: '/$id'
+      fullPath: '/history/$id'
+      preLoaderRoute: typeof HistoryIdRouteImport
+      parentRoute: typeof HistoryRoute
+    }
     '/api/public/leads/status': {
       id: '/api/public/leads/status'
       path: '/api/public/leads/status'
@@ -68,7 +154,21 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface HistoryRouteChildren {
+  HistoryIdRoute: typeof HistoryIdRoute
+}
+
+const HistoryRouteChildren: HistoryRouteChildren = {
+  HistoryIdRoute: HistoryIdRoute,
+}
+
+const HistoryRouteWithChildren =
+  HistoryRoute._addFileChildren(HistoryRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
+  IndexRoute: IndexRoute,
+  HistoryRoute: HistoryRouteWithChildren,
+  SearchRoute: SearchRoute,
   ApiPublicLeadsStartRoute: ApiPublicLeadsStartRoute,
   ApiPublicLeadsStatusRoute: ApiPublicLeadsStatusRoute,
 }

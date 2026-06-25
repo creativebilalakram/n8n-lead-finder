@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useState, type KeyboardEvent } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -455,6 +455,3 @@ function EmptyState() {
     </div>
   );
 }
-
-import { Link as _link } from "@tanstack/react-router";
-void _link;

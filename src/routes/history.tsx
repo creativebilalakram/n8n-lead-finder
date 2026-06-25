@@ -1,4 +1,4 @@
-import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { ArrowRight, History as HistoryIcon, Trash2, Search } from "lucide-react";
 import { loadSearches, clearSearches, deleteSearch } from "@/lib/lead-store";
@@ -9,15 +9,8 @@ export const Route = createFileRoute("/history")({
   head: () => ({
     meta: [{ title: "History — LeadForge" }],
   }),
-  component: HistoryLayout,
+  component: HistoryListPage,
 });
-
-function HistoryLayout() {
-  const path = useRouterState({ select: (s) => s.location.pathname });
-  // If a child route (/history/$id) is active, render only its outlet
-  if (path !== "/history") return <Outlet />;
-  return <HistoryListPage />;
-}
 
 function HistoryListPage() {
   const [searches, setSearches] = useState<SearchRecord[]>([]);
