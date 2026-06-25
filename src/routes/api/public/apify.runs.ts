@@ -36,8 +36,33 @@ export const Route = createFileRoute("/api/public/apify/runs")({
           usageTotalUsd: r.usageTotalUsd as number | undefined,
           buildNumber: r.buildNumber as string | undefined,
         }));
+
+        // Fetch dataset itemCount in parallel so the UI can show output size.
+        await Promise.all(
+          runs.map(async (r) => {
+            if (!r.defaultDatasetId) return;
+            try {
+              const dRes = await fetch(
+                `https://api.apify.com/v2/datasets/${r.defaultDatasetId}?token=${token}`,
+              );
+              if (!dRes.ok) return;
+              const dJson = (await dRes.json()) as {
+                data?: { itemCount?: number; cleanItemCount?: number };
+              };
+              (r as ApifyRunOut).itemCount = dJson.data?.itemCount;
+              (r as ApifyRunOut).cleanItemCount = dJson.data?.cleanItemCount;
+            } catch {
+              // ignore per-run errors
+            }
+          }),
+        );
         return Response.json({ runs });
       },
     },
   },
 });
+
+type ApifyRunOut = {
+  itemCount?: number;
+  cleanItemCount?: number;
+};
