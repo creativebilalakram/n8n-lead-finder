@@ -55,8 +55,15 @@ export const Route = createFileRoute("/api/public/leads/status")({
             );
           }
           const items = (await dsRes.json()) as Record<string, unknown>[];
-          const leads = scoreLeads(items, cfg);
-          return Response.json({ status, leads, total: items.length });
+          const scored = scoreLeads(items, cfg);
+          const leads = scored.filter((l) => l.passed);
+          const filteredOut = scored.filter((l) => !l.passed);
+          return Response.json({
+            status,
+            leads,
+            filteredOut,
+            total: items.length,
+          });
         }
 
         if (
