@@ -19,6 +19,8 @@ type ApifyRun = {
   stats?: { inputBodyLen?: number; computeUnits?: number } & Record<string, unknown>;
   usageTotalUsd?: number;
   buildNumber?: string;
+  itemCount?: number;
+  cleanItemCount?: number;
 };
 
 function fmtDate(s?: string) {
@@ -172,6 +174,7 @@ function RunsPage() {
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">Started</th>
               <th className="px-4 py-3">Duration</th>
+              <th className="px-4 py-3">Leads</th>
               <th className="px-4 py-3">Run ID</th>
               <th className="px-4 py-3">Cost</th>
               <th className="px-4 py-3 text-right">Action</th>
@@ -180,7 +183,7 @@ function RunsPage() {
           <tbody className="divide-y divide-slate-100">
             {loading && runs.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-slate-500">
+                <td colSpan={7} className="px-4 py-10 text-center text-slate-500">
                   <Loader2 className="mx-auto h-5 w-5 animate-spin" />
                   <div className="mt-2">Loading runs…</div>
                 </td>
@@ -188,7 +191,7 @@ function RunsPage() {
             )}
             {!loading && runs.length === 0 && !error && (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-slate-500">
+                <td colSpan={7} className="px-4 py-10 text-center text-slate-500">
                   No runs found.
                 </td>
               </tr>
@@ -202,6 +205,15 @@ function RunsPage() {
                   <td className="px-4 py-3"><StatusBadge status={r.status} /></td>
                   <td className="px-4 py-3 text-slate-700">{fmtDate(r.startedAt)}</td>
                   <td className="px-4 py-3 text-slate-700">{durationMs(r.startedAt, r.finishedAt)}</td>
+                  <td className="px-4 py-3">
+                    {typeof r.itemCount === "number" ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-700">
+                        {r.itemCount} {r.itemCount === 1 ? "lead" : "leads"}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-slate-400">—</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 font-mono text-xs text-slate-500">{r.id}</td>
                   <td className="px-4 py-3 text-slate-700">
                     {typeof r.usageTotalUsd === "number" ? `$${r.usageTotalUsd.toFixed(4)}` : "—"}
