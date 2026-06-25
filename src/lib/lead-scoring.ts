@@ -175,9 +175,35 @@ export function scoreLeads(items: AnyRec[], cfg: ScoreConfig): AnyRec[] {
     else if (leadScore >= 50) tier = "Mild";
 
     const passesMainFilters = passesReviews && passesRating && activeOwner;
-    const keep = passesMainFilters || leadScore >= threshold;
+    const passed = passesMainFilters || leadScore >= threshold;
 
-    if (!keep) continue;
+    const rejectionReasons: string[] = [];
+    if (!passed) {
+      if (!passesReviews) {
+        rejectionReasons.push(
+          reviewsCount < cfg.reviewsMin
+            ? `reviews_too_low (${reviewsCount} < ${cfg.reviewsMin})`
+            : `reviews_too_high (${reviewsCount} > ${cfg.reviewsMax})`,
+        );
+      }
+      if (!passesRating) {
+        rejectionReasons.push(
+          totalScore < cfg.ratingMin
+            ? `rating_too_low (${totalScore} < ${cfg.ratingMin})`
+            : `rating_too_high (${totalScore} > ${cfg.ratingMax})`,
+        );
+      }
+      if (!activeOwner) {
+        rejectionReasons.push(
+          ownerDays === null
+            ? "no_owner_activity"
+            : `owner_inactive (${ownerDays}d > ${cfg.activeOwnerDays}d)`,
+        );
+      }
+      if (leadScore < threshold) {
+        rejectionReasons.push(`score_below_threshold (${leadScore} < ${threshold})`);
+      }
+    }
 
     const enriched: AnyRec = {
       ...j,
@@ -190,6 +216,8 @@ export function scoreLeads(items: AnyRec[], cfg: ScoreConfig): AnyRec[] {
       ownerUpdateAgeDays: ownerDays,
       leadReasons: reasons,
       redFlags,
+      passed,
+      rejectionReasons,
     };
 
     const prompt =
