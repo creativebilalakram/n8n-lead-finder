@@ -21,7 +21,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 
-const WEBHOOK_URL = "/api/leads";
+// Call n8n directly — the Cloudflare Worker proxy times out at ~100s,
+// but Apify scraping can run for several minutes. Browsers have no such
+// limit, and n8n.cloud webhooks return permissive CORS headers.
+const WEBHOOK_URL =
+  "https://creativebilalakram2.app.n8n.cloud/webhook/3aacc2c2-521b-4406-af35-4784f02ab2cd";
 const STORAGE_KEY = "lead-gen-results-v1";
 
 export const Route = createFileRoute("/")({
