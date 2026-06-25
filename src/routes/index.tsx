@@ -21,7 +21,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 
-const LEADS_API_URL = "/api/leads";
+const WEBHOOK_URL =
+  "https://creativebilalakram2.app.n8n.cloud/webhook/3aacc2c2-521b-4406-af35-4784f02ab2cd";
 const STORAGE_KEY = "lead-gen-results-v1";
 
 export const Route = createFileRoute("/")({
@@ -61,22 +62,6 @@ type Lead = {
   [k: string]: unknown;
 };
 
-type LeadSearchPayload = {
-  searchStringsArray: string[];
-  countryCode: string;
-  maxCrawledPlacesPerSearch: number;
-  reviewsMin: number;
-  reviewsMax: number;
-  ratingMin: number;
-  ratingMax: number;
-  activeOwnerDays: number;
-};
-
-type StreamEvent = {
-  event: string;
-  data: unknown;
-};
-
 const DEFAULT_KEYWORDS = [
   "Cosmetic Dentist in Frisco, Texas",
   "Med Spa in Naples, Florida",
@@ -93,7 +78,6 @@ function Index() {
   const [maxRating, setMaxRating] = useState(4.8);
   const [activeOwnerDays, setActiveOwnerDays] = useState(60);
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [progressMessage, setProgressMessage] = useState("");
 
   // Hydrate from localStorage
   useEffect(() => {
@@ -117,7 +101,7 @@ function Index() {
     mutationFn: async () => {
       const payload = {
         searchStringsArray: keywords,
-        countryCode: countryCode.trim().toLowerCase(),
+        countryCode,
         maxCrawledPlacesPerSearch: Number(maxPlaces),
         reviewsMin: Number(minReviews),
         reviewsMax: Number(maxReviews),
@@ -125,18 +109,27 @@ function Index() {
         ratingMax: Number(maxRating),
         activeOwnerDays: Number(activeOwnerDays),
       };
-      setProgressMessage("Starting n8n workflow…");
-      const data = await runLeadSearch(payload, setProgressMessage);
-      return normalizeLeads(data);
+      const res = await fetch(WEBHOOK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(`Webhook failed: ${res.status} ${res.statusText}`);
+      const data = await res.json();
+      // n8n may return array directly, or { data: [...] }, or single object
+      let arr: Lead[] = [];
+      if (Array.isArray(data)) arr = data;
+      else if (Array.isArray((data as { data?: unknown }).data))
+        arr = (data as { data: Lead[] }).data;
+      else if (data && typeof data === "object") arr = [data as Lead];
+      return arr;
     },
     onSuccess: (data) => {
       setLeads(data);
-      setProgressMessage("");
       if (!data.length) toast.warning("No leads returned. Try widening your filters.");
       else toast.success(`Found ${data.length} lead${data.length === 1 ? "" : "s"}.`);
     },
     onError: (err: Error) => {
-      setProgressMessage("");
       toast.error(err.message || "Something went wrong");
     },
   });
@@ -345,7 +338,7 @@ function Index() {
                   {mutation.isPending ? (
                     <>
                       <Loader2 className="h-5 w-5 animate-spin" />
-                      Waiting for n8n…
+                      Searching leads…
                     </>
                   ) : (
                     <>
@@ -356,11 +349,6 @@ function Index() {
                 </span>
               </Button>
             </div>
-            {mutation.isPending && progressMessage && (
-              <p className="text-right text-xs font-medium text-slate-500">
-                {progressMessage}
-              </p>
-            )}
           </div>
         </form>
 
@@ -406,194 +394,6 @@ function Index() {
       </div>
     </div>
   );
-}
-
-async function runLeadSearch(
-  payload: LeadSearchPayload,
-  onProgress: (message: string) => void,
-) {
-  const res = await fetch(LEADS_API_URL, {
-    method: "POST",
-    headers: {
-      Accept: "text/event-stream",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(
-      `Lead search failed: ${res.status} ${res.statusText}${text ? ` — ${text.slice(0, 250)}` : ""}`,
-    );
-  }
-
-  if (!res.body) {
-    const data = await res.json().catch(() => []);
-    return data;
-  }
-
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-
-    const parts = buffer.split("\n\n");
-    buffer = parts.pop() || "";
-
-    for (const part of parts) {
-      const evt = parseStreamEvent(part);
-      if (!evt) continue;
-
-      if (evt.event === "progress") {
-        const message = getStringField(evt.data, "message");
-        if (message) onProgress(message);
-      }
-
-      if (evt.event === "error") {
-        const message = getStringField(evt.data, "message") || "n8n returned an error.";
-        const details = getStringField(evt.data, "details");
-        throw new Error(details ? `${message} ${details.slice(0, 250)}` : message);
-      }
-
-      if (evt.event === "result") {
-        onProgress("Leads received. Preparing cards…");
-        if (isRecord(evt.data) && "data" in evt.data) return evt.data.data;
-        return evt.data;
-      }
-    }
-  }
-
-  throw new Error("n8n finished without returning lead data.");
-}
-
-function parseStreamEvent(chunk: string): StreamEvent | null {
-  const event = chunk
-    .split("\n")
-    .find((line) => line.startsWith("event:"))
-    ?.replace("event:", "")
-    .trim();
-  const dataLine = chunk
-    .split("\n")
-    .find((line) => line.startsWith("data:"))
-    ?.replace("data:", "")
-    .trim();
-
-  if (!event || !dataLine) return null;
-
-  try {
-    return { event, data: JSON.parse(dataLine) };
-  } catch {
-    return { event, data: dataLine };
-  }
-}
-
-function normalizeLeads(data: unknown): Lead[] {
-  const candidates = unwrapLeadCandidates(data);
-
-  return candidates
-    .map((lead) => normalizeLead(lead))
-    .filter((lead) =>
-      Boolean(
-        lead.title ||
-          lead.address ||
-          lead.phone ||
-          lead.phones?.length ||
-          lead.emails?.length ||
-          lead.website ||
-          lead.lovableUrl,
-      ),
-    );
-}
-
-function unwrapLeadCandidates(data: unknown): Lead[] {
-  if (Array.isArray(data)) {
-    return data.flatMap((item) => unwrapLeadCandidates(item));
-  }
-
-  if (!isRecord(data)) return [];
-
-  for (const key of ["data", "leads", "leadData", "results", "result", "items", "output"]) {
-    if (key in data) {
-      const unwrapped = unwrapLeadCandidates(data[key]);
-      if (unwrapped.length) return unwrapped;
-    }
-  }
-
-  if (isRecord(data.json)) {
-    const unwrapped = unwrapLeadCandidates(data.json);
-    if (unwrapped.length) return unwrapped;
-  }
-
-  return [data as Lead];
-}
-
-function normalizeLead(raw: Lead): Lead {
-  const title = firstString(raw.title, raw.name, raw.businessName, raw.placeName);
-  const phone = firstString(raw.phone, raw.phoneNumber, raw.primaryPhone);
-  const website = firstString(raw.website, raw.url, raw.site);
-  const lovableUrl = firstString(raw.lovableUrl, raw.lovable_url, raw.openInLovableUrl);
-  const emails = toStringArray(raw.emails ?? raw.email ?? raw.emailAddresses);
-  const phones = toStringArray(raw.phones ?? raw.phoneNumbers);
-  const redFlags = toStringArray(raw.redFlags ?? raw.red_flags);
-
-  return {
-    ...raw,
-    title,
-    categoryName: firstString(raw.categoryName, raw.category, raw.type),
-    address: firstString(raw.address, raw.fullAddress, raw.location),
-    phone,
-    phones: phones.length ? phones : phone ? [phone] : undefined,
-    emails,
-    website,
-    totalScore: toNumber(raw.totalScore ?? raw.rating ?? raw.stars),
-    reviewsCount: toNumber(raw.reviewsCount ?? raw.reviews ?? raw.reviewCount),
-    leadScore: toNumber(raw.leadScore ?? raw.score),
-    leadTier: firstString(raw.leadTier, raw.tier),
-    redFlags,
-    lovableUrl,
-  };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value && typeof value === "object" && !Array.isArray(value));
-}
-
-function firstString(...values: unknown[]) {
-  for (const value of values) {
-    if (typeof value === "string" && value.trim()) return value.trim();
-  }
-  return undefined;
-}
-
-function toStringArray(value: unknown) {
-  if (Array.isArray(value)) {
-    return value.filter((item): item is string => typeof item === "string" && Boolean(item.trim()));
-  }
-  if (typeof value === "string" && value.trim()) {
-    return value
-      .split(/[;,]/)
-      .map((item) => item.trim())
-      .filter(Boolean);
-  }
-  return [];
-}
-
-function toNumber(value: unknown) {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) {
-    return Number(value);
-  }
-  return undefined;
-}
-
-function getStringField(data: unknown, field: string) {
-  if (isRecord(data) && typeof data[field] === "string") return data[field];
-  return undefined;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
