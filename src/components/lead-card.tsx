@@ -14,7 +14,6 @@ import { Badge } from "@/components/ui/badge";
 import type { Lead } from "@/lib/lead-types";
 import { useEffect, useState } from "react";
 import { ensureOpenedLoaded, isClicked, leadKey, markClicked, subscribeClicked, toggleClicked } from "@/lib/clicked-leads";
-import { supabase } from "@/integrations/supabase/client";
 
 export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean }) {
   const key = leadKey(lead);
