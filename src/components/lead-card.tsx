@@ -47,7 +47,7 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
   };
 
   const openLovable = async () => {
-    const newTab = window.open("about:blank", "_blank", "noopener,noreferrer");
+    const newTab = window.open("", "_blank");
     if (!newTab) {
       toast.error("New tab was blocked", {
         description: "Please allow popups for this app and try again.",
