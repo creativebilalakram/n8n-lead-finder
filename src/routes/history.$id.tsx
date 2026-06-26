@@ -1,9 +1,11 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Filter, ChevronDown, ChevronUp, Flame, Loader2 } from "lucide-react";
 import { LeadCard } from "@/components/lead-card";
 import { getSearchRunDetail } from "@/lib/leads-db";
+import { applyFiltersToLead, useFilterSettings } from "@/lib/filter-settings";
+import type { Lead } from "@/lib/lead-types";
 
 export const Route = createFileRoute("/history/$id")({
   head: () => ({ meta: [{ title: "Search — LeadForge" }] }),
@@ -12,6 +14,7 @@ export const Route = createFileRoute("/history/$id")({
 
 function HistoryDetailPage() {
   const { id } = useParams({ from: "/history/$id" });
+  const [settings] = useFilterSettings();
   const [showFiltered, setShowFiltered] = useState(true);
   const { data: record, isLoading } = useQuery({
     queryKey: ["search_run", id],
@@ -45,7 +48,19 @@ function HistoryDetailPage() {
     );
   }
 
-  const tierCounts = record.leads.reduce<{ hot: number; warm: number; mild: number }>(
+  // Live re-evaluation: combine and re-split using current global filter settings.
+  const { liveLeads, liveFiltered } = useMemo(() => {
+    const all: Lead[] = [...record.leads, ...record.filteredOut].map((l) =>
+      applyFiltersToLead(l, settings),
+    );
+    const pass: Lead[] = [];
+    const fail: Lead[] = [];
+    for (const l of all) (l.passed ? pass : fail).push(l);
+    pass.sort((a, b) => (b.leadScore ?? 0) - (a.leadScore ?? 0));
+    return { liveLeads: pass, liveFiltered: fail };
+  }, [record, settings]);
+
+  const tierCounts = liveLeads.reduce<{ hot: number; warm: number; mild: number }>(
     (acc, l) => {
       const t = (l.leadTier || "").toLowerCase();
       if (t === "hot") acc.hot++;
@@ -72,16 +87,21 @@ function HistoryDetailPage() {
         <p className="mt-1 text-sm text-slate-500">
           {new Date(record.createdAt).toLocaleString()} · country{" "}
           <span className="font-medium uppercase">{record.params.countryCode}</span> · max{" "}
-          {record.params.maxPlaces} places · reviews {record.params.minReviews}–
-          {record.params.maxReviews} · rating {record.params.minRating}–
-          {record.params.maxRating} · owner ≤ {record.params.activeOwnerDays}d
+          {record.params.maxPlaces} places
+        </p>
+        <p className="mt-1 text-xs text-slate-400">
+          Live filters: reviews {settings.minReviews}–{settings.maxReviews} · rating{" "}
+          {settings.minRating}–{settings.maxRating} · owner ≤ {settings.activeOwnerDays}d ·{" "}
+          <Link to="/settings" className="font-semibold text-indigo-600 hover:underline">
+            adjust
+          </Link>
         </p>
       </div>
 
       <div className="mt-8">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-xl font-semibold text-slate-900">
-            {record.leads.length} qualified lead{record.leads.length === 1 ? "" : "s"}
+            {liveLeads.length} qualified lead{liveLeads.length === 1 ? "" : "s"}
           </h2>
           <div className="flex flex-wrap gap-2 text-xs">
             {tierCounts.hot > 0 && (
@@ -103,19 +123,19 @@ function HistoryDetailPage() {
           </div>
         </div>
 
-        {record.leads.length === 0 ? (
+        {liveLeads.length === 0 ? (
           <div className="rounded-3xl border border-dashed border-slate-300 bg-white/40 px-8 py-12 text-center backdrop-blur">
             <p className="text-sm text-slate-500">No leads passed the filters for this search.</p>
           </div>
         ) : (
           <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-            {record.leads.map((lead, i) => (
+            {liveLeads.map((lead, i) => (
               <LeadCard key={i} lead={lead} />
             ))}
           </div>
         )}
 
-        {record.filteredOut.length > 0 && (
+        {liveFiltered.length > 0 && (
           <div className="mt-14">
             <button
               type="button"
@@ -128,7 +148,7 @@ function HistoryDetailPage() {
                 </div>
                 <div>
                   <div className="text-sm font-semibold text-slate-900">
-                    {record.filteredOut.length} filtered out
+                    {liveFiltered.length} filtered out
                   </div>
                   <div className="text-xs text-slate-500">
                     Businesses that didn't pass your filters — see why
@@ -144,7 +164,7 @@ function HistoryDetailPage() {
 
             {showFiltered && (
               <div className="mt-5 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-                {record.filteredOut.map((lead, i) => (
+                {liveFiltered.map((lead, i) => (
                   <LeadCard key={i} lead={lead} muted />
                 ))}
               </div>
