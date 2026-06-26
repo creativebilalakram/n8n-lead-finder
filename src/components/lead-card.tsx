@@ -50,9 +50,6 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
     void markClicked(key).catch(() => {
       toast.error("Couldn't save opened status");
     });
-    // Pre-open a tab synchronously so popup blockers don't swallow it while
-    // we await the DB fetch.
-    const win = window.open("about:blank", "_blank", "noopener,noreferrer");
     let url = lead.lovableUrl;
     const leadId = typeof lead.id === "string" ? lead.id : undefined;
     try {
@@ -79,8 +76,24 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
         description: "Re-import this Apify run to include the full original business data.",
       });
     }
-    if (win) win.location.href = url;
-    else window.open(url, "_blank", "noopener,noreferrer");
+    // Open in a background tab (like Ctrl/Cmd+Click) so the user stays in this app.
+    const a = document.createElement("a");
+    a.href = url;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.style.display = "none";
+    document.body.appendChild(a);
+    const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
+    a.dispatchEvent(
+      new MouseEvent("click", {
+        bubbles: true,
+        cancelable: true,
+        view: window,
+        ctrlKey: !isMac,
+        metaKey: isMac,
+      }),
+    );
+    a.remove();
   };
 
   return (
