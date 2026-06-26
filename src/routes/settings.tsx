@@ -315,7 +315,7 @@ async function fetchAllLeadsLite(): Promise<Lead[]> {
 function AnalyticsPanel({ settings }: { settings: FilterSettings }) {
   useClickedSync();
   const { data: raw, isLoading, isError, error } = useQuery({
-    queryKey: ["analytics-all-leads-compact-v2"],
+    queryKey: ["analytics-all-leads-compact-v3"],
     queryFn: fetchAllLeadsLite,
     retry: 1,
   });

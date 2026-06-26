@@ -65,7 +65,7 @@ function AllLeadsPage() {
   const [view, setView] = useState<"qualified" | "filtered">("qualified");
 
   const { data: rawLeads, isLoading, isError, error } = useQuery({
-    queryKey: ["all-leads-compact-v2"],
+    queryKey: ["all-leads-compact-v3"],
     queryFn: fetchAllLeads,
     retry: 1,
   });
