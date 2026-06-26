@@ -46,41 +46,24 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
     return "https://lovable.dev/?autosubmit=true#prompt=" + encodeURIComponent(prompt);
   };
 
-  const openLovable = async () => {
+  // Compute the target URL synchronously so the click can open a real new
+  // tab without any await (awaiting first causes popup blockers to drop the
+  // window, which made the page appear to redirect instead of opening a tab).
+  const computeUrl = (): string => {
+    if (lead.lovableUrl) return lead.lovableUrl;
+    const fallback: Record<string, unknown> = { ...lead };
+    delete (fallback as Record<string, unknown>).lovableUrl;
+    return buildPromptUrl(fallback);
+  };
+
+  const onOpen = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    // Let the browser open the href in a new tab natively. We only persist
+    // the "opened" state — never preventDefault, never navigate this tab.
     void markClicked(key).catch(() => {
       toast.error("Couldn't save opened status");
     });
-    // Pre-open a tab synchronously so popup blockers don't swallow it while
-    // we await the DB fetch.
-    const win = window.open("about:blank", "_blank", "noopener,noreferrer");
-    let url = lead.lovableUrl;
-    const leadId = typeof lead.id === "string" ? lead.id : undefined;
-    try {
-      if (!url && leadId) {
-        const { data, error } = await supabase
-          .from("leads")
-          .select("raw, lovable_url")
-          .eq("id", leadId)
-          .maybeSingle();
-        if (!error && data) {
-          if (data.lovable_url) url = data.lovable_url;
-          else if (data.raw) url = buildPromptUrl(data.raw);
-        }
-      }
-    } catch {
-      // ignore — fall through to compact fallback
-    }
-    if (!url) {
-      // Legacy rows without `raw`. Build from every field we have on the lead.
-      const fallback: Record<string, unknown> = { ...lead };
-      delete (fallback as Record<string, unknown>).lovableUrl;
-      url = buildPromptUrl(fallback);
-      toast.message("Using compact payload", {
-        description: "Re-import this Apify run to include the full original business data.",
-      });
-    }
-    if (win) win.location.href = url;
-    else window.open(url, "_blank", "noopener,noreferrer");
+    // Don't call e.preventDefault(); the <a target="_blank"> handles the tab.
+    void e;
   };
 
   return (
