@@ -104,6 +104,7 @@ function SearchPage() {
         };
         if (sJson.status === "SUCCEEDED") {
           return {
+            runId,
             leads: sJson.leads ?? [],
             filteredOut: sJson.filteredOut ?? [],
             total: sJson.total ?? 0,
