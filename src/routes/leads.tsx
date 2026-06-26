@@ -61,25 +61,33 @@ function AllLeadsPage() {
   const [q, setQ] = useState("");
   const [tier, setTier] = useState<"all" | "hot" | "warm" | "mild" | "cold">("all");
   const [onlyUnopened, setOnlyUnopened] = useState(false);
+  const [view, setView] = useState<"qualified" | "filtered">("qualified");
 
   const { data: rawLeads, isLoading } = useQuery({
     queryKey: ["all-leads-raw"],
     queryFn: fetchAllLeads,
   });
 
-  // Re-evaluate against current filter settings (live), then dedupe qualified.
-  const leads = useMemo(() => {
-    if (!rawLeads) return undefined;
+  // Re-evaluate against current filter settings (live), then dedupe both sets.
+  const { qualified, filteredOut } = useMemo(() => {
+    if (!rawLeads) return { qualified: undefined as Lead[] | undefined, filteredOut: undefined as Lead[] | undefined };
     const evaluated = rawLeads.map((l) => applyFiltersToLead(l, settings));
-    const qualified = evaluated.filter((l) => l.passed);
-    const map = new Map<string, Lead>();
-    for (const l of qualified) {
-      const k = leadKey(l);
-      const existing = map.get(k);
-      if (!existing || (l.leadScore ?? 0) > (existing.leadScore ?? 0)) map.set(k, l);
-    }
-    return [...map.values()].sort((a, b) => (b.leadScore ?? 0) - (a.leadScore ?? 0));
+    const dedupe = (arr: Lead[]) => {
+      const map = new Map<string, Lead>();
+      for (const l of arr) {
+        const k = leadKey(l);
+        const existing = map.get(k);
+        if (!existing || (l.leadScore ?? 0) > (existing.leadScore ?? 0)) map.set(k, l);
+      }
+      return [...map.values()].sort((a, b) => (b.leadScore ?? 0) - (a.leadScore ?? 0));
+    };
+    return {
+      qualified: dedupe(evaluated.filter((l) => l.passed)),
+      filteredOut: dedupe(evaluated.filter((l) => !l.passed)),
+    };
   }, [rawLeads, settings]);
+
+  const leads = view === "qualified" ? qualified : filteredOut;
 
   const filtered = useMemo(() => {
     if (!leads) return [];
@@ -123,13 +131,34 @@ function AllLeadsPage() {
         </div>
         <div className="flex flex-wrap gap-2 text-xs">
           <span className="rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-700 ring-1 ring-slate-200">
-            {leads?.length ?? 0} total
+            {(qualified?.length ?? 0)} qualified · {(filteredOut?.length ?? 0)} filtered
           </span>
           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-3 py-1 font-medium text-emerald-700 ring-1 ring-emerald-200">
             <Check className="h-3 w-3" />
             {openedCount} opened
           </span>
         </div>
+      </div>
+
+      <div className="mt-6 inline-flex rounded-xl border border-slate-200 bg-white/70 p-1 backdrop-blur">
+        <button
+          type="button"
+          onClick={() => setView("qualified")}
+          className={`rounded-lg px-4 py-1.5 text-sm font-semibold transition ${
+            view === "qualified" ? "bg-slate-900 text-white shadow" : "text-slate-600 hover:bg-slate-50"
+          }`}
+        >
+          Qualified ({qualified?.length ?? 0})
+        </button>
+        <button
+          type="button"
+          onClick={() => setView("filtered")}
+          className={`rounded-lg px-4 py-1.5 text-sm font-semibold transition ${
+            view === "filtered" ? "bg-slate-900 text-white shadow" : "text-slate-600 hover:bg-slate-50"
+          }`}
+        >
+          Filtered Out ({filteredOut?.length ?? 0})
+        </button>
       </div>
 
       <div className="mt-6 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3 backdrop-blur">
