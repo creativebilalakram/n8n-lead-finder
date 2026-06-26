@@ -330,13 +330,18 @@ function AnalyticsPanel({ settings }: { settings: FilterSettings }) {
     if (!raw) return null;
     // dedupe by leadKey, keep highest score
     const map = new Map<string, Lead>();
+    const counts = new Map<string, number>();
     for (const l of raw) {
       const k = leadKey(l);
       const ex = map.get(k);
       if (!ex || (l.leadScore ?? 0) > (ex.leadScore ?? 0)) map.set(k, l);
+      counts.set(k, (counts.get(k) ?? 0) + 1);
     }
     const leads = [...map.values()];
     const total = leads.length;
+    const rawTotal = raw.length;
+    const duplicates = rawTotal - total;
+    const dupGroups = [...counts.values()].filter((n) => n > 1).length;
     let qualified = 0;
     let revFail = 0;
     let ratFail = 0;
@@ -376,6 +381,9 @@ function AnalyticsPanel({ settings }: { settings: FilterSettings }) {
     const topCountries = [...countries.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
     return {
       total,
+      rawTotal,
+      duplicates,
+      dupGroups,
       qualified,
       filtered: total - qualified,
       revFail,
