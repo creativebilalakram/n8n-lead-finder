@@ -19,6 +19,7 @@ function pickArr<T = unknown>(v: unknown): T[] | undefined {
 function leadToRow(lead: Lead, searchRunId: string, apifyRunId: string | null) {
   const emails = pickArr<string>(lead.emails);
   const phones = pickArr<string>(lead.phones);
+  const ownerUpdateAgeDays = pickNum((lead as Record<string, unknown>).ownerUpdateAgeDays);
   return {
     search_run_id: searchRunId,
     apify_run_id: apifyRunId,
@@ -41,6 +42,7 @@ function leadToRow(lead: Lead, searchRunId: string, apifyRunId: string | null) {
     passed: Boolean(lead.passed),
     rejection_reasons: (pickArr(lead.rejectionReasons) as Json) ?? null,
     lovable_url: pickStr(lead.lovableUrl) ?? null,
+    owner_update_age_days: ownerUpdateAgeDays ?? null,
     raw: lead as unknown as Json,
   };
 }
@@ -164,7 +166,9 @@ export async function getSearchRunDetail(
 
   const { data: rows, error: lErr } = await supabase
     .from("leads")
-    .select("*")
+    .select(
+      "id, place_id, title, category, address, city, country_code, phone, phones, email, emails, website, rating, reviews_count, lead_score, lead_tier, red_flags, passed, rejection_reasons, lovable_url, owner_update_age_days",
+    )
     .eq("search_run_id", id)
     .order("lead_score", { ascending: false, nullsFirst: false });
   if (lErr) throw lErr;
@@ -172,25 +176,28 @@ export async function getSearchRunDetail(
   const leads: Lead[] = [];
   const filteredOut: Lead[] = [];
   for (const r of rows ?? []) {
-    const raw = (r.raw as Record<string, unknown> | null) ?? {};
     const lead: Lead = {
-      ...raw,
-      title: r.title ?? raw.title as string | undefined,
-      categoryName: r.category ?? raw.categoryName as string | undefined,
-      address: r.address ?? raw.address as string | undefined,
-      phone: r.phone ?? raw.phone as string | undefined,
-      phones: (r.phones as string[] | null) ?? (raw.phones as string[] | undefined),
-      email: r.email ?? raw.email as string | undefined,
-      emails: (r.emails as string[] | null) ?? (raw.emails as string[] | undefined),
-      website: r.website ?? raw.website as string | undefined,
-      totalScore: r.rating ?? (raw.totalScore as number | undefined),
-      reviewsCount: r.reviews_count ?? (raw.reviewsCount as number | undefined),
-      leadScore: r.lead_score ?? (raw.leadScore as number | undefined),
-      leadTier: r.lead_tier ?? (raw.leadTier as string | undefined),
-      redFlags: (r.red_flags as string[] | null) ?? (raw.redFlags as string[] | undefined),
-      lovableUrl: r.lovable_url ?? (raw.lovableUrl as string | undefined),
+      id: r.id,
+      placeId: r.place_id ?? undefined,
+      title: r.title ?? undefined,
+      categoryName: r.category ?? undefined,
+      address: r.address ?? undefined,
+      city: r.city ?? undefined,
+      countryCode: r.country_code ?? undefined,
+      phone: r.phone ?? undefined,
+      phones: (r.phones as string[] | null) ?? undefined,
+      email: r.email ?? undefined,
+      emails: (r.emails as string[] | null) ?? undefined,
+      website: r.website ?? undefined,
+      totalScore: r.rating ?? undefined,
+      reviewsCount: r.reviews_count ?? undefined,
+      leadScore: r.lead_score ?? undefined,
+      leadTier: r.lead_tier ?? undefined,
+      redFlags: (r.red_flags as string[] | null) ?? undefined,
+      lovableUrl: r.lovable_url ?? undefined,
+      ownerUpdateAgeDays: r.owner_update_age_days ?? undefined,
       passed: r.passed,
-      rejectionReasons: (r.rejection_reasons as string[] | null) ?? (raw.rejectionReasons as string[] | undefined),
+      rejectionReasons: (r.rejection_reasons as string[] | null) ?? undefined,
     };
     if (r.passed) leads.push(lead);
     else filteredOut.push(lead);

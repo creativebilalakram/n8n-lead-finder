@@ -248,24 +248,26 @@ async function fetchAllLeadsLite(): Promise<Lead[]> {
   while (true) {
     const { data, error } = await supabase
       .from("leads")
-      .select("*")
+      .select(
+        "id, place_id, title, category, country_code, website, emails, rating, reviews_count, lead_score, lead_tier, owner_update_age_days",
+      )
       .range(from, from + PAGE - 1);
     if (error) throw error;
     const rows = data ?? [];
     for (const r of rows) {
-      const raw = (r.raw as Record<string, unknown> | null) ?? {};
       out.push({
-        ...raw,
-        title: r.title ?? (raw.title as string | undefined),
-        categoryName: r.category ?? (raw.categoryName as string | undefined),
-        countryCode: (r.country_code as string | null) ?? (raw.countryCode as string | undefined),
-        totalScore: r.rating ?? (raw.totalScore as number | undefined),
-        reviewsCount: r.reviews_count ?? (raw.reviewsCount as number | undefined),
-        leadScore: r.lead_score ?? (raw.leadScore as number | undefined),
-        leadTier: r.lead_tier ?? (raw.leadTier as string | undefined),
-        emails: (r.emails as string[] | null) ?? (raw.emails as string[] | undefined),
-        website: r.website ?? (raw.website as string | undefined),
-        placeId: r.place_id ?? (raw.placeId as string | undefined),
+        id: r.id,
+        title: r.title ?? undefined,
+        categoryName: r.category ?? undefined,
+        countryCode: r.country_code ?? undefined,
+        totalScore: r.rating ?? undefined,
+        reviewsCount: r.reviews_count ?? undefined,
+        leadScore: r.lead_score ?? undefined,
+        leadTier: r.lead_tier ?? undefined,
+        emails: (r.emails as string[] | null) ?? undefined,
+        website: r.website ?? undefined,
+        placeId: r.place_id ?? undefined,
+        ownerUpdateAgeDays: r.owner_update_age_days ?? undefined,
       } as Lead);
     }
     if (rows.length < PAGE) break;
