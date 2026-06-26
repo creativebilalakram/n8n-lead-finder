@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+
 const KEY = "lead-gen-clicked-v1";
 
 function read(): Set<string> {
@@ -59,9 +61,6 @@ export function subscribeClicked(cb: () => void): () => void {
 }
 
 export function useClickedSync(): number {
-  // returns a tick number that increments on changes; consumers re-read state
-  // (kept tiny to avoid extra deps)
-  const { useEffect, useState } = require("react") as typeof import("react");
   const [tick, setTick] = useState(0);
   useEffect(() => subscribeClicked(() => setTick((t) => t + 1)), []);
   return tick;
