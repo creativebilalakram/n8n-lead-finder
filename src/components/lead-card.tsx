@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import type { Lead } from "@/lib/lead-types";
 import { isClicked, leadKey, markClicked, toggleClicked, useClickedSync } from "@/lib/clicked-leads";
+import { supabase } from "@/integrations/supabase/client";
 
 export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean }) {
   useClickedSync();
@@ -31,32 +32,45 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
   const phone = lead.phone || lead.phones?.[0];
   const email = lead.emails?.[0] || (typeof lead.email === "string" ? lead.email : undefined);
 
-  const getLovableUrl = () => {
-    if (lead.lovableUrl) return lead.lovableUrl;
-    const compactLead = {
-      businessName: lead.title,
-      category: lead.categoryName,
-      address: lead.address,
-      city: lead.city,
-      countryCode: lead.countryCode,
-      phone,
-      email,
-      website: lead.website,
-      rating: lead.totalScore,
-      reviews: lead.reviewsCount,
-      leadScore: lead.leadScore,
-      leadTier: lead.leadTier,
-      redFlags: lead.redFlags,
-    };
+  const buildPromptUrl = (payload: unknown) => {
     const prompt =
-      "Create a premium, modern, and highly trustworthy website for this local business lead:\n\n" +
-      JSON.stringify(compactLead, null, 2);
+      "Create a premium, modern, and highly trustworthy website by using the same flow in your instructions for\n\n" +
+      JSON.stringify(payload, null, 2);
     return "https://lovable.dev/?autosubmit=true#prompt=" + encodeURIComponent(prompt);
   };
 
-  const openLovable = () => {
+  const openLovable = async () => {
     markClicked(key);
-    window.open(getLovableUrl(), "_blank", "noopener,noreferrer");
+    // Pre-open a tab synchronously so popup blockers don't swallow it while
+    // we await the DB fetch.
+    const win = window.open("about:blank", "_blank", "noopener,noreferrer");
+    let url = lead.lovableUrl;
+    try {
+      if (!url && lead.id) {
+        const { data, error } = await supabase
+          .from("leads")
+          .select("raw, lovable_url")
+          .eq("id", lead.id)
+          .maybeSingle();
+        if (!error && data) {
+          if (data.lovable_url) url = data.lovable_url;
+          else if (data.raw) url = buildPromptUrl(data.raw);
+        }
+      }
+    } catch {
+      // ignore — fall through to compact fallback
+    }
+    if (!url) {
+      // Legacy rows without `raw`. Build from every field we have on the lead.
+      const fallback: Record<string, unknown> = { ...lead };
+      delete (fallback as Record<string, unknown>).lovableUrl;
+      url = buildPromptUrl(fallback);
+      toast.message("Using compact payload", {
+        description: "Re-import this Apify run to include the full original business data.",
+      });
+    }
+    if (win) win.location.href = url;
+    else window.open(url, "_blank", "noopener,noreferrer");
   };
 
   return (
