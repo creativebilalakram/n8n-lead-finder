@@ -47,8 +47,12 @@ async function loadOpened(): Promise<void> {
   return loadingPromise;
 }
 
-export function leadKey(lead: { id?: unknown }): string {
-  return typeof lead.id === "string" ? lead.id : "";
+export function leadKey(lead: unknown): string {
+  if (lead && typeof lead === "object" && "id" in lead) {
+    const id = (lead as { id?: unknown }).id;
+    return typeof id === "string" ? id : "";
+  }
+  return "";
 }
 
 export function isClicked(key: string): boolean {
