@@ -45,12 +45,13 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
     // we await the DB fetch.
     const win = window.open("about:blank", "_blank", "noopener,noreferrer");
     let url = lead.lovableUrl;
+    const leadId = typeof lead.id === "string" ? lead.id : undefined;
     try {
-      if (!url && lead.id) {
+      if (!url && leadId) {
         const { data, error } = await supabase
           .from("leads")
           .select("raw, lovable_url")
-          .eq("id", lead.id)
+          .eq("id", leadId)
           .maybeSingle();
         if (!error && data) {
           if (data.lovable_url) url = data.lovable_url;
