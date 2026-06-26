@@ -1,9 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import { Settings as SettingsIcon, RotateCcw, Check } from "lucide-react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import {
+  Settings as SettingsIcon,
+  RotateCcw,
+  Check,
+  BarChart3,
+  SlidersHorizontal,
+  Loader2,
+} from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import type { Lead } from "@/lib/lead-types";
+import { isClicked, leadKey, useClickedSync } from "@/lib/clicked-leads";
 import {
   DEFAULT_FILTERS,
   type FilterSettings,
+  evaluateLead,
   useFilterSettings,
 } from "@/lib/filter-settings";
 
@@ -13,6 +25,7 @@ export const Route = createFileRoute("/settings")({
 });
 
 function SettingsPage() {
+  const [tab, setTab] = useState<"filters" | "analytics">("filters");
   const [settings, setSettings] = useFilterSettings();
   const [draft, setDraft] = useState<FilterSettings>(settings);
   const [saved, setSaved] = useState(false);
@@ -43,17 +56,41 @@ function SettingsPage() {
     <div className="mx-auto max-w-3xl px-4 py-10 sm:py-12">
       <div className="inline-flex items-center gap-2 rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-200">
         <SettingsIcon className="h-3.5 w-3.5" />
-        Filter Settings
+        Settings
       </div>
       <h1 className="mt-3 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-        Global qualification filters
+        Filters & Analytics
       </h1>
       <p className="mt-1 text-sm text-slate-500">
-        These filters decide which leads count as <span className="font-semibold">qualified</span>{" "}
-        across the whole app. Changes apply live to every lead — past imports too.
+        Adjust global qualification filters and review live analytics across every lead in your
+        workspace.
       </p>
 
-      <div className="mt-8 space-y-5 rounded-3xl border border-slate-200 bg-white/70 p-6 shadow-sm backdrop-blur">
+      <div className="mt-6 inline-flex rounded-xl border border-slate-200 bg-white/70 p-1 backdrop-blur">
+        <button
+          type="button"
+          onClick={() => setTab("filters")}
+          className={`inline-flex items-center gap-2 rounded-lg px-4 py-1.5 text-sm font-semibold transition ${
+            tab === "filters" ? "bg-slate-900 text-white shadow" : "text-slate-600 hover:bg-slate-50"
+          }`}
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5" /> Filters
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("analytics")}
+          className={`inline-flex items-center gap-2 rounded-lg px-4 py-1.5 text-sm font-semibold transition ${
+            tab === "analytics" ? "bg-slate-900 text-white shadow" : "text-slate-600 hover:bg-slate-50"
+          }`}
+        >
+          <BarChart3 className="h-3.5 w-3.5" /> Analytics
+        </button>
+      </div>
+
+      {tab === "analytics" ? (
+        <AnalyticsPanel settings={settings} />
+      ) : (
+      <div className="mt-6 space-y-5 rounded-3xl border border-slate-200 bg-white/70 p-6 shadow-sm backdrop-blur">
         <Pair
           label="Reviews count"
           help="Lead must have between X and Y reviews."
@@ -122,11 +159,14 @@ function SettingsPage() {
           </span>
         </div>
       </div>
+      )}
 
+      {tab === "filters" ? (
       <p className="mt-6 text-xs text-slate-500">
         Tip: <span className="font-medium">Hot / Warm / Mild / Cold</span> tier is based on the
         full lead score and is independent of these filters — it never hides a lead.
       </p>
+      ) : null}
     </div>
   );
 }
@@ -196,5 +236,352 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
         }`}
       />
     </button>
+  );
+}
+
+// ---------- Analytics ----------
+
+async function fetchAllLeadsLite(): Promise<Lead[]> {
+  const PAGE = 1000;
+  let from = 0;
+  const out: Lead[] = [];
+  while (true) {
+    const { data, error } = await supabase
+      .from("leads")
+      .select("*")
+      .range(from, from + PAGE - 1);
+    if (error) throw error;
+    const rows = data ?? [];
+    for (const r of rows) {
+      const raw = (r.raw as Record<string, unknown> | null) ?? {};
+      out.push({
+        ...raw,
+        title: r.title ?? (raw.title as string | undefined),
+        categoryName: r.category ?? (raw.categoryName as string | undefined),
+        countryCode: (r.country_code as string | null) ?? (raw.countryCode as string | undefined),
+        totalScore: r.rating ?? (raw.totalScore as number | undefined),
+        reviewsCount: r.reviews_count ?? (raw.reviewsCount as number | undefined),
+        leadScore: r.lead_score ?? (raw.leadScore as number | undefined),
+        leadTier: r.lead_tier ?? (raw.leadTier as string | undefined),
+        emails: (r.emails as string[] | null) ?? (raw.emails as string[] | undefined),
+        website: r.website ?? (raw.website as string | undefined),
+        placeId: r.place_id ?? (raw.placeId as string | undefined),
+      } as Lead);
+    }
+    if (rows.length < PAGE) break;
+    from += PAGE;
+  }
+  return out;
+}
+
+function AnalyticsPanel({ settings }: { settings: FilterSettings }) {
+  useClickedSync();
+  const { data: raw, isLoading } = useQuery({
+    queryKey: ["analytics-all-leads"],
+    queryFn: fetchAllLeadsLite,
+  });
+  const { data: runs } = useQuery({
+    queryKey: ["analytics-runs-count"],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("search_runs")
+        .select("*", { count: "exact", head: true });
+      return count ?? 0;
+    },
+  });
+
+  const stats = useMemo(() => {
+    if (!raw) return null;
+    // dedupe by leadKey, keep highest score
+    const map = new Map<string, Lead>();
+    for (const l of raw) {
+      const k = leadKey(l);
+      const ex = map.get(k);
+      if (!ex || (l.leadScore ?? 0) > (ex.leadScore ?? 0)) map.set(k, l);
+    }
+    const leads = [...map.values()];
+    const total = leads.length;
+    let qualified = 0;
+    let revFail = 0;
+    let ratFail = 0;
+    let ownFail = 0;
+    const tiers = { hot: 0, warm: 0, mild: 0, cold: 0 } as Record<string, number>;
+    const cats = new Map<string, number>();
+    const countries = new Map<string, number>();
+    let withEmail = 0;
+    let withWebsite = 0;
+    let opened = 0;
+    let ratingSum = 0;
+    let ratingN = 0;
+    let reviewsSum = 0;
+
+    for (const l of leads) {
+      const e = evaluateLead(l, settings);
+      if (e.passed) qualified++;
+      if (!e.passesReviews) revFail++;
+      if (!e.passesRating) ratFail++;
+      if (!e.activeOwner) ownFail++;
+      const t = (l.leadTier || "").toLowerCase();
+      if (t in tiers) tiers[t]++;
+      const c = (l.categoryName || "Unknown").trim();
+      cats.set(c, (cats.get(c) ?? 0) + 1);
+      const cc = ((l as Record<string, unknown>).countryCode as string | undefined) || "—";
+      countries.set(cc, (countries.get(cc) ?? 0) + 1);
+      if ((l.emails ?? []).length) withEmail++;
+      if (l.website) withWebsite++;
+      if (isClicked(leadKey(l))) opened++;
+      if (typeof l.totalScore === "number") {
+        ratingSum += l.totalScore;
+        ratingN++;
+      }
+      if (typeof l.reviewsCount === "number") reviewsSum += l.reviewsCount;
+    }
+    const topCats = [...cats.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const topCountries = [...countries.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+    return {
+      total,
+      qualified,
+      filtered: total - qualified,
+      revFail,
+      ratFail,
+      ownFail,
+      tiers,
+      topCats,
+      topCountries,
+      withEmail,
+      withWebsite,
+      opened,
+      avgRating: ratingN ? ratingSum / ratingN : 0,
+      avgReviews: total ? reviewsSum / total : 0,
+    };
+  }, [raw, settings]);
+
+  if (isLoading || !stats) {
+    return (
+      <div className="mt-6 rounded-3xl border border-slate-200 bg-white/70 p-10 text-center backdrop-blur">
+        <Loader2 className="mx-auto h-6 w-6 animate-spin text-slate-400" />
+        <div className="mt-2 text-sm text-slate-500">Crunching analytics…</div>
+      </div>
+    );
+  }
+
+  const pct = (n: number) => (stats.total ? Math.round((n / stats.total) * 1000) / 10 : 0);
+
+  return (
+    <div className="mt-6 space-y-5">
+      {/* Hero qualification card */}
+      <div className="overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-indigo-600 to-fuchsia-600 p-6 text-white shadow-md">
+        <div className="text-xs font-semibold uppercase tracking-wider text-white/80">
+          Qualification rate
+        </div>
+        <div className="mt-1 flex flex-wrap items-end gap-3">
+          <div className="text-5xl font-bold">{pct(stats.qualified)}%</div>
+          <div className="text-sm text-white/85">
+            {stats.qualified} qualified out of {stats.total} leads
+          </div>
+        </div>
+        <div className="mt-4 h-2.5 w-full overflow-hidden rounded-full bg-white/20">
+          <div
+            className="h-full bg-white"
+            style={{ width: `${pct(stats.qualified)}%` }}
+          />
+        </div>
+        <div className="mt-3 flex flex-wrap gap-4 text-xs text-white/85">
+          <span>✅ {stats.qualified} qualified</span>
+          <span>🚫 {stats.filtered} filtered out</span>
+          <span>📦 {runs ?? 0} total runs</span>
+        </div>
+      </div>
+
+      {/* Per-filter rejection breakdown */}
+      <div className="rounded-3xl border border-slate-200 bg-white/70 p-6 backdrop-blur">
+        <h3 className="text-sm font-bold text-slate-900">Filtered-out by reason</h3>
+        <p className="text-xs text-slate-500">
+          A lead can be rejected by more than one filter — counts may overlap.
+        </p>
+        <div className="mt-4 space-y-3">
+          <RejBar
+            label="Reviews"
+            sub={
+              settings.reviewsEnabled
+                ? `outside ${settings.minReviews}–${settings.maxReviews}`
+                : "disabled"
+            }
+            count={stats.revFail}
+            total={stats.total}
+            color="bg-rose-500"
+          />
+          <RejBar
+            label="Rating"
+            sub={
+              settings.ratingEnabled
+                ? `outside ${settings.minRating}–${settings.maxRating}`
+                : "disabled"
+            }
+            count={stats.ratFail}
+            total={stats.total}
+            color="bg-amber-500"
+          />
+          <RejBar
+            label="Active owner"
+            sub={
+              settings.ownerEnabled ? `> ${settings.activeOwnerDays}d inactive` : "disabled"
+            }
+            count={stats.ownFail}
+            total={stats.total}
+            color="bg-sky-500"
+          />
+        </div>
+      </div>
+
+      {/* Stat tiles */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Tile label="Avg rating" value={stats.avgRating.toFixed(2)} sub="across all leads" />
+        <Tile label="Avg reviews" value={Math.round(stats.avgReviews).toString()} sub="per lead" />
+        <Tile
+          label="With email"
+          value={`${stats.withEmail}`}
+          sub={`${pct(stats.withEmail)}% of leads`}
+        />
+        <Tile
+          label="With website"
+          value={`${stats.withWebsite}`}
+          sub={`${pct(stats.withWebsite)}% of leads`}
+        />
+      </div>
+
+      {/* Tier breakdown */}
+      <div className="rounded-3xl border border-slate-200 bg-white/70 p-6 backdrop-blur">
+        <h3 className="text-sm font-bold text-slate-900">Tier distribution</h3>
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {(["hot", "warm", "mild", "cold"] as const).map((t) => {
+            const color =
+              t === "hot"
+                ? "from-rose-500 to-orange-500"
+                : t === "warm"
+                  ? "from-amber-500 to-yellow-500"
+                  : t === "mild"
+                    ? "from-sky-500 to-cyan-500"
+                    : "from-slate-500 to-slate-700";
+            return (
+              <div
+                key={t}
+                className={`rounded-2xl bg-gradient-to-br ${color} p-4 text-white shadow-sm`}
+              >
+                <div className="text-xs font-semibold uppercase tracking-wide opacity-90">
+                  {t}
+                </div>
+                <div className="mt-1 text-2xl font-bold">{stats.tiers[t]}</div>
+                <div className="text-[11px] opacity-90">{pct(stats.tiers[t])}% of all</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Engagement + top lists */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="rounded-3xl border border-slate-200 bg-white/70 p-6 backdrop-blur">
+          <h3 className="text-sm font-bold text-slate-900">Outreach progress</h3>
+          <div className="mt-3 flex items-end gap-3">
+            <div className="text-4xl font-bold text-emerald-600">{stats.opened}</div>
+            <div className="pb-1 text-xs text-slate-500">
+              opened in Lovable · {pct(stats.opened)}% of all leads
+            </div>
+          </div>
+          <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+            <div
+              className="h-full bg-emerald-500"
+              style={{ width: `${pct(stats.opened)}%` }}
+            />
+          </div>
+        </div>
+        <TopList title="Top categories" rows={stats.topCats} total={stats.total} />
+      </div>
+
+      <TopList title="Top countries" rows={stats.topCountries} total={stats.total} />
+    </div>
+  );
+}
+
+function RejBar({
+  label,
+  sub,
+  count,
+  total,
+  color,
+}: {
+  label: string;
+  sub: string;
+  count: number;
+  total: number;
+  color: string;
+}) {
+  const pct = total ? Math.round((count / total) * 1000) / 10 : 0;
+  return (
+    <div>
+      <div className="flex items-baseline justify-between text-xs">
+        <div>
+          <span className="font-semibold text-slate-800">{label}</span>{" "}
+          <span className="text-slate-400">· {sub}</span>
+        </div>
+        <div className="font-mono text-slate-600">
+          {count} / {total} <span className="text-slate-400">({pct}%)</span>
+        </div>
+      </div>
+      <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+        <div className={`h-full ${color}`} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function Tile({ label, value, sub }: { label: string; value: string; sub: string }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white/70 p-4 backdrop-blur">
+      <div className="text-xs font-medium text-slate-500">{label}</div>
+      <div className="mt-1 text-2xl font-bold text-slate-900">{value}</div>
+      <div className="text-[11px] text-slate-400">{sub}</div>
+    </div>
+  );
+}
+
+function TopList({
+  title,
+  rows,
+  total,
+}: {
+  title: string;
+  rows: [string, number][];
+  total: number;
+}) {
+  if (!rows.length) return null;
+  const max = Math.max(...rows.map((r) => r[1]));
+  return (
+    <div className="rounded-3xl border border-slate-200 bg-white/70 p-6 backdrop-blur">
+      <h3 className="text-sm font-bold text-slate-900">{title}</h3>
+      <div className="mt-3 space-y-2">
+        {rows.map(([name, n]) => {
+          const w = max ? (n / max) * 100 : 0;
+          const pct = total ? Math.round((n / total) * 1000) / 10 : 0;
+          return (
+            <div key={name}>
+              <div className="flex items-baseline justify-between text-xs">
+                <span className="truncate font-medium text-slate-700">{name}</span>
+                <span className="font-mono text-slate-500">
+                  {n} <span className="text-slate-400">({pct}%)</span>
+                </span>
+              </div>
+              <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                <div
+                  className="h-full bg-gradient-to-r from-indigo-500 to-fuchsia-500"
+                  style={{ width: `${w}%` }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
