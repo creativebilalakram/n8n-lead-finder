@@ -330,13 +330,18 @@ function AnalyticsPanel({ settings }: { settings: FilterSettings }) {
     if (!raw) return null;
     // dedupe by leadKey, keep highest score
     const map = new Map<string, Lead>();
+    const counts = new Map<string, number>();
     for (const l of raw) {
       const k = leadKey(l);
       const ex = map.get(k);
       if (!ex || (l.leadScore ?? 0) > (ex.leadScore ?? 0)) map.set(k, l);
+      counts.set(k, (counts.get(k) ?? 0) + 1);
     }
     const leads = [...map.values()];
     const total = leads.length;
+    const rawTotal = raw.length;
+    const duplicates = rawTotal - total;
+    const dupGroups = [...counts.values()].filter((n) => n > 1).length;
     let qualified = 0;
     let revFail = 0;
     let ratFail = 0;
@@ -376,6 +381,9 @@ function AnalyticsPanel({ settings }: { settings: FilterSettings }) {
     const topCountries = [...countries.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
     return {
       total,
+      rawTotal,
+      duplicates,
+      dupGroups,
       qualified,
       filtered: total - qualified,
       revFail,
@@ -495,6 +503,28 @@ function AnalyticsPanel({ settings }: { settings: FilterSettings }) {
           value={`${stats.withWebsite}`}
           sub={`${pct(stats.withWebsite)}% of leads`}
         />
+      </div>
+
+      {/* Duplication */}
+      <div className="rounded-3xl border border-slate-200 bg-white/70 p-6 backdrop-blur">
+        <h3 className="text-sm font-bold text-slate-900">Duplication</h3>
+        <p className="text-xs text-slate-500">
+          Same business imported across multiple runs — deduped by place / name+address.
+        </p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-4">
+          <Tile
+            label="Duplicate ratio"
+            value={`${stats.rawTotal ? Math.round((stats.duplicates / stats.rawTotal) * 1000) / 10 : 0}%`}
+            sub={`${stats.duplicates} of ${stats.rawTotal} rows`}
+          />
+          <Tile label="Raw rows" value={stats.rawTotal.toString()} sub="in database" />
+          <Tile label="Unique leads" value={stats.total.toString()} sub="after dedupe" />
+          <Tile
+            label="Duplicated businesses"
+            value={stats.dupGroups.toString()}
+            sub="appear 2+ times"
+          />
+        </div>
       </div>
 
       {/* Tier breakdown */}
