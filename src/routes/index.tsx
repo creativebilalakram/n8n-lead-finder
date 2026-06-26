@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Flame,
   Sparkles,
@@ -9,8 +10,8 @@ import {
   Filter,
   ArrowRight,
 } from "lucide-react";
-import { loadSearches } from "@/lib/lead-store";
-import type { SearchRecord } from "@/lib/lead-types";
+import { listSearchRuns, migrateLegacyLocalStorage, type SearchRunSummary } from "@/lib/leads-db";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -26,18 +27,33 @@ export const Route = createFileRoute("/")({
 });
 
 function DashboardPage() {
-  const [searches, setSearches] = useState<SearchRecord[]>([]);
+  const [hotCount, setHotCount] = useState<number>(0);
+
+  const { data: searches = [], refetch } = useQuery<SearchRunSummary[]>({
+    queryKey: ["search_runs"],
+    queryFn: () => listSearchRuns(200),
+  });
 
   useEffect(() => {
-    setSearches(loadSearches());
-  }, []);
+    (async () => {
+      const n = await migrateLegacyLocalStorage();
+      if (n > 0) refetch();
+    })();
+  }, [refetch]);
 
-  const totalLeads = searches.reduce((s, r) => s + r.leads.length, 0);
-  const totalFiltered = searches.reduce((s, r) => s + r.filteredOut.length, 0);
-  const totalHot = searches.reduce(
-    (s, r) => s + r.leads.filter((l) => (l.leadTier || "").toLowerCase() === "hot").length,
-    0,
-  );
+  useEffect(() => {
+    (async () => {
+      const { count } = await supabase
+        .from("leads")
+        .select("id", { count: "exact", head: true })
+        .eq("passed", true)
+        .eq("lead_tier", "Hot");
+      setHotCount(count ?? 0);
+    })();
+  }, [searches.length]);
+
+  const totalLeads = searches.reduce((s, r) => s + r.qualifiedCount, 0);
+  const totalFiltered = searches.reduce((s, r) => s + r.filteredCount, 0);
 
   return (
     <div className="relative min-h-[calc(100vh-3rem)] overflow-hidden">
@@ -85,7 +101,7 @@ function DashboardPage() {
           <StatCard
             icon={<Flame className="h-5 w-5" />}
             label="Hot Leads"
-            value={totalHot}
+            value={hotCount}
             tint="from-rose-500 to-orange-500"
           />
           <StatCard
@@ -143,10 +159,10 @@ function DashboardPage() {
                     </div>
                     <div className="mt-1 text-xs text-slate-500">
                       {new Date(r.createdAt).toLocaleString()} ·{" "}
-                      <span className="font-medium text-emerald-600">{r.leads.length} kept</span>{" "}
+                      <span className="font-medium text-emerald-600">{r.qualifiedCount} kept</span>{" "}
                       ·{" "}
                       <span className="font-medium text-slate-500">
-                        {r.filteredOut.length} filtered
+                        {r.filteredCount} filtered
                       </span>
                     </div>
                   </div>
