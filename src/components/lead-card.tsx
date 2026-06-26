@@ -76,24 +76,15 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
         description: "Re-import this Apify run to include the full original business data.",
       });
     }
-    // Open in a background tab (like Ctrl/Cmd+Click) so the user stays in this app.
-    const a = document.createElement("a");
-    a.href = url;
-    a.target = "_blank";
-    a.rel = "noopener noreferrer";
-    a.style.display = "none";
-    document.body.appendChild(a);
-    const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
-    a.dispatchEvent(
-      new MouseEvent("click", {
-        bubbles: true,
-        cancelable: true,
-        view: window,
-        ctrlKey: !isMac,
-        metaKey: isMac,
-      }),
-    );
-    a.remove();
+    // Open in a new tab without ever navigating the current page.
+    const win = window.open(url, "_blank", "noopener,noreferrer");
+    if (win) {
+      try {
+        win.opener = null;
+      } catch {
+        // ignore
+      }
+    }
   };
 
   return (
