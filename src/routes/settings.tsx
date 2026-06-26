@@ -282,7 +282,7 @@ async function fetchAllLeadsLite(): Promise<Lead[]> {
     const { data, error } = await supabase
       .from("leads")
       .select(
-        "id, place_id, title, category, country_code, website, email, rating, reviews_count, lead_score, lead_tier, owner_update_age_days",
+        "id, place_id, title, category, address, phone, country_code, website, email, rating, reviews_count, lead_score, lead_tier, owner_update_age_days",
       )
       .range(from, from + PAGE - 1);
     if (error) throw error;
@@ -292,6 +292,8 @@ async function fetchAllLeadsLite(): Promise<Lead[]> {
         id: r.id,
         title: r.title ?? undefined,
         categoryName: r.category ?? undefined,
+        address: r.address ?? undefined,
+        phone: r.phone ?? undefined,
         countryCode: r.country_code ?? undefined,
         totalScore: r.rating ?? undefined,
         reviewsCount: r.reviews_count ?? undefined,
