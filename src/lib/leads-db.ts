@@ -29,7 +29,7 @@ function leadToRow(lead: Lead, searchRunId: string, apifyRunId: string | null) {
     address: pickStr(lead.address) ?? null,
     city: pickStr((lead as Record<string, unknown>).city) ?? null,
     country_code: pickStr((lead as Record<string, unknown>).countryCode) ?? null,
-    phone: pickStr(lead.phone) ?? emails?.[0] ?? null,
+    phone: pickStr(lead.phone) ?? phones?.[0] ?? null,
     phones: phones ?? null,
     email: emails?.[0] ?? null,
     emails: emails ?? null,
@@ -41,9 +41,11 @@ function leadToRow(lead: Lead, searchRunId: string, apifyRunId: string | null) {
     red_flags: (pickArr(lead.redFlags) as Json) ?? null,
     passed: Boolean(lead.passed),
     rejection_reasons: (pickArr(lead.rejectionReasons) as Json) ?? null,
-    lovable_url: pickStr(lead.lovableUrl) ?? null,
+    // Full Lovable prompt URLs and raw Apify payloads can be huge. The UI now
+    // regenerates a compact Lovable URL from the saved lead fields when needed.
+    lovable_url: null,
     owner_update_age_days: ownerUpdateAgeDays ?? null,
-    raw: lead as unknown as Json,
+    raw: null,
   };
 }
 
@@ -167,7 +169,7 @@ export async function getSearchRunDetail(
   const { data: rows, error: lErr } = await supabase
     .from("leads")
     .select(
-      "id, place_id, title, category, address, city, country_code, phone, phones, email, emails, website, rating, reviews_count, lead_score, lead_tier, red_flags, passed, rejection_reasons, lovable_url, owner_update_age_days",
+      "id, place_id, title, category, address, city, country_code, phone, email, website, rating, reviews_count, lead_score, lead_tier, red_flags, passed, rejection_reasons, owner_update_age_days",
     )
     .eq("search_run_id", id)
     .order("lead_score", { ascending: false, nullsFirst: false });
@@ -185,16 +187,14 @@ export async function getSearchRunDetail(
       city: r.city ?? undefined,
       countryCode: r.country_code ?? undefined,
       phone: r.phone ?? undefined,
-      phones: (r.phones as string[] | null) ?? undefined,
       email: r.email ?? undefined,
-      emails: (r.emails as string[] | null) ?? undefined,
+      emails: r.email ? [r.email] : undefined,
       website: r.website ?? undefined,
       totalScore: r.rating ?? undefined,
       reviewsCount: r.reviews_count ?? undefined,
       leadScore: r.lead_score ?? undefined,
       leadTier: r.lead_tier ?? undefined,
       redFlags: (r.red_flags as string[] | null) ?? undefined,
-      lovableUrl: r.lovable_url ?? undefined,
       ownerUpdateAgeDays: r.owner_update_age_days ?? undefined,
       passed: r.passed,
       rejectionReasons: (r.rejection_reasons as string[] | null) ?? undefined,

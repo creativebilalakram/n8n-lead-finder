@@ -29,15 +29,34 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
           : "bg-slate-200 text-slate-700";
 
   const phone = lead.phone || lead.phones?.[0];
-  const email = lead.emails?.[0];
+  const email = lead.emails?.[0] || (typeof lead.email === "string" ? lead.email : undefined);
+
+  const getLovableUrl = () => {
+    if (lead.lovableUrl) return lead.lovableUrl;
+    const compactLead = {
+      businessName: lead.title,
+      category: lead.categoryName,
+      address: lead.address,
+      city: lead.city,
+      countryCode: lead.countryCode,
+      phone,
+      email,
+      website: lead.website,
+      rating: lead.totalScore,
+      reviews: lead.reviewsCount,
+      leadScore: lead.leadScore,
+      leadTier: lead.leadTier,
+      redFlags: lead.redFlags,
+    };
+    const prompt =
+      "Create a premium, modern, and highly trustworthy website for this local business lead:\n\n" +
+      JSON.stringify(compactLead, null, 2);
+    return "https://lovable.dev/?autosubmit=true#prompt=" + encodeURIComponent(prompt);
+  };
 
   const openLovable = () => {
-    if (!lead.lovableUrl) {
-      toast.error("This lead has no Lovable URL.");
-      return;
-    }
     markClicked(key);
-    window.open(lead.lovableUrl, "_blank", "noopener,noreferrer");
+    window.open(getLovableUrl(), "_blank", "noopener,noreferrer");
   };
 
   return (

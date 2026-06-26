@@ -249,7 +249,7 @@ async function fetchAllLeadsLite(): Promise<Lead[]> {
     const { data, error } = await supabase
       .from("leads")
       .select(
-        "id, place_id, title, category, country_code, website, emails, rating, reviews_count, lead_score, lead_tier, owner_update_age_days",
+        "id, place_id, title, category, country_code, website, email, rating, reviews_count, lead_score, lead_tier, owner_update_age_days",
       )
       .range(from, from + PAGE - 1);
     if (error) throw error;
@@ -264,7 +264,8 @@ async function fetchAllLeadsLite(): Promise<Lead[]> {
         reviewsCount: r.reviews_count ?? undefined,
         leadScore: r.lead_score ?? undefined,
         leadTier: r.lead_tier ?? undefined,
-        emails: (r.emails as string[] | null) ?? undefined,
+        email: r.email ?? undefined,
+        emails: r.email ? [r.email] : undefined,
         website: r.website ?? undefined,
         placeId: r.place_id ?? undefined,
         ownerUpdateAgeDays: r.owner_update_age_days ?? undefined,
@@ -278,9 +279,10 @@ async function fetchAllLeadsLite(): Promise<Lead[]> {
 
 function AnalyticsPanel({ settings }: { settings: FilterSettings }) {
   useClickedSync();
-  const { data: raw, isLoading } = useQuery({
-    queryKey: ["analytics-all-leads"],
+  const { data: raw, isLoading, isError, error } = useQuery({
+    queryKey: ["analytics-all-leads-compact-v2"],
     queryFn: fetchAllLeadsLite,
+    retry: 1,
   });
   const { data: runs } = useQuery({
     queryKey: ["analytics-runs-count"],
@@ -358,11 +360,22 @@ function AnalyticsPanel({ settings }: { settings: FilterSettings }) {
     };
   }, [raw, settings]);
 
-  if (isLoading || !stats) {
+  if (isLoading) {
     return (
       <div className="mt-6 rounded-3xl border border-slate-200 bg-white/70 p-10 text-center backdrop-blur">
         <Loader2 className="mx-auto h-6 w-6 animate-spin text-slate-400" />
         <div className="mt-2 text-sm text-slate-500">Crunching analytics…</div>
+      </div>
+    );
+  }
+
+  if (isError || !stats) {
+    return (
+      <div className="mt-6 rounded-3xl border border-rose-200 bg-rose-50/70 p-10 text-center text-rose-700 backdrop-blur">
+        <div className="text-sm font-semibold">Could not load analytics.</div>
+        <div className="mt-1 text-xs text-rose-600">
+          {error instanceof Error ? error.message : "Please refresh and try again."}
+        </div>
       </div>
     );
   }

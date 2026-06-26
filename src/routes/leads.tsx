@@ -22,7 +22,7 @@ async function fetchAllLeads(): Promise<Lead[]> {
     const { data, error } = await supabase
       .from("leads")
       .select(
-        "id, place_id, title, category, address, city, country_code, phone, phones, email, emails, website, rating, reviews_count, lead_score, lead_tier, red_flags, passed, rejection_reasons, lovable_url, owner_update_age_days",
+        "id, place_id, title, category, address, city, country_code, phone, email, website, rating, reviews_count, lead_score, lead_tier, passed, owner_update_age_days",
       )
       .range(from, from + PAGE - 1);
     if (error) throw error;
@@ -36,17 +36,13 @@ async function fetchAllLeads(): Promise<Lead[]> {
         city: r.city ?? undefined,
         countryCode: r.country_code ?? undefined,
         phone: r.phone ?? undefined,
-        phones: (r.phones as string[] | null) ?? undefined,
         email: r.email ?? undefined,
-        emails: (r.emails as string[] | null) ?? undefined,
+        emails: r.email ? [r.email] : undefined,
         website: r.website ?? undefined,
         totalScore: r.rating ?? undefined,
         reviewsCount: r.reviews_count ?? undefined,
         leadScore: r.lead_score ?? undefined,
         leadTier: r.lead_tier ?? undefined,
-        redFlags: (r.red_flags as string[] | null) ?? undefined,
-        rejectionReasons: (r.rejection_reasons as string[] | null) ?? undefined,
-        lovableUrl: r.lovable_url ?? undefined,
         ownerUpdateAgeDays: r.owner_update_age_days ?? undefined,
         passed: r.passed,
         placeId: r.place_id ?? undefined,
@@ -67,9 +63,10 @@ function AllLeadsPage() {
   const [onlyUnopened, setOnlyUnopened] = useState(false);
   const [view, setView] = useState<"qualified" | "filtered">("qualified");
 
-  const { data: rawLeads, isLoading } = useQuery({
-    queryKey: ["all-leads-raw"],
+  const { data: rawLeads, isLoading, isError, error } = useQuery({
+    queryKey: ["all-leads-compact-v2"],
     queryFn: fetchAllLeads,
+    retry: 1,
   });
 
   // Re-evaluate against current filter settings (live), then dedupe both sets.
@@ -207,6 +204,13 @@ function AllLeadsPage() {
           <div className="py-20 text-center text-slate-500">
             <Loader2 className="mx-auto h-6 w-6 animate-spin" />
             <div className="mt-2 text-sm">Loading leads…</div>
+          </div>
+        ) : isError ? (
+          <div className="rounded-3xl border border-rose-200 bg-rose-50/70 px-8 py-10 text-center text-rose-700 backdrop-blur">
+            <p className="text-sm font-semibold">Could not load leads.</p>
+            <p className="mt-1 text-xs text-rose-600">
+              {error instanceof Error ? error.message : "Please refresh and try again."}
+            </p>
           </div>
         ) : filtered.length === 0 ? (
           <div className="rounded-3xl border border-dashed border-slate-300 bg-white/40 px-8 py-16 text-center backdrop-blur">
