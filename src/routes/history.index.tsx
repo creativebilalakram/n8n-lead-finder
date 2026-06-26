@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { listSearchRuns, deleteSearchRun, clearAllSearchRuns } from "@/lib/leads-db";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/history")({
+export const Route = createFileRoute("/history/")({
   head: () => ({
     meta: [{ title: "History — LeadForge" }],
   }),
