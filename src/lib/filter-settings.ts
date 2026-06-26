@@ -99,8 +99,12 @@ export function evaluateLead(lead: Lead, s: FilterSettings): Evaluation {
   const reviews = Number(lead.reviewsCount ?? 0);
   const rating = Number(lead.totalScore ?? 0);
   const ownerDate = getOwnerUpdateDate(lead as Record<string, unknown>);
-  const ownerDays =
-    ownerDate === null ? null : Math.floor((Date.now() - ownerDate.getTime()) / 86400000);
+  const storedOwnerDays = Number((lead as Record<string, unknown>).ownerUpdateAgeDays);
+  const ownerDays = Number.isFinite(storedOwnerDays)
+    ? storedOwnerDays
+    : ownerDate === null
+      ? null
+      : Math.floor((Date.now() - ownerDate.getTime()) / 86400000);
 
   const passesReviews = !s.reviewsEnabled || (reviews >= s.minReviews && reviews <= s.maxReviews);
   const passesRating = !s.ratingEnabled || (rating >= s.minRating && rating <= s.maxRating);

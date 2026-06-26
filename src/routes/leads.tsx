@@ -22,30 +22,34 @@ async function fetchAllLeads(): Promise<Lead[]> {
     const { data, error } = await supabase
       .from("leads")
       .select(
-        "id, place_id, title, category, address, city, country_code, phone, phones, email, emails, website, rating, reviews_count, lead_score, lead_tier, red_flags, passed, rejection_reasons, lovable_url, raw",
+        "id, place_id, title, category, address, city, country_code, phone, phones, email, emails, website, rating, reviews_count, lead_score, lead_tier, red_flags, passed, rejection_reasons, lovable_url, owner_update_age_days",
       )
       .range(from, from + PAGE - 1);
     if (error) throw error;
     const rows = data ?? [];
     for (const r of rows) {
-      const raw = (r.raw as Record<string, unknown> | null) ?? {};
       out.push({
-        ...raw,
-        title: r.title ?? (raw.title as string | undefined),
-        categoryName: r.category ?? (raw.categoryName as string | undefined),
-        address: r.address ?? (raw.address as string | undefined),
-        phone: r.phone ?? (raw.phone as string | undefined),
-        phones: (r.phones as string[] | null) ?? (raw.phones as string[] | undefined),
-        emails: (r.emails as string[] | null) ?? (raw.emails as string[] | undefined),
-        website: r.website ?? (raw.website as string | undefined),
-        totalScore: r.rating ?? (raw.totalScore as number | undefined),
-        reviewsCount: r.reviews_count ?? (raw.reviewsCount as number | undefined),
-        leadScore: r.lead_score ?? (raw.leadScore as number | undefined),
-        leadTier: r.lead_tier ?? (raw.leadTier as string | undefined),
-        redFlags: (r.red_flags as string[] | null) ?? (raw.redFlags as string[] | undefined),
-        lovableUrl: r.lovable_url ?? (raw.lovableUrl as string | undefined),
+        id: r.id,
+        title: r.title ?? undefined,
+        categoryName: r.category ?? undefined,
+        address: r.address ?? undefined,
+        city: r.city ?? undefined,
+        countryCode: r.country_code ?? undefined,
+        phone: r.phone ?? undefined,
+        phones: (r.phones as string[] | null) ?? undefined,
+        email: r.email ?? undefined,
+        emails: (r.emails as string[] | null) ?? undefined,
+        website: r.website ?? undefined,
+        totalScore: r.rating ?? undefined,
+        reviewsCount: r.reviews_count ?? undefined,
+        leadScore: r.lead_score ?? undefined,
+        leadTier: r.lead_tier ?? undefined,
+        redFlags: (r.red_flags as string[] | null) ?? undefined,
+        rejectionReasons: (r.rejection_reasons as string[] | null) ?? undefined,
+        lovableUrl: r.lovable_url ?? undefined,
+        ownerUpdateAgeDays: r.owner_update_age_days ?? undefined,
         passed: r.passed,
-        placeId: r.place_id ?? (raw.placeId as string | undefined),
+        placeId: r.place_id ?? undefined,
       });
     }
     if (rows.length < PAGE) break;
