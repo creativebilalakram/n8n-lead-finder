@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as RunsRouteImport } from './routes/runs'
 import { Route as LeadsRouteImport } from './routes/leads'
@@ -20,6 +21,11 @@ import { Route as ApiPublicLeadsStartRouteImport } from './routes/api/public/lea
 import { Route as ApiPublicApifyRunsRouteImport } from './routes/api/public/apify.runs'
 import { Route as ApiPublicApifyImportRouteImport } from './routes/api/public/apify.import'
 
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SearchRoute = SearchRouteImport.update({
   id: '/search',
   path: '/search',
@@ -76,6 +82,7 @@ export interface FileRoutesByFullPath {
   '/leads': typeof LeadsRoute
   '/runs': typeof RunsRoute
   '/search': typeof SearchRoute
+  '/settings': typeof SettingsRoute
   '/history/$id': typeof HistoryIdRoute
   '/history/': typeof HistoryIndexRoute
   '/api/public/apify/import': typeof ApiPublicApifyImportRoute
@@ -88,6 +95,7 @@ export interface FileRoutesByTo {
   '/leads': typeof LeadsRoute
   '/runs': typeof RunsRoute
   '/search': typeof SearchRoute
+  '/settings': typeof SettingsRoute
   '/history/$id': typeof HistoryIdRoute
   '/history': typeof HistoryIndexRoute
   '/api/public/apify/import': typeof ApiPublicApifyImportRoute
@@ -101,6 +109,7 @@ export interface FileRoutesById {
   '/leads': typeof LeadsRoute
   '/runs': typeof RunsRoute
   '/search': typeof SearchRoute
+  '/settings': typeof SettingsRoute
   '/history/$id': typeof HistoryIdRoute
   '/history/': typeof HistoryIndexRoute
   '/api/public/apify/import': typeof ApiPublicApifyImportRoute
@@ -115,6 +124,7 @@ export interface FileRouteTypes {
     | '/leads'
     | '/runs'
     | '/search'
+    | '/settings'
     | '/history/$id'
     | '/history/'
     | '/api/public/apify/import'
@@ -127,6 +137,7 @@ export interface FileRouteTypes {
     | '/leads'
     | '/runs'
     | '/search'
+    | '/settings'
     | '/history/$id'
     | '/history'
     | '/api/public/apify/import'
@@ -139,6 +150,7 @@ export interface FileRouteTypes {
     | '/leads'
     | '/runs'
     | '/search'
+    | '/settings'
     | '/history/$id'
     | '/history/'
     | '/api/public/apify/import'
@@ -152,6 +164,7 @@ export interface RootRouteChildren {
   LeadsRoute: typeof LeadsRoute
   RunsRoute: typeof RunsRoute
   SearchRoute: typeof SearchRoute
+  SettingsRoute: typeof SettingsRoute
   HistoryIdRoute: typeof HistoryIdRoute
   HistoryIndexRoute: typeof HistoryIndexRoute
   ApiPublicApifyImportRoute: typeof ApiPublicApifyImportRoute
@@ -162,6 +175,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/search': {
       id: '/search'
       path: '/search'
@@ -240,6 +260,7 @@ const rootRouteChildren: RootRouteChildren = {
   LeadsRoute: LeadsRoute,
   RunsRoute: RunsRoute,
   SearchRoute: SearchRoute,
+  SettingsRoute: SettingsRoute,
   HistoryIdRoute: HistoryIdRoute,
   HistoryIndexRoute: HistoryIndexRoute,
   ApiPublicApifyImportRoute: ApiPublicApifyImportRoute,

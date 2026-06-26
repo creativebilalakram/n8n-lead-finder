@@ -6,13 +6,15 @@ import { LeadCard } from "@/components/lead-card";
 import { supabase } from "@/integrations/supabase/client";
 import type { Lead } from "@/lib/lead-types";
 import { isClicked, leadKey, useClickedSync } from "@/lib/clicked-leads";
+import { applyFiltersToLead, useFilterSettings } from "@/lib/filter-settings";
+import { Link } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/leads")({
   head: () => ({ meta: [{ title: "All Leads — LeadForge" }] }),
   component: AllLeadsPage,
 });
 
-async function fetchAllQualifiedLeads(): Promise<Lead[]> {
+async function fetchAllLeads(): Promise<Lead[]> {
   const PAGE = 1000;
   let from = 0;
   const out: Lead[] = [];
@@ -22,7 +24,6 @@ async function fetchAllQualifiedLeads(): Promise<Lead[]> {
     const { data, error } = await supabase
       .from("leads")
       .select("*")
-      .eq("passed", true)
       .order("lead_score", { ascending: false, nullsFirst: false })
       .range(from, from + PAGE - 1);
     if (error) throw error;
@@ -44,33 +45,41 @@ async function fetchAllQualifiedLeads(): Promise<Lead[]> {
         leadTier: r.lead_tier ?? (raw.leadTier as string | undefined),
         redFlags: (r.red_flags as string[] | null) ?? (raw.redFlags as string[] | undefined),
         lovableUrl: r.lovable_url ?? (raw.lovableUrl as string | undefined),
-        passed: true,
+        passed: r.passed,
         placeId: r.place_id ?? (raw.placeId as string | undefined),
       });
     }
     if (rows.length < PAGE) break;
     from += PAGE;
   }
-  // de-duplicate by leadKey, keep highest score
-  const map = new Map<string, Lead>();
-  for (const l of out) {
-    const k = leadKey(l);
-    const existing = map.get(k);
-    if (!existing || (l.leadScore ?? 0) > (existing.leadScore ?? 0)) map.set(k, l);
-  }
-  return [...map.values()].sort((a, b) => (b.leadScore ?? 0) - (a.leadScore ?? 0));
+  return out;
 }
 
 function AllLeadsPage() {
   useClickedSync();
+  const [settings] = useFilterSettings();
   const [q, setQ] = useState("");
   const [tier, setTier] = useState<"all" | "hot" | "warm" | "mild" | "cold">("all");
   const [onlyUnopened, setOnlyUnopened] = useState(false);
 
-  const { data: leads, isLoading } = useQuery({
-    queryKey: ["all-qualified-leads"],
-    queryFn: fetchAllQualifiedLeads,
+  const { data: rawLeads, isLoading } = useQuery({
+    queryKey: ["all-leads-raw"],
+    queryFn: fetchAllLeads,
   });
+
+  // Re-evaluate against current filter settings (live), then dedupe qualified.
+  const leads = useMemo(() => {
+    if (!rawLeads) return undefined;
+    const evaluated = rawLeads.map((l) => applyFiltersToLead(l, settings));
+    const qualified = evaluated.filter((l) => l.passed);
+    const map = new Map<string, Lead>();
+    for (const l of qualified) {
+      const k = leadKey(l);
+      const existing = map.get(k);
+      if (!existing || (l.leadScore ?? 0) > (existing.leadScore ?? 0)) map.set(k, l);
+    }
+    return [...map.values()].sort((a, b) => (b.leadScore ?? 0) - (a.leadScore ?? 0));
+  }, [rawLeads, settings]);
 
   const filtered = useMemo(() => {
     if (!leads) return [];
@@ -101,9 +110,16 @@ function AllLeadsPage() {
             Every qualified lead in your workspace
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            Combined from every search and every Apify import. Clicking{" "}
-            <span className="font-semibold">Open in Lovable</span> marks the lead as opened.
+          Combined from every search and every Apify import. Filters are live — adjust them in{" "}
+          <Link to="/settings" className="font-semibold text-indigo-600 hover:underline">
+            Settings
+          </Link>
+          .
           </p>
+        <p className="mt-1 text-xs text-slate-400">
+          Current: reviews {settings.minReviews}–{settings.maxReviews} · rating{" "}
+          {settings.minRating}–{settings.maxRating} · owner ≤ {settings.activeOwnerDays}d
+        </p>
         </div>
         <div className="flex flex-wrap gap-2 text-xs">
           <span className="rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-700 ring-1 ring-slate-200">
