@@ -505,6 +505,28 @@ function AnalyticsPanel({ settings }: { settings: FilterSettings }) {
         />
       </div>
 
+      {/* Duplication */}
+      <div className="rounded-3xl border border-slate-200 bg-white/70 p-6 backdrop-blur">
+        <h3 className="text-sm font-bold text-slate-900">Duplication</h3>
+        <p className="text-xs text-slate-500">
+          Same business imported across multiple runs — deduped by place / name+address.
+        </p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-4">
+          <Tile
+            label="Duplicate ratio"
+            value={`${stats.rawTotal ? Math.round((stats.duplicates / stats.rawTotal) * 1000) / 10 : 0}%`}
+            sub={`${stats.duplicates} of ${stats.rawTotal} rows`}
+          />
+          <Tile label="Raw rows" value={stats.rawTotal.toString()} sub="in database" />
+          <Tile label="Unique leads" value={stats.total.toString()} sub="after dedupe" />
+          <Tile
+            label="Duplicated businesses"
+            value={stats.dupGroups.toString()}
+            sub="appear 2+ times"
+          />
+        </div>
+      </div>
+
       {/* Tier breakdown */}
       <div className="rounded-3xl border border-slate-200 bg-white/70 p-6 backdrop-blur">
         <h3 className="text-sm font-bold text-slate-900">Tier distribution</h3>
