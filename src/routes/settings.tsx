@@ -13,6 +13,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import type { Lead } from "@/lib/lead-types";
 import { isClicked, leadKey, useClickedSync } from "@/lib/clicked-leads";
+import { leadIdentityKey } from "@/lib/lead-identity";
 import {
   DEFAULT_FILTERS,
   type FilterSettings,
@@ -328,11 +329,12 @@ function AnalyticsPanel({ settings }: { settings: FilterSettings }) {
 
   const stats = useMemo(() => {
     if (!raw) return null;
-    // dedupe by leadKey, keep highest score
+    // Dedupe by business identity (placeId / website / title+address),
+    // NOT by DB row id — every import creates a fresh row id.
     const map = new Map<string, Lead>();
     const counts = new Map<string, number>();
     for (const l of raw) {
-      const k = leadKey(l);
+      const k = leadIdentityKey(l);
       const ex = map.get(k);
       if (!ex || (l.leadScore ?? 0) > (ex.leadScore ?? 0)) map.set(k, l);
       counts.set(k, (counts.get(k) ?? 0) + 1);
