@@ -22,7 +22,10 @@ function SettingsPage() {
     draft.maxReviews !== settings.maxReviews ||
     draft.minRating !== settings.minRating ||
     draft.maxRating !== settings.maxRating ||
-    draft.activeOwnerDays !== settings.activeOwnerDays;
+    draft.activeOwnerDays !== settings.activeOwnerDays ||
+    draft.reviewsEnabled !== settings.reviewsEnabled ||
+    draft.ratingEnabled !== settings.ratingEnabled ||
+    draft.ownerEnabled !== settings.ownerEnabled;
 
   const save = () => {
     setSettings(draft);
@@ -54,6 +57,8 @@ function SettingsPage() {
         <Pair
           label="Reviews count"
           help="Lead must have between X and Y reviews."
+          enabled={draft.reviewsEnabled}
+          onToggle={(v) => setDraft({ ...draft, reviewsEnabled: v })}
           minValue={draft.minReviews}
           maxValue={draft.maxReviews}
           step={1}
@@ -63,24 +68,32 @@ function SettingsPage() {
         <Pair
           label="Rating"
           help="Google rating must fall in this window."
+          enabled={draft.ratingEnabled}
+          onToggle={(v) => setDraft({ ...draft, ratingEnabled: v })}
           minValue={draft.minRating}
           maxValue={draft.maxRating}
           step={0.1}
           onMin={(v) => setDraft({ ...draft, minRating: v })}
           onMax={(v) => setDraft({ ...draft, maxRating: v })}
         />
-        <div>
-          <div className="text-sm font-semibold text-slate-900">Active owner (days)</div>
-          <div className="text-xs text-slate-500">
-            Owner must have updated the listing within this many days.
+        <div className={draft.ownerEnabled ? "" : "opacity-60"}>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold text-slate-900">Active owner (days)</div>
+              <div className="text-xs text-slate-500">
+                Owner must have updated the listing within this many days.
+              </div>
+            </div>
+            <Toggle checked={draft.ownerEnabled} onChange={(v) => setDraft({ ...draft, ownerEnabled: v })} />
           </div>
           <input
             type="number"
+            disabled={!draft.ownerEnabled}
             value={draft.activeOwnerDays}
             onChange={(e) =>
               setDraft({ ...draft, activeOwnerDays: Number(e.target.value) || 0 })
             }
-            className="mt-2 h-10 w-40 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+            className="mt-2 h-10 w-40 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:bg-slate-50 disabled:text-slate-400"
           />
         </div>
 
@@ -121,6 +134,8 @@ function SettingsPage() {
 function Pair(props: {
   label: string;
   help: string;
+  enabled: boolean;
+  onToggle: (v: boolean) => void;
   minValue: number;
   maxValue: number;
   step: number;
@@ -128,31 +143,58 @@ function Pair(props: {
   onMax: (v: number) => void;
 }) {
   return (
-    <div>
-      <div className="text-sm font-semibold text-slate-900">{props.label}</div>
-      <div className="text-xs text-slate-500">{props.help}</div>
+    <div className={props.enabled ? "" : "opacity-60"}>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="text-sm font-semibold text-slate-900">{props.label}</div>
+          <div className="text-xs text-slate-500">{props.help}</div>
+        </div>
+        <Toggle checked={props.enabled} onChange={props.onToggle} />
+      </div>
       <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
         <label className="flex items-center gap-2">
           <span className="text-xs text-slate-500">Min</span>
           <input
             type="number"
+            disabled={!props.enabled}
             step={props.step}
             value={props.minValue}
             onChange={(e) => props.onMin(Number(e.target.value) || 0)}
-            className="h-10 w-28 rounded-xl border border-slate-200 bg-white px-3 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+            className="h-10 w-28 rounded-xl border border-slate-200 bg-white px-3 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:bg-slate-50 disabled:text-slate-400"
           />
         </label>
         <label className="flex items-center gap-2">
           <span className="text-xs text-slate-500">Max</span>
           <input
             type="number"
+            disabled={!props.enabled}
             step={props.step}
             value={props.maxValue}
             onChange={(e) => props.onMax(Number(e.target.value) || 0)}
-            className="h-10 w-28 rounded-xl border border-slate-200 bg-white px-3 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+            className="h-10 w-28 rounded-xl border border-slate-200 bg-white px-3 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:bg-slate-50 disabled:text-slate-400"
           />
         </label>
       </div>
     </div>
+  );
+}
+
+function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition ${
+        checked ? "bg-indigo-600" : "bg-slate-300"
+      }`}
+    >
+      <span
+        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${
+          checked ? "translate-x-5" : "translate-x-0.5"
+        }`}
+      />
+    </button>
   );
 }
