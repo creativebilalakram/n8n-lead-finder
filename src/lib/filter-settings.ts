@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import type { Lead } from "./lead-types";
 
 export type FilterSettings = {
@@ -28,6 +29,7 @@ const EVT = "lead-gen-filter-settings-changed";
 const SETTINGS_KEY = "filter_settings";
 
 let cachedSettings: FilterSettings = DEFAULT_FILTERS;
+let settingsLoaded = false;
 
 function coerceNumber(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
@@ -63,6 +65,7 @@ export async function loadFilterSettings(): Promise<FilterSettings> {
     .maybeSingle();
   if (error) throw error;
   cachedSettings = normalizeFilterSettings(data?.value);
+  settingsLoaded = true;
   return cachedSettings;
 }
 
@@ -73,7 +76,7 @@ export async function saveFilterSettings(s: FilterSettings): Promise<FilterSetti
   emitSettingsChanged();
   const { data, error } = await supabase
     .from("app_settings")
-    .update({ value: next })
+    .update({ value: next as unknown as Json })
     .eq("key", SETTINGS_KEY)
     .select("value")
     .single();
@@ -83,13 +86,14 @@ export async function saveFilterSettings(s: FilterSettings): Promise<FilterSetti
     throw error;
   }
   cachedSettings = normalizeFilterSettings(data.value);
+  settingsLoaded = true;
   emitSettingsChanged();
   return cachedSettings;
 }
 
 export function useFilterSettings(): [FilterSettings, (s: FilterSettings) => Promise<FilterSettings>, boolean] {
   const [s, setS] = useState<FilterSettings>(() => cachedSettings);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(!settingsLoaded);
   useEffect(() => {
     let cancelled = false;
     const sync = () => setS(cachedSettings);
