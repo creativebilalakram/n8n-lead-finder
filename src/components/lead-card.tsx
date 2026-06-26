@@ -7,12 +7,17 @@ import {
   Sparkles,
   ExternalLink,
   AlertTriangle,
+  Check,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import type { Lead } from "@/lib/lead-types";
+import { isClicked, leadKey, markClicked, toggleClicked, useClickedSync } from "@/lib/clicked-leads";
 
 export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean }) {
+  useClickedSync();
+  const key = leadKey(lead);
+  const clicked = isClicked(key);
   const tier = (lead.leadTier || "").toLowerCase();
   const tierBadge =
     tier === "hot"
@@ -31,17 +36,35 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
       toast.error("This lead has no Lovable URL.");
       return;
     }
+    markClicked(key);
     window.open(lead.lovableUrl, "_blank", "noopener,noreferrer");
   };
 
   return (
     <div
       className={`group relative flex flex-col overflow-hidden rounded-2xl border p-5 backdrop-blur-xl transition hover:-translate-y-0.5 ${
-        muted
-          ? "border-slate-200/80 bg-white/50 shadow-sm hover:shadow-md"
-          : "border-white/70 bg-white/80 shadow-sm shadow-slate-200/50 hover:shadow-xl hover:shadow-indigo-200/40"
+        clicked
+          ? "border-emerald-300 bg-emerald-50/70 shadow-sm shadow-emerald-200/40 hover:shadow-md"
+          : muted
+            ? "border-slate-200/80 bg-white/50 shadow-sm hover:shadow-md"
+            : "border-white/70 bg-white/80 shadow-sm shadow-slate-200/50 hover:shadow-xl hover:shadow-indigo-200/40"
       }`}
     >
+      {clicked && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleClicked(key);
+            toast.success("Marked as not opened");
+          }}
+          title="Click to unmark"
+          className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow"
+        >
+          <Check className="h-3 w-3" />
+          Opened
+        </button>
+      )}
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="truncate text-base font-semibold text-slate-900">
@@ -134,14 +157,16 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
           type="button"
           onClick={openLovable}
           className={`group/btn relative w-full overflow-hidden rounded-xl px-4 py-3 text-sm font-semibold text-white transition ${
-            muted
-              ? "bg-slate-700 hover:bg-slate-800"
-              : "bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 shadow-md shadow-indigo-500/30 hover:shadow-lg hover:shadow-indigo-500/40"
+            clicked
+              ? "bg-gradient-to-r from-emerald-600 to-teal-600 shadow-md shadow-emerald-500/30 hover:shadow-lg"
+              : muted
+                ? "bg-slate-700 hover:bg-slate-800"
+                : "bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 shadow-md shadow-indigo-500/30 hover:shadow-lg hover:shadow-indigo-500/40"
           }`}
         >
           <span className="relative flex items-center justify-center gap-2">
-            <Sparkles className="h-4 w-4" />
-            Open in Lovable
+            {clicked ? <Check className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
+            {clicked ? "Opened — open again" : "Open in Lovable"}
             <ExternalLink className="h-3.5 w-3.5 opacity-80 transition group-hover/btn:translate-x-0.5" />
           </span>
         </button>
