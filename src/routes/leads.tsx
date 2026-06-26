@@ -6,6 +6,7 @@ import { LeadCard } from "@/components/lead-card";
 import { supabase } from "@/integrations/supabase/client";
 import type { Lead } from "@/lib/lead-types";
 import { isClicked, leadKey, useClickedSync } from "@/lib/clicked-leads";
+import { leadIdentityKey } from "@/lib/lead-identity";
 import { applyFiltersToLead, useFilterSettings } from "@/lib/filter-settings";
 import { Link } from "@tanstack/react-router";
 
@@ -64,7 +65,7 @@ function AllLeadsPage() {
   const [view, setView] = useState<"qualified" | "filtered">("qualified");
 
   const { data: rawLeads, isLoading, isError, error } = useQuery({
-    queryKey: ["all-leads-compact-v2"],
+    queryKey: ["all-leads-compact-v3"],
     queryFn: fetchAllLeads,
     retry: 1,
   });
@@ -73,35 +74,32 @@ function AllLeadsPage() {
   // IMPORTANT: dedupe by a business-identity key (placeId, else website,
   // else normalized title+address), NOT by the DB row id — every import
   // produces a fresh row id, so id-based dedup never merges duplicates.
+  // Re-evaluate live, then dedupe by business identity (placeId / website /
+  // title+address / title+phone). DB row id is unique per import so it
+  // cannot be the dedup key.
   const { qualified, filteredOut } = useMemo(() => {
     if (!rawLeads) return { qualified: undefined as Lead[] | undefined, filteredOut: undefined as Lead[] | undefined };
     const evaluated = rawLeads.map((l) => applyFiltersToLead(l, settings));
-    const norm = (s: unknown) =>
-      typeof s === "string" ? s.trim().toLowerCase().replace(/\s+/g, " ") : "";
-    const identityKey = (l: Lead): string => {
-      const placeId = (l as Record<string, unknown>).placeId;
-      if (typeof placeId === "string" && placeId.trim()) return `pid:${placeId.trim()}`;
-      const website = norm(l.website).replace(/^https?:\/\//, "").replace(/\/$/, "");
-      if (website) return `web:${website}`;
-      const t = norm(l.title);
-      const a = norm(l.address);
-      if (t && a) return `ta:${t}|${a}`;
-      const p = norm(l.phone);
-      if (t && p) return `tp:${t}|${p}`;
-      return `id:${leadKey(l)}`;
-    };
-    const dedupe = (arr: Lead[]) => {
-      const map = new Map<string, Lead>();
-      for (const l of arr) {
-        const k = identityKey(l);
-        const existing = map.get(k);
-        if (!existing || (l.leadScore ?? 0) > (existing.leadScore ?? 0)) map.set(k, l);
+    // Dedupe across BOTH sets together so the same business doesn't appear
+    // once as Qualified and again as Filtered after a settings change.
+    const map = new Map<string, Lead>();
+    for (const l of evaluated) {
+      const k = leadIdentityKey(l);
+      const ex = map.get(k);
+      if (!ex) {
+        map.set(k, l);
+        continue;
       }
-      return [...map.values()].sort((a, b) => (b.leadScore ?? 0) - (a.leadScore ?? 0));
-    };
+      // Prefer the qualified copy; otherwise the one with the higher score.
+      const better =
+        (l.passed && !ex.passed) ||
+        (l.passed === ex.passed && (l.leadScore ?? 0) > (ex.leadScore ?? 0));
+      if (better) map.set(k, l);
+    }
+    const all = [...map.values()].sort((a, b) => (b.leadScore ?? 0) - (a.leadScore ?? 0));
     return {
-      qualified: dedupe(evaluated.filter((l) => l.passed)),
-      filteredOut: dedupe(evaluated.filter((l) => !l.passed)),
+      qualified: all.filter((l) => l.passed),
+      filteredOut: all.filter((l) => !l.passed),
     };
   }, [rawLeads, settings]);
 
