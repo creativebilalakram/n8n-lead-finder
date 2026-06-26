@@ -28,6 +28,7 @@ export type Database = {
           lead_score: number | null
           lead_tier: string | null
           lovable_url: string | null
+          opened_at: string | null
           owner_update_age_days: number | null
           passed: boolean
           phone: string | null
@@ -55,6 +56,7 @@ export type Database = {
           lead_score?: number | null
           lead_tier?: string | null
           lovable_url?: string | null
+          opened_at?: string | null
           owner_update_age_days?: number | null
           passed?: boolean
           phone?: string | null
@@ -82,6 +84,7 @@ export type Database = {
           lead_score?: number | null
           lead_tier?: string | null
           lovable_url?: string | null
+          opened_at?: string | null
           owner_update_age_days?: number | null
           passed?: boolean
           phone?: string | null

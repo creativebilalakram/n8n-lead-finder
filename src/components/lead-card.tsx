@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import type { Lead } from "@/lib/lead-types";
 import { useEffect, useState } from "react";
-import { isClicked, leadKey, markClicked, subscribeClicked, toggleClicked } from "@/lib/clicked-leads";
+import { ensureOpenedLoaded, isClicked, leadKey, markClicked, subscribeClicked, toggleClicked } from "@/lib/clicked-leads";
 import { supabase } from "@/integrations/supabase/client";
 
 export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean }) {
@@ -22,6 +22,7 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
   // which would otherwise wipe the clicked state on every refresh.
   const [clicked, setClicked] = useState(false);
   useEffect(() => {
+    void ensureOpenedLoaded();
     setClicked(isClicked(key));
     return subscribeClicked(() => setClicked(isClicked(key)));
   }, [key]);
@@ -46,7 +47,9 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
   };
 
   const openLovable = async () => {
-    markClicked(key);
+    void markClicked(key).catch(() => {
+      toast.error("Couldn't save opened status");
+    });
     // Pre-open a tab synchronously so popup blockers don't swallow it while
     // we await the DB fetch.
     const win = window.open("about:blank", "_blank", "noopener,noreferrer");
@@ -95,8 +98,9 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            toggleClicked(key);
-            toast.success("Marked as not opened");
+            void toggleClicked(key)
+              .then(() => toast.success("Marked as not opened"))
+              .catch(() => toast.error("Couldn't update opened status"));
           }}
           title="Click to unmark"
           className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow"
