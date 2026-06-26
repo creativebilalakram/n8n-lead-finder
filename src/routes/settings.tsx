@@ -27,8 +27,15 @@ export const Route = createFileRoute("/settings")({
 function SettingsPage() {
   const [tab, setTab] = useState<"filters" | "analytics">("filters");
   const [settings, setSettings] = useFilterSettings();
-  const [draft, setDraft] = useState<FilterSettings>(settings);
+  const [draft, setDraft] = useState<FilterSettings>(() => settings);
   const [saved, setSaved] = useState(false);
+
+  // Keep the editable draft in sync with the persisted settings. This
+  // matters on first hydration (SSR returns DEFAULT_FILTERS until
+  // localStorage is read on the client) and after reset/save events.
+  useEffect(() => {
+    setDraft(settings);
+  }, [settings]);
 
   const dirty =
     draft.minReviews !== settings.minReviews ||
