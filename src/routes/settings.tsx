@@ -8,6 +8,7 @@ import {
   BarChart3,
   SlidersHorizontal,
   Loader2,
+  AlertCircle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Lead } from "@/lib/lead-types";
@@ -26,9 +27,11 @@ export const Route = createFileRoute("/settings")({
 
 function SettingsPage() {
   const [tab, setTab] = useState<"filters" | "analytics">("filters");
-  const [settings, setSettings] = useFilterSettings();
+  const [settings, setSettings, settingsLoading] = useFilterSettings();
   const [draft, setDraft] = useState<FilterSettings>(() => settings);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Keep the editable draft in sync with the persisted settings. This
   // matters on first hydration (SSR returns DEFAULT_FILTERS until
@@ -47,16 +50,32 @@ function SettingsPage() {
     draft.ratingEnabled !== settings.ratingEnabled ||
     draft.ownerEnabled !== settings.ownerEnabled;
 
-  const save = () => {
-    setSettings(draft);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 1500);
+  const save = async () => {
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await setSettings(draft);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Could not save settings.");
+    } finally {
+      setSaving(false);
+    }
   };
-  const reset = () => {
+  const reset = async () => {
     setDraft(DEFAULT_FILTERS);
-    setSettings(DEFAULT_FILTERS);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 1500);
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await setSettings(DEFAULT_FILTERS);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Could not reset settings.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -145,15 +164,16 @@ function SettingsPage() {
           <button
             type="button"
             onClick={save}
-            disabled={!dirty}
+            disabled={!dirty || saving || settingsLoading}
             className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-br from-indigo-600 to-fuchsia-600 px-5 text-sm font-semibold text-white shadow-md shadow-indigo-500/30 transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {saved ? <Check className="h-4 w-4" /> : null}
-            {saved ? "Saved" : "Save changes"}
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : saved ? <Check className="h-4 w-4" /> : null}
+            {saving ? "Saving" : saved ? "Saved" : "Save changes"}
           </button>
           <button
             type="button"
             onClick={reset}
+            disabled={saving || settingsLoading}
             className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50"
           >
             <RotateCcw className="h-3.5 w-3.5" />
@@ -165,6 +185,12 @@ function SettingsPage() {
             {DEFAULT_FILTERS.activeOwnerDays}d
           </span>
         </div>
+        {saveError ? (
+          <div className="flex items-start gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+            <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>{saveError}</span>
+          </div>
+        ) : null}
       </div>
       )}
 
