@@ -21,6 +21,19 @@ function HistoryDetailPage() {
     queryFn: () => getSearchRunDetail(id),
   });
 
+  // Live re-evaluation: combine and re-split using current global filter settings.
+  const { liveLeads, liveFiltered } = useMemo(() => {
+    if (!record) return { liveLeads: [] as Lead[], liveFiltered: [] as Lead[] };
+    const all: Lead[] = [...record.leads, ...record.filteredOut].map((l) =>
+      applyFiltersToLead(l, settings),
+    );
+    const pass: Lead[] = [];
+    const fail: Lead[] = [];
+    for (const l of all) (l.passed ? pass : fail).push(l);
+    pass.sort((a, b) => (b.leadScore ?? 0) - (a.leadScore ?? 0));
+    return { liveLeads: pass, liveFiltered: fail };
+  }, [record, settings]);
+
   if (isLoading) {
     return (
       <div className="mx-auto max-w-5xl px-4 py-16 text-center text-slate-500">
@@ -47,18 +60,6 @@ function HistoryDetailPage() {
       </div>
     );
   }
-
-  // Live re-evaluation: combine and re-split using current global filter settings.
-  const { liveLeads, liveFiltered } = useMemo(() => {
-    const all: Lead[] = [...record.leads, ...record.filteredOut].map((l) =>
-      applyFiltersToLead(l, settings),
-    );
-    const pass: Lead[] = [];
-    const fail: Lead[] = [];
-    for (const l of all) (l.passed ? pass : fail).push(l);
-    pass.sort((a, b) => (b.leadScore ?? 0) - (a.leadScore ?? 0));
-    return { liveLeads: pass, liveFiltered: fail };
-  }, [record, settings]);
 
   const tierCounts = liveLeads.reduce<{ hot: number; warm: number; mild: number }>(
     (acc, l) => {
