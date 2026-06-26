@@ -81,11 +81,15 @@ export async function saveSearchRun(input: SaveSearchInput): Promise<string> {
   ];
   if (allLeads.length) {
     const rows = allLeads.map((l) => leadToRow(l, run.id, input.apifyRunId ?? null));
-    // chunk to avoid payload limits
-    const CHUNK = 500;
+    // chunk to avoid payload limits (raw jsonb can be heavy)
+    const CHUNK = 25;
     for (let i = 0; i < rows.length; i += CHUNK) {
       const { error } = await supabase.from("leads").insert(rows.slice(i, i + CHUNK) as never);
-      if (error) throw error;
+      if (error) {
+        // rollback parent row so we don't leave an orphan "0 leads" run
+        await supabase.from("search_runs").delete().eq("id", run.id);
+        throw error;
+      }
     }
   }
   return run.id;
