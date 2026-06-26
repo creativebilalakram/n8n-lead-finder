@@ -2,8 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Activity, Download, RefreshCw, CheckCircle2, XCircle, Clock, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { addSearch, loadSearches } from "@/lib/lead-store";
-import type { Lead, SearchRecord } from "@/lib/lead-types";
+import { saveSearchRun, listImportedApifyRunIds } from "@/lib/leads-db";
+import type { Lead } from "@/lib/lead-types";
 
 export const Route = createFileRoute("/runs")({
   head: () => ({ meta: [{ title: "Apify Runs — LeadForge" }] }),
@@ -65,13 +65,12 @@ function RunsPage() {
   const [importingId, setImportingId] = useState<string | null>(null);
   const [importedRunIds, setImportedRunIds] = useState<Set<string>>(new Set());
 
-  const refreshImported = () => {
-    const ids = new Set<string>();
-    for (const s of loadSearches()) {
-      const rid = (s as SearchRecord & { apifyRunId?: string }).apifyRunId;
-      if (rid) ids.add(rid);
+  const refreshImported = async () => {
+    try {
+      setImportedRunIds(await listImportedApifyRunIds());
+    } catch {
+      /* ignore */
     }
-    setImportedRunIds(ids);
   };
 
   const fetchRuns = async () => {
@@ -107,9 +106,9 @@ function RunsPage() {
       const leads = (json.leads ?? []) as Lead[];
       const filteredOut = (json.filteredOut ?? []) as Lead[];
 
-      const record: SearchRecord & { apifyRunId?: string; imported?: boolean } = {
-        id: `imported-${run.id}`,
-        createdAt: run.startedAt ? new Date(run.startedAt).getTime() : Date.now(),
+      await saveSearchRun({
+        apifyRunId: run.id,
+        source: "import",
         params: {
           keywords: ["(imported from Apify)"],
           countryCode: "",
@@ -123,11 +122,10 @@ function RunsPage() {
         leads,
         filteredOut,
         total: json.total ?? leads.length + filteredOut.length,
-        apifyRunId: run.id,
-        imported: true,
-      };
-      addSearch(record);
-      refreshImported();
+        apifyStartedAt: run.startedAt ?? null,
+        apifyFinishedAt: run.finishedAt ?? null,
+      });
+      await refreshImported();
       toast.success(`Imported ${leads.length} qualified leads (${filteredOut.length} filtered)`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Import failed");

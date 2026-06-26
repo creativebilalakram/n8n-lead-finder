@@ -1,9 +1,9 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { ArrowLeft, Filter, ChevronDown, ChevronUp, Flame } from "lucide-react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { ArrowLeft, Filter, ChevronDown, ChevronUp, Flame, Loader2 } from "lucide-react";
 import { LeadCard } from "@/components/lead-card";
-import { getSearch } from "@/lib/lead-store";
-import type { SearchRecord } from "@/lib/lead-types";
+import { getSearchRunDetail } from "@/lib/leads-db";
 
 export const Route = createFileRoute("/history/$id")({
   head: () => ({ meta: [{ title: "Search — LeadForge" }] }),
@@ -12,12 +12,20 @@ export const Route = createFileRoute("/history/$id")({
 
 function HistoryDetailPage() {
   const { id } = useParams({ from: "/history/$id" });
-  const [record, setRecord] = useState<SearchRecord | null>(null);
   const [showFiltered, setShowFiltered] = useState(true);
+  const { data: record, isLoading } = useQuery({
+    queryKey: ["search_run", id],
+    queryFn: () => getSearchRunDetail(id),
+  });
 
-  useEffect(() => {
-    setRecord(getSearch(id) ?? null);
-  }, [id]);
+  if (isLoading) {
+    return (
+      <div className="mx-auto max-w-5xl px-4 py-16 text-center text-slate-500">
+        <Loader2 className="mx-auto h-6 w-6 animate-spin" />
+        <div className="mt-2 text-sm">Loading search…</div>
+      </div>
+    );
+  }
 
   if (!record) {
     return (

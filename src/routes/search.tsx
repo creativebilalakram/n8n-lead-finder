@@ -16,8 +16,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LeadCard } from "@/components/lead-card";
-import { addSearch } from "@/lib/lead-store";
-import type { Lead, SearchRecord } from "@/lib/lead-types";
+import { saveSearchRun } from "@/lib/leads-db";
+import type { Lead } from "@/lib/lead-types";
 
 const START_URL = "/api/public/leads/start";
 const STATUS_URL = "/api/public/leads/status";
@@ -104,6 +104,7 @@ function SearchPage() {
         };
         if (sJson.status === "SUCCEEDED") {
           return {
+            runId,
             leads: sJson.leads ?? [],
             filteredOut: sJson.filteredOut ?? [],
             total: sJson.total ?? 0,
@@ -114,26 +115,31 @@ function SearchPage() {
       }
       throw new Error("Timed out waiting for Apify run to finish");
     },
-    onSuccess: (data) => {
+    onSuccess: async (data, _vars, _ctx) => {
       setResult({ leads: data.leads, filteredOut: data.filteredOut });
-      const record: SearchRecord = {
-        id: crypto.randomUUID(),
-        createdAt: Date.now(),
-        params: {
-          keywords,
-          countryCode,
-          maxPlaces: Number(maxPlaces),
-          minReviews: Number(minReviews),
-          maxReviews: Number(maxReviews),
-          minRating: Number(minRating),
-          maxRating: Number(maxRating),
-          activeOwnerDays: Number(activeOwnerDays),
-        },
-        leads: data.leads,
-        filteredOut: data.filteredOut,
-        total: data.total,
-      };
-      addSearch(record);
+      try {
+        await saveSearchRun({
+          apifyRunId: data.runId ?? null,
+          source: "search",
+          params: {
+            keywords,
+            countryCode,
+            maxPlaces: Number(maxPlaces),
+            minReviews: Number(minReviews),
+            maxReviews: Number(maxReviews),
+            minRating: Number(minRating),
+            maxRating: Number(maxRating),
+            activeOwnerDays: Number(activeOwnerDays),
+          },
+          leads: data.leads,
+          filteredOut: data.filteredOut,
+          total: data.total,
+        });
+      } catch (e) {
+        toast.error(
+          `Saved to view but DB save failed: ${e instanceof Error ? e.message : "unknown"}`,
+        );
+      }
       if (!data.leads.length && !data.filteredOut.length) {
         toast.warning("No leads returned. Try widening your filters.");
       } else {
