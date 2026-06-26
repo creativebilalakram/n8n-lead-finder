@@ -7,6 +7,9 @@ export type FilterSettings = {
   minRating: number;
   maxRating: number;
   activeOwnerDays: number;
+  reviewsEnabled: boolean;
+  ratingEnabled: boolean;
+  ownerEnabled: boolean;
 };
 
 export const DEFAULT_FILTERS: FilterSettings = {
@@ -15,6 +18,9 @@ export const DEFAULT_FILTERS: FilterSettings = {
   minRating: 4.2,
   maxRating: 4.8,
   activeOwnerDays: 60,
+  reviewsEnabled: true,
+  ratingEnabled: true,
+  ownerEnabled: true,
 };
 
 const KEY = "lead-gen-filter-settings-v1";
@@ -96,26 +102,26 @@ export function evaluateLead(lead: Lead, s: FilterSettings): Evaluation {
   const ownerDays =
     ownerDate === null ? null : Math.floor((Date.now() - ownerDate.getTime()) / 86400000);
 
-  const passesReviews = reviews >= s.minReviews && reviews <= s.maxReviews;
-  const passesRating = rating >= s.minRating && rating <= s.maxRating;
-  const activeOwner = ownerDays !== null && ownerDays <= s.activeOwnerDays;
+  const passesReviews = !s.reviewsEnabled || (reviews >= s.minReviews && reviews <= s.maxReviews);
+  const passesRating = !s.ratingEnabled || (rating >= s.minRating && rating <= s.maxRating);
+  const activeOwner = !s.ownerEnabled || (ownerDays !== null && ownerDays <= s.activeOwnerDays);
 
   const rejectionReasons: string[] = [];
-  if (!passesReviews) {
+  if (s.reviewsEnabled && !passesReviews) {
     rejectionReasons.push(
       reviews < s.minReviews
         ? `reviews_too_low (${reviews} < ${s.minReviews})`
         : `reviews_too_high (${reviews} > ${s.maxReviews})`,
     );
   }
-  if (!passesRating) {
+  if (s.ratingEnabled && !passesRating) {
     rejectionReasons.push(
       rating < s.minRating
         ? `rating_too_low (${rating} < ${s.minRating})`
         : `rating_too_high (${rating} > ${s.maxRating})`,
     );
   }
-  if (!activeOwner) {
+  if (s.ownerEnabled && !activeOwner) {
     rejectionReasons.push(
       ownerDays === null
         ? "no_owner_activity"
