@@ -180,9 +180,11 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
       )}
 
       <div className="mt-auto pt-5">
-        <button
-          type="button"
-          onClick={openLovable}
+        <a
+          href={computeUrl()}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={onOpen}
           className={`group/btn relative w-full overflow-hidden rounded-xl px-4 py-3 text-sm font-semibold text-white transition ${
             clicked
               ? "bg-gradient-to-r from-emerald-600 to-teal-600 shadow-md shadow-emerald-500/30 hover:shadow-lg"
@@ -196,7 +198,7 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
             {clicked ? "Opened — open again" : "Open in Lovable"}
             <ExternalLink className="h-3.5 w-3.5 opacity-80 transition group-hover/btn:translate-x-0.5" />
           </span>
-        </button>
+        </a>
       </div>
     </div>
   );
