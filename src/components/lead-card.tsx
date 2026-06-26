@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import type { Lead } from "@/lib/lead-types";
 import { useEffect, useState } from "react";
-import { isClicked, leadKey, markClicked, subscribeClicked, toggleClicked } from "@/lib/clicked-leads";
+import { ensureOpenedLoaded, isClicked, leadKey, markClicked, subscribeClicked, toggleClicked } from "@/lib/clicked-leads";
 import { supabase } from "@/integrations/supabase/client";
 
 export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean }) {
@@ -22,6 +22,7 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
   // which would otherwise wipe the clicked state on every refresh.
   const [clicked, setClicked] = useState(false);
   useEffect(() => {
+    void ensureOpenedLoaded();
     setClicked(isClicked(key));
     return subscribeClicked(() => setClicked(isClicked(key)));
   }, [key]);
