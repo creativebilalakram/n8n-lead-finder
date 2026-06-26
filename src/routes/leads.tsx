@@ -18,13 +18,12 @@ async function fetchAllLeads(): Promise<Lead[]> {
   const PAGE = 1000;
   let from = 0;
   const out: Lead[] = [];
-  // paginate to avoid the 1000-row default cap
-  // eslint-disable-next-line no-constant-condition
   while (true) {
     const { data, error } = await supabase
       .from("leads")
-      .select("*")
-      .order("lead_score", { ascending: false, nullsFirst: false })
+      .select(
+        "id, place_id, title, category, address, city, country_code, phone, phones, email, emails, website, rating, reviews_count, lead_score, lead_tier, red_flags, passed, rejection_reasons, lovable_url, raw",
+      )
       .range(from, from + PAGE - 1);
     if (error) throw error;
     const rows = data ?? [];
@@ -52,7 +51,8 @@ async function fetchAllLeads(): Promise<Lead[]> {
     if (rows.length < PAGE) break;
     from += PAGE;
   }
-  return out;
+  // sort client-side to avoid DB sort on huge jsonb result
+  return out.sort((a, b) => (b.leadScore ?? 0) - (a.leadScore ?? 0));
 }
 
 function AllLeadsPage() {
