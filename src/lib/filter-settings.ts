@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import type { Lead } from "./lead-types";
 
 export type FilterSettings = {
@@ -23,43 +25,101 @@ export const DEFAULT_FILTERS: FilterSettings = {
   ownerEnabled: true,
 };
 
-const KEY = "lead-gen-filter-settings-v1";
 const EVT = "lead-gen-filter-settings-changed";
+const SETTINGS_KEY = "filter_settings";
 
-export function loadFilterSettings(): FilterSettings {
-  if (typeof window === "undefined") return DEFAULT_FILTERS;
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return DEFAULT_FILTERS;
-    const parsed = JSON.parse(raw) as Partial<FilterSettings>;
-    return { ...DEFAULT_FILTERS, ...parsed };
-  } catch {
-    return DEFAULT_FILTERS;
+let cachedSettings: FilterSettings = DEFAULT_FILTERS;
+let settingsLoaded = false;
+
+function coerceNumber(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function coerceBoolean(value: unknown, fallback: boolean): boolean {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function normalizeFilterSettings(value: unknown): FilterSettings {
+  const raw = value && typeof value === "object" ? (value as Partial<FilterSettings>) : {};
+  return {
+    minReviews: coerceNumber(raw.minReviews, DEFAULT_FILTERS.minReviews),
+    maxReviews: coerceNumber(raw.maxReviews, DEFAULT_FILTERS.maxReviews),
+    minRating: coerceNumber(raw.minRating, DEFAULT_FILTERS.minRating),
+    maxRating: coerceNumber(raw.maxRating, DEFAULT_FILTERS.maxRating),
+    activeOwnerDays: coerceNumber(raw.activeOwnerDays, DEFAULT_FILTERS.activeOwnerDays),
+    reviewsEnabled: coerceBoolean(raw.reviewsEnabled, DEFAULT_FILTERS.reviewsEnabled),
+    ratingEnabled: coerceBoolean(raw.ratingEnabled, DEFAULT_FILTERS.ratingEnabled),
+    ownerEnabled: coerceBoolean(raw.ownerEnabled, DEFAULT_FILTERS.ownerEnabled),
+  };
+}
+
+function emitSettingsChanged() {
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(EVT));
+}
+
+export async function loadFilterSettings(): Promise<FilterSettings> {
+  const { data, error } = await supabase
+    .from("app_settings")
+    .select("value")
+    .eq("key", SETTINGS_KEY)
+    .maybeSingle();
+  if (error) throw error;
+  cachedSettings = normalizeFilterSettings(data?.value);
+  settingsLoaded = true;
+  return cachedSettings;
+}
+
+export async function saveFilterSettings(s: FilterSettings): Promise<FilterSettings> {
+  const next = normalizeFilterSettings(s);
+  const previous = cachedSettings;
+  cachedSettings = next;
+  emitSettingsChanged();
+  const { data, error } = await supabase
+    .from("app_settings")
+    .update({ value: next as unknown as Json })
+    .eq("key", SETTINGS_KEY)
+    .select("value")
+    .single();
+  if (error) {
+    cachedSettings = previous;
+    emitSettingsChanged();
+    throw error;
   }
+  cachedSettings = normalizeFilterSettings(data.value);
+  settingsLoaded = true;
+  emitSettingsChanged();
+  return cachedSettings;
 }
 
-export function saveFilterSettings(s: FilterSettings) {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(KEY, JSON.stringify(s));
-  window.dispatchEvent(new CustomEvent(EVT));
-}
-
-export function useFilterSettings(): [FilterSettings, (s: FilterSettings) => void] {
-  const [s, setS] = useState<FilterSettings>(() => loadFilterSettings());
+export function useFilterSettings(): [FilterSettings, (s: FilterSettings) => Promise<FilterSettings>, boolean] {
+  const [s, setS] = useState<FilterSettings>(() => cachedSettings);
+  const [loading, setLoading] = useState(!settingsLoaded);
   useEffect(() => {
-    const sync = () => setS(loadFilterSettings());
+    let cancelled = false;
+    const sync = () => setS(cachedSettings);
     window.addEventListener(EVT, sync);
-    window.addEventListener("storage", sync);
+    setLoading(true);
+    loadFilterSettings()
+      .then((next) => {
+        if (!cancelled) setS(next);
+      })
+      .catch(() => {
+        if (!cancelled) setS(cachedSettings);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
     return () => {
+      cancelled = true;
       window.removeEventListener(EVT, sync);
-      window.removeEventListener("storage", sync);
     };
   }, []);
-  const update = (next: FilterSettings) => {
-    saveFilterSettings(next);
-    setS(next);
+  const update = async (next: FilterSettings) => {
+    const saved = await saveFilterSettings(next);
+    setS(saved);
+    return saved;
   };
-  return [s, update];
+  return [s, update, loading];
 }
 
 // ---- live re-evaluation (same logic as lead-scoring main filters) ----
