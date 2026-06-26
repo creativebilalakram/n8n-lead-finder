@@ -47,6 +47,13 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
   };
 
   const openLovable = async () => {
+    const newTab = window.open("", "_blank");
+    if (!newTab) {
+      toast.error("New tab was blocked", {
+        description: "Please allow popups for this app and try again.",
+      });
+      return;
+    }
     void markClicked(key).catch(() => {
       toast.error("Couldn't save opened status");
     });
@@ -76,14 +83,12 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
         description: "Re-import this Apify run to include the full original business data.",
       });
     }
-    // Open in a new tab without ever navigating the current page.
-    const win = window.open(url, "_blank", "noopener,noreferrer");
-    if (win) {
-      try {
-        win.opener = null;
-      } catch {
-        // ignore
-      }
+    // Navigate only the tab created synchronously by this click; never this app tab.
+    newTab.location.assign(url);
+    try {
+      newTab.opener = null;
+    } catch {
+      // ignore
     }
   };
 
@@ -203,7 +208,11 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
       <div className="mt-auto pt-5">
         <button
           type="button"
-          onClick={openLovable}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            void openLovable();
+          }}
           className={`group/btn relative w-full overflow-hidden rounded-xl px-4 py-3 text-sm font-semibold text-white transition ${
             clicked
               ? "bg-gradient-to-r from-emerald-600 to-teal-600 shadow-md shadow-emerald-500/30 hover:shadow-lg"
