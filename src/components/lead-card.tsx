@@ -12,13 +12,19 @@ import {
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import type { Lead } from "@/lib/lead-types";
-import { isClicked, leadKey, markClicked, toggleClicked, useClickedSync } from "@/lib/clicked-leads";
+import { useEffect, useState } from "react";
+import { isClicked, leadKey, markClicked, subscribeClicked, toggleClicked } from "@/lib/clicked-leads";
 import { supabase } from "@/integrations/supabase/client";
 
 export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean }) {
-  useClickedSync();
   const key = leadKey(lead);
-  const clicked = isClicked(key);
+  // Hydrate from localStorage after mount to avoid SSR/hydration mismatch
+  // which would otherwise wipe the clicked state on every refresh.
+  const [clicked, setClicked] = useState(false);
+  useEffect(() => {
+    setClicked(isClicked(key));
+    return subscribeClicked(() => setClicked(isClicked(key)));
+  }, [key]);
   const tier = (lead.leadTier || "").toLowerCase();
   const tierBadge =
     tier === "hot"
