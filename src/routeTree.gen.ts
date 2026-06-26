@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as RunsRouteImport } from './routes/runs'
+import { Route as LeadsRouteImport } from './routes/leads'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as HistoryIndexRouteImport } from './routes/history.index'
 import { Route as HistoryIdRouteImport } from './routes/history.$id'
@@ -27,6 +28,11 @@ const SearchRoute = SearchRouteImport.update({
 const RunsRoute = RunsRouteImport.update({
   id: '/runs',
   path: '/runs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LeadsRoute = LeadsRouteImport.update({
+  id: '/leads',
+  path: '/leads',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -67,6 +73,7 @@ const ApiPublicApifyImportRoute = ApiPublicApifyImportRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/leads': typeof LeadsRoute
   '/runs': typeof RunsRoute
   '/search': typeof SearchRoute
   '/history/$id': typeof HistoryIdRoute
@@ -78,6 +85,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/leads': typeof LeadsRoute
   '/runs': typeof RunsRoute
   '/search': typeof SearchRoute
   '/history/$id': typeof HistoryIdRoute
@@ -90,6 +98,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/leads': typeof LeadsRoute
   '/runs': typeof RunsRoute
   '/search': typeof SearchRoute
   '/history/$id': typeof HistoryIdRoute
@@ -103,6 +112,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/leads'
     | '/runs'
     | '/search'
     | '/history/$id'
@@ -114,6 +124,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/leads'
     | '/runs'
     | '/search'
     | '/history/$id'
@@ -125,6 +136,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/leads'
     | '/runs'
     | '/search'
     | '/history/$id'
@@ -137,6 +149,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  LeadsRoute: typeof LeadsRoute
   RunsRoute: typeof RunsRoute
   SearchRoute: typeof SearchRoute
   HistoryIdRoute: typeof HistoryIdRoute
@@ -161,6 +174,13 @@ declare module '@tanstack/react-router' {
       path: '/runs'
       fullPath: '/runs'
       preLoaderRoute: typeof RunsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/leads': {
+      id: '/leads'
+      path: '/leads'
+      fullPath: '/leads'
+      preLoaderRoute: typeof LeadsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -217,6 +237,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  LeadsRoute: LeadsRoute,
   RunsRoute: RunsRoute,
   SearchRoute: SearchRoute,
   HistoryIdRoute: HistoryIdRoute,
