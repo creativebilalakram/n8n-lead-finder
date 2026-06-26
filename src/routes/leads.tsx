@@ -70,13 +70,30 @@ function AllLeadsPage() {
   });
 
   // Re-evaluate against current filter settings (live), then dedupe both sets.
+  // IMPORTANT: dedupe by a business-identity key (placeId, else website,
+  // else normalized title+address), NOT by the DB row id — every import
+  // produces a fresh row id, so id-based dedup never merges duplicates.
   const { qualified, filteredOut } = useMemo(() => {
     if (!rawLeads) return { qualified: undefined as Lead[] | undefined, filteredOut: undefined as Lead[] | undefined };
     const evaluated = rawLeads.map((l) => applyFiltersToLead(l, settings));
+    const norm = (s: unknown) =>
+      typeof s === "string" ? s.trim().toLowerCase().replace(/\s+/g, " ") : "";
+    const identityKey = (l: Lead): string => {
+      const placeId = (l as Record<string, unknown>).placeId;
+      if (typeof placeId === "string" && placeId.trim()) return `pid:${placeId.trim()}`;
+      const website = norm(l.website).replace(/^https?:\/\//, "").replace(/\/$/, "");
+      if (website) return `web:${website}`;
+      const t = norm(l.title);
+      const a = norm(l.address);
+      if (t && a) return `ta:${t}|${a}`;
+      const p = norm(l.phone);
+      if (t && p) return `tp:${t}|${p}`;
+      return `id:${leadKey(l)}`;
+    };
     const dedupe = (arr: Lead[]) => {
       const map = new Map<string, Lead>();
       for (const l of arr) {
-        const k = leadKey(l);
+        const k = identityKey(l);
         const existing = map.get(k);
         if (!existing || (l.leadScore ?? 0) > (existing.leadScore ?? 0)) map.set(k, l);
       }
