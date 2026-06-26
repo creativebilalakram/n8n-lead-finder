@@ -33,9 +33,8 @@ function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  // Keep the editable draft in sync with the persisted settings. This
-  // matters on first hydration (SSR returns DEFAULT_FILTERS until
-  // localStorage is read on the client) and after reset/save events.
+  // Keep the editable draft in sync with the persisted backend settings.
+  // This matters on first hydration and after reset/save events.
   useEffect(() => {
     setDraft(settings);
   }, [settings]);
