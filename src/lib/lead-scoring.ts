@@ -175,7 +175,7 @@ export function scoreLeads(items: AnyRec[], cfg: ScoreConfig): AnyRec[] {
     else if (leadScore >= 50) tier = "Mild";
 
     const passesMainFilters = passesReviews && passesRating && activeOwner;
-    const passed = passesMainFilters || leadScore >= threshold;
+    const passed = passesMainFilters;
 
     const rejectionReasons: string[] = [];
     if (!passed) {
@@ -199,9 +199,6 @@ export function scoreLeads(items: AnyRec[], cfg: ScoreConfig): AnyRec[] {
             ? "no_owner_activity"
             : `owner_inactive (${ownerDays}d > ${cfg.activeOwnerDays}d)`,
         );
-      }
-      if (leadScore < threshold) {
-        rejectionReasons.push(`score_below_threshold (${leadScore} < ${threshold})`);
       }
     }
 
