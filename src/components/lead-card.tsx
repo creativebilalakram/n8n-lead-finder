@@ -26,8 +26,6 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
     setClicked(isClicked(key));
     return subscribeClicked(() => setClicked(isClicked(key)));
   }, [key]);
-  const [resolvedUrl, setResolvedUrl] = useState<string | undefined>(lead.lovableUrl);
-  const [fetching, setFetching] = useState(false);
   const tier = (lead.leadTier || "").toLowerCase();
   const tierBadge =
     tier === "hot"
@@ -48,42 +46,54 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
     return "https://lovable.dev/?autosubmit=true#prompt=" + encodeURIComponent(prompt);
   };
 
-  // Resolve the full Lovable URL on demand (hover/focus) so the anchor's href
-  // is ready by click time. With a real <a target="_blank">, the browser opens
-  // a new tab natively — exactly like Ctrl/Cmd+click — without ever touching
-  // the current tab.
-  const resolveUrl = async (): Promise<string> => {
-    if (resolvedUrl) return resolvedUrl;
-    let url: string | undefined;
+  const openLovable = async () => {
+    void markClicked(key).catch(() => {
+      toast.error("Couldn't save opened status");
+    });
+    let url = lead.lovableUrl;
     const leadId = typeof lead.id === "string" ? lead.id : undefined;
     try {
-      if (leadId) {
+      if (!url && leadId) {
         const { data, error } = await supabase
           .from("leads")
           .select("raw, lovable_url")
           .eq("id", leadId)
           .maybeSingle();
         if (!error && data) {
-          if (data.lovable_url) url = data.lovable_url as string;
+          if (data.lovable_url) url = data.lovable_url;
           else if (data.raw) url = buildPromptUrl(data.raw);
         }
       }
     } catch {
-      // ignore — fall through to compact payload
+      // ignore — fall through to compact fallback
     }
     if (!url) {
+      // Legacy rows without `raw`. Build from every field we have on the lead.
       const fallback: Record<string, unknown> = { ...lead };
       delete (fallback as Record<string, unknown>).lovableUrl;
       url = buildPromptUrl(fallback);
+      toast.message("Using compact payload", {
+        description: "Re-import this Apify run to include the full original business data.",
+      });
     }
-    setResolvedUrl(url);
-    return url;
-  };
-
-  const prefetchUrl = () => {
-    if (resolvedUrl || fetching) return;
-    setFetching(true);
-    void resolveUrl().finally(() => setFetching(false));
+    // Open in a background tab (like Ctrl/Cmd+Click) so the user stays in this app.
+    const a = document.createElement("a");
+    a.href = url;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.style.display = "none";
+    document.body.appendChild(a);
+    const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
+    a.dispatchEvent(
+      new MouseEvent("click", {
+        bubbles: true,
+        cancelable: true,
+        view: window,
+        ctrlKey: !isMac,
+        metaKey: isMac,
+      }),
+    );
+    a.remove();
   };
 
   return (
@@ -200,44 +210,10 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
       )}
 
       <div className="mt-auto pt-5">
-        <a
-          href={resolvedUrl || "#"}
-          target="_blank"
-          rel="noopener noreferrer"
-          onMouseEnter={prefetchUrl}
-          onFocus={prefetchUrl}
-          onTouchStart={prefetchUrl}
-          onClick={(e) => {
-            e.stopPropagation();
-            void markClicked(key).catch(() => {
-              toast.error("Couldn't save opened status");
-            });
-            if (resolvedUrl) {
-              // Real anchor with target=_blank — browser opens a new tab,
-              // current tab stays put. Nothing else to do.
-              return;
-            }
-            // URL not ready yet: stop the anchor's "#" navigation, open a
-            // blank tab synchronously (within the user gesture), then
-            // navigate it once we've resolved the URL.
-            e.preventDefault();
-            const newTab = window.open("", "_blank", "noopener,noreferrer");
-            if (!newTab) {
-              toast.error("New tab was blocked", {
-                description: "Please allow popups for this app and try again.",
-              });
-              return;
-            }
-            void resolveUrl().then((url) => {
-              try {
-                newTab.opener = null;
-              } catch {
-                // ignore
-              }
-              newTab.location.assign(url);
-            });
-          }}
-          className={`group/btn relative block w-full overflow-hidden rounded-xl px-4 py-3 text-center text-sm font-semibold text-white transition ${
+        <button
+          type="button"
+          onClick={openLovable}
+          className={`group/btn relative w-full overflow-hidden rounded-xl px-4 py-3 text-sm font-semibold text-white transition ${
             clicked
               ? "bg-gradient-to-r from-emerald-600 to-teal-600 shadow-md shadow-emerald-500/30 hover:shadow-lg"
               : muted
@@ -250,7 +226,7 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
             {clicked ? "Opened — open again" : "Open in Lovable"}
             <ExternalLink className="h-3.5 w-3.5 opacity-80 transition group-hover/btn:translate-x-0.5" />
           </span>
-        </a>
+        </button>
       </div>
     </div>
   );
