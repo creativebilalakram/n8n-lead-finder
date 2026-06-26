@@ -20,6 +20,18 @@ function leadToRow(lead: Lead, searchRunId: string, apifyRunId: string | null) {
   const emails = pickArr<string>(lead.emails);
   const phones = pickArr<string>(lead.phones);
   const ownerUpdateAgeDays = pickNum((lead as Record<string, unknown>).ownerUpdateAgeDays);
+  // Preserve the FULL enriched Apify payload so the Lovable prompt can be
+  // rebuilt on-demand with every original field intact. We strip the giant
+  // pre-encoded `lovableUrl` (rebuilt at click time) to keep row size sane.
+  const rawSource = (lead as Record<string, unknown>).raw ?? lead;
+  let raw: Json | null = null;
+  try {
+    const clone = { ...(rawSource as Record<string, unknown>) };
+    delete clone.lovableUrl;
+    raw = clone as unknown as Json;
+  } catch {
+    raw = null;
+  }
   return {
     search_run_id: searchRunId,
     apify_run_id: apifyRunId,
@@ -41,11 +53,10 @@ function leadToRow(lead: Lead, searchRunId: string, apifyRunId: string | null) {
     red_flags: (pickArr(lead.redFlags) as Json) ?? null,
     passed: Boolean(lead.passed),
     rejection_reasons: (pickArr(lead.rejectionReasons) as Json) ?? null,
-    // Full Lovable prompt URLs and raw Apify payloads can be huge. The UI now
-    // regenerates a compact Lovable URL from the saved lead fields when needed.
+    // Lovable URL is rebuilt on demand from `raw` to avoid bloating row size.
     lovable_url: null,
     owner_update_age_days: ownerUpdateAgeDays ?? null,
-    raw: null,
+    raw,
   };
 }
 
