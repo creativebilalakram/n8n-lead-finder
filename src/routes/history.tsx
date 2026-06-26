@@ -1,8 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
 import { ArrowRight, History as HistoryIcon, Trash2, Search } from "lucide-react";
-import { loadSearches, clearSearches, deleteSearch } from "@/lib/lead-store";
-import type { SearchRecord } from "@/lib/lead-types";
+import { useQuery } from "@tanstack/react-query";
+import { listSearchRuns, deleteSearchRun, clearAllSearchRuns } from "@/lib/leads-db";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/history")({
@@ -13,13 +12,10 @@ export const Route = createFileRoute("/history")({
 });
 
 function HistoryListPage() {
-  const [searches, setSearches] = useState<SearchRecord[]>([]);
-
-  useEffect(() => {
-    setSearches(loadSearches());
-  }, []);
-
-  const refresh = () => setSearches(loadSearches());
+  const { data: searches = [], refetch } = useQuery({
+    queryKey: ["search_runs"],
+    queryFn: () => listSearchRuns(200),
+  });
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:py-12">
@@ -39,11 +35,15 @@ function HistoryListPage() {
         {searches.length > 0 && (
           <button
             type="button"
-            onClick={() => {
-              if (!confirm("Delete all search history?")) return;
-              clearSearches();
-              refresh();
-              toast.success("History cleared");
+            onClick={async () => {
+              if (!confirm("Delete all search history? This removes every saved lead from the database.")) return;
+              try {
+                await clearAllSearchRuns();
+                await refetch();
+                toast.success("History cleared");
+              } catch (e) {
+                toast.error(e instanceof Error ? e.message : "Failed to clear");
+              }
             }}
             className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-600 transition hover:border-rose-300 hover:text-rose-600"
           >
@@ -88,23 +88,30 @@ function HistoryListPage() {
                     <div className="mt-1 text-xs text-slate-500">
                       {new Date(r.createdAt).toLocaleString()} ·{" "}
                       <span className="font-medium text-emerald-600">
-                        {r.leads.length} kept
+                        {r.qualifiedCount} kept
                       </span>{" "}
                       ·{" "}
                       <span className="font-medium text-slate-500">
-                        {r.filteredOut.length} filtered
+                        {r.filteredCount} filtered
                       </span>{" "}
-                      · {r.total} total
+                      · {r.totalCount} total
+                      {r.source === "import" && (
+                        <span className="ml-2 rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-medium text-indigo-700">imported</span>
+                      )}
                     </div>
                   </div>
                 </Link>
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
                       if (!confirm("Delete this search?")) return;
-                      deleteSearch(r.id);
-                      refresh();
+                      try {
+                        await deleteSearchRun(r.id);
+                        await refetch();
+                      } catch (e) {
+                        toast.error(e instanceof Error ? e.message : "Delete failed");
+                      }
                     }}
                     className="rounded-lg p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
                     aria-label="Delete"
