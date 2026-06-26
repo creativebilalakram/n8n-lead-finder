@@ -1,9 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import { Settings as SettingsIcon, RotateCcw, Check } from "lucide-react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import {
+  Settings as SettingsIcon,
+  RotateCcw,
+  Check,
+  BarChart3,
+  SlidersHorizontal,
+  Loader2,
+} from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import type { Lead } from "@/lib/lead-types";
+import { isClicked, leadKey, useClickedSync } from "@/lib/clicked-leads";
 import {
   DEFAULT_FILTERS,
   type FilterSettings,
+  evaluateLead,
   useFilterSettings,
 } from "@/lib/filter-settings";
 
@@ -13,6 +25,7 @@ export const Route = createFileRoute("/settings")({
 });
 
 function SettingsPage() {
+  const [tab, setTab] = useState<"filters" | "analytics">("filters");
   const [settings, setSettings] = useFilterSettings();
   const [draft, setDraft] = useState<FilterSettings>(settings);
   const [saved, setSaved] = useState(false);
@@ -43,17 +56,41 @@ function SettingsPage() {
     <div className="mx-auto max-w-3xl px-4 py-10 sm:py-12">
       <div className="inline-flex items-center gap-2 rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-200">
         <SettingsIcon className="h-3.5 w-3.5" />
-        Filter Settings
+        Settings
       </div>
       <h1 className="mt-3 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-        Global qualification filters
+        Filters & Analytics
       </h1>
       <p className="mt-1 text-sm text-slate-500">
-        These filters decide which leads count as <span className="font-semibold">qualified</span>{" "}
-        across the whole app. Changes apply live to every lead — past imports too.
+        Adjust global qualification filters and review live analytics across every lead in your
+        workspace.
       </p>
 
-      <div className="mt-8 space-y-5 rounded-3xl border border-slate-200 bg-white/70 p-6 shadow-sm backdrop-blur">
+      <div className="mt-6 inline-flex rounded-xl border border-slate-200 bg-white/70 p-1 backdrop-blur">
+        <button
+          type="button"
+          onClick={() => setTab("filters")}
+          className={`inline-flex items-center gap-2 rounded-lg px-4 py-1.5 text-sm font-semibold transition ${
+            tab === "filters" ? "bg-slate-900 text-white shadow" : "text-slate-600 hover:bg-slate-50"
+          }`}
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5" /> Filters
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("analytics")}
+          className={`inline-flex items-center gap-2 rounded-lg px-4 py-1.5 text-sm font-semibold transition ${
+            tab === "analytics" ? "bg-slate-900 text-white shadow" : "text-slate-600 hover:bg-slate-50"
+          }`}
+        >
+          <BarChart3 className="h-3.5 w-3.5" /> Analytics
+        </button>
+      </div>
+
+      {tab === "analytics" ? (
+        <AnalyticsPanel settings={settings} />
+      ) : (
+      <div className="mt-6 space-y-5 rounded-3xl border border-slate-200 bg-white/70 p-6 shadow-sm backdrop-blur">
         <Pair
           label="Reviews count"
           help="Lead must have between X and Y reviews."
@@ -122,11 +159,14 @@ function SettingsPage() {
           </span>
         </div>
       </div>
+      )}
 
+      {tab === "filters" ? (
       <p className="mt-6 text-xs text-slate-500">
         Tip: <span className="font-medium">Hot / Warm / Mild / Cold</span> tier is based on the
         full lead score and is independent of these filters — it never hides a lead.
       </p>
+      ) : null}
     </div>
   );
 }
