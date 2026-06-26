@@ -84,7 +84,7 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
       });
     }
     // Navigate only the tab created synchronously by this click; never this app tab.
-    newTab.location.href = url;
+    newTab.location.assign(url);
     try {
       newTab.opener = null;
     } catch {
