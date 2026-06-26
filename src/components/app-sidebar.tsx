@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Search, History, Sparkles, Activity, Users } from "lucide-react";
+import { LayoutDashboard, Search, History, Sparkles, Activity, Users, Settings } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -19,6 +19,7 @@ const items = [
   { title: "All Leads", url: "/leads", icon: Users },
   { title: "Apify Runs", url: "/runs", icon: Activity },
   { title: "History", url: "/history", icon: History },
+  { title: "Settings", url: "/settings", icon: Settings },
 ];
 
 export function AppSidebar() {
