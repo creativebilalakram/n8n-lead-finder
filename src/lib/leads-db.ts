@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import type { Lead, SearchParamsSnapshot, SearchRecord } from "./lead-types";
 
 // ----- helpers -----
@@ -36,11 +37,11 @@ function leadToRow(lead: Lead, searchRunId: string, apifyRunId: string | null) {
     reviews_count: pickNum(lead.reviewsCount) ?? null,
     lead_score: pickNum(lead.leadScore) ?? null,
     lead_tier: pickStr(lead.leadTier) ?? null,
-    red_flags: pickArr(lead.redFlags) ?? null,
+    red_flags: (pickArr(lead.redFlags) as Json) ?? null,
     passed: Boolean(lead.passed),
-    rejection_reasons: pickArr(lead.rejectionReasons) ?? null,
+    rejection_reasons: (pickArr(lead.rejectionReasons) as Json) ?? null,
     lovable_url: pickStr(lead.lovableUrl) ?? null,
-    raw: lead as unknown,
+    raw: lead as unknown as Json,
   };
 }
 
@@ -63,7 +64,7 @@ export async function saveSearchRun(input: SaveSearchInput): Promise<string> {
     .insert({
       apify_run_id: input.apifyRunId ?? null,
       source: input.source,
-      params: input.params as unknown as Record<string, unknown>,
+      params: input.params as unknown as Json,
       qualified_count: input.leads.length,
       filtered_count: input.filteredOut.length,
       total_count: input.total,
@@ -83,7 +84,7 @@ export async function saveSearchRun(input: SaveSearchInput): Promise<string> {
     // chunk to avoid payload limits
     const CHUNK = 500;
     for (let i = 0; i < rows.length; i += CHUNK) {
-      const { error } = await supabase.from("leads").insert(rows.slice(i, i + CHUNK));
+      const { error } = await supabase.from("leads").insert(rows.slice(i, i + CHUNK) as never);
       if (error) throw error;
     }
   }
