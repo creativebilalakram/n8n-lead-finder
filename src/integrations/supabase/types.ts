@@ -14,7 +14,134 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      leads: {
+        Row: {
+          address: string | null
+          apify_run_id: string | null
+          category: string | null
+          city: string | null
+          country_code: string | null
+          created_at: string
+          email: string | null
+          emails: Json | null
+          id: string
+          lead_score: number | null
+          lead_tier: string | null
+          lovable_url: string | null
+          passed: boolean
+          phone: string | null
+          phones: Json | null
+          place_id: string | null
+          rating: number | null
+          raw: Json | null
+          red_flags: Json | null
+          rejection_reasons: Json | null
+          reviews_count: number | null
+          search_run_id: string
+          title: string | null
+          website: string | null
+        }
+        Insert: {
+          address?: string | null
+          apify_run_id?: string | null
+          category?: string | null
+          city?: string | null
+          country_code?: string | null
+          created_at?: string
+          email?: string | null
+          emails?: Json | null
+          id?: string
+          lead_score?: number | null
+          lead_tier?: string | null
+          lovable_url?: string | null
+          passed?: boolean
+          phone?: string | null
+          phones?: Json | null
+          place_id?: string | null
+          rating?: number | null
+          raw?: Json | null
+          red_flags?: Json | null
+          rejection_reasons?: Json | null
+          reviews_count?: number | null
+          search_run_id: string
+          title?: string | null
+          website?: string | null
+        }
+        Update: {
+          address?: string | null
+          apify_run_id?: string | null
+          category?: string | null
+          city?: string | null
+          country_code?: string | null
+          created_at?: string
+          email?: string | null
+          emails?: Json | null
+          id?: string
+          lead_score?: number | null
+          lead_tier?: string | null
+          lovable_url?: string | null
+          passed?: boolean
+          phone?: string | null
+          phones?: Json | null
+          place_id?: string | null
+          rating?: number | null
+          raw?: Json | null
+          red_flags?: Json | null
+          rejection_reasons?: Json | null
+          reviews_count?: number | null
+          search_run_id?: string
+          title?: string | null
+          website?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leads_search_run_id_fkey"
+            columns: ["search_run_id"]
+            isOneToOne: false
+            referencedRelation: "search_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      search_runs: {
+        Row: {
+          apify_finished_at: string | null
+          apify_run_id: string | null
+          apify_started_at: string | null
+          created_at: string
+          filtered_count: number
+          id: string
+          params: Json
+          qualified_count: number
+          source: string
+          total_count: number
+        }
+        Insert: {
+          apify_finished_at?: string | null
+          apify_run_id?: string | null
+          apify_started_at?: string | null
+          created_at?: string
+          filtered_count?: number
+          id?: string
+          params?: Json
+          qualified_count?: number
+          source?: string
+          total_count?: number
+        }
+        Update: {
+          apify_finished_at?: string | null
+          apify_run_id?: string | null
+          apify_started_at?: string | null
+          created_at?: string
+          filtered_count?: number
+          id?: string
+          params?: Json
+          qualified_count?: number
+          source?: string
+          total_count?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
