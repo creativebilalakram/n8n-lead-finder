@@ -54,11 +54,6 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
       });
       return;
     }
-    try {
-      newTab.opener = null;
-    } catch {
-      // ignore
-    }
     void markClicked(key).catch(() => {
       toast.error("Couldn't save opened status");
     });
@@ -89,7 +84,12 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
       });
     }
     // Navigate only the tab created synchronously by this click; never this app tab.
-    newTab.location.replace(url);
+    newTab.location.href = url;
+    try {
+      newTab.opener = null;
+    } catch {
+      // ignore
+    }
   };
 
   return (
