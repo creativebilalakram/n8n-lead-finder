@@ -32,6 +32,7 @@ import {
 } from "@/lib/clicked-leads";
 import { computeAdjustedScore } from "@/lib/score-adjust";
 import { extractBrandDnaInsights, extractInstagramFromPayload } from "@/lib/brand-dna";
+import { triggerAutoEnrichLead } from "@/lib/auto-enrich";
 
 export const Route = createFileRoute("/leads/$id")({
   head: () => ({ meta: [{ title: "Lead detail — LeadForge" }] }),
@@ -66,6 +67,7 @@ function LeadDetailPage() {
   }, [id]);
 
   const [analyzing, setAnalyzing] = useState<null | "website" | "instagram" | "brand">(null);
+  const [reRunning, setReRunning] = useState(false);
 
   const websiteScore = (lead?.website_modern_score as number | null) ?? null;
   const brandScore = (lead?.brand_dna_score as number | null) ?? null;
@@ -311,6 +313,25 @@ function LeadDetailPage() {
           </Link>
         </div>
       </div>
+
+      {/* Automation status */}
+      <AutomationPanel
+        lead={lead}
+        reRunning={reRunning}
+        onReRun={async () => {
+          setReRunning(true);
+          try {
+            await triggerAutoEnrichLead(id, true);
+            toast.success("Automation re-run started");
+            // Give the orchestrator a beat, then refresh.
+            setTimeout(() => { void refetch(); }, 1500);
+          } catch (e) {
+            toast.error(e instanceof Error ? e.message : "Re-run failed");
+          } finally {
+            setReRunning(false);
+          }
+        }}
+      />
 
       {/* Actor panels */}
       <div className="grid gap-5 lg:grid-cols-3">
