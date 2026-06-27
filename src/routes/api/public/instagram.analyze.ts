@@ -1,5 +1,137 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { extractInstagramFromPayload, extractInstagramTarget } from "@/lib/brand-dna";
+import { extractInstagramCandidatesFromPayload, extractInstagramFromPayload, extractInstagramTarget, type InstagramTarget } from "@/lib/brand-dna";
+
+function parseCount(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value !== "string") return null;
+  const compact = value.trim().toLowerCase().replace(/,/g, "");
+  const match = compact.match(/([0-9]+(?:\.[0-9]+)?)\s*([kmb])?/);
+  if (!match) return null;
+  const base = Number(match[1]);
+  if (!Number.isFinite(base)) return null;
+  if (match[2] === "k") return Math.round(base * 1_000);
+  if (match[2] === "m") return Math.round(base * 1_000_000);
+  if (match[2] === "b") return Math.round(base * 1_000_000_000);
+  return Math.round(base);
+}
+
+function decodeHtml(value: string): string {
+  return value
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+}
+
+function actorSaysMissing(item: Record<string, unknown> | undefined): boolean {
+  if (!item) return true;
+  const text = JSON.stringify({
+    error: item.error,
+    errorDescription: item.errorDescription,
+    warning: item.warning,
+    message: item.message,
+  }).toLowerCase();
+  return text.includes("not_found") || text.includes("not found") || text.includes("post does not exist") || text.includes("private");
+}
+
+function parseInstagramHtml(html: string, username: string): Record<string, unknown> | null {
+  const title = decodeHtml(
+    html.match(/<meta\s+property=["']og:title["']\s+content=["']([^"']+)/i)?.[1] ||
+      html.match(/<title[^>]*>([^<]+)/i)?.[1] ||
+      "",
+  ).trim();
+  const description = decodeHtml(
+    html.match(/<meta\s+property=["']og:description["']\s+content=["']([^"']+)/i)?.[1] ||
+      html.match(/<meta\s+name=["']description["']\s+content=["']([^"']+)/i)?.[1] ||
+      "",
+  ).trim();
+  const profilePicUrl = decodeHtml(
+    html.match(/<meta\s+property=["']og:image["']\s+content=["']([^"']+)/i)?.[1] || "",
+  ).trim();
+
+  const followers = parseCount(description.match(/([0-9.,]+\s*[kmb]?)\s+followers/i)?.[1]);
+  const following = parseCount(description.match(/([0-9.,]+\s*[kmb]?)\s+following/i)?.[1]);
+  const postsCount = parseCount(description.match(/([0-9.,]+\s*[kmb]?)\s+posts/i)?.[1]);
+  const fullName = title
+    .replace(/\(@[^)]+\)\s*•\s*Instagram.*$/i, "")
+    .replace(/•\s*Instagram.*$/i, "")
+    .trim();
+  const biography = description.replace(/^.*?Followers,\s*[^,]+Following,\s*[^-–]+[-–]\s*/i, "").trim();
+
+  if (!title && !description && !profilePicUrl) return null;
+  return {
+    username,
+    fullName: fullName || username,
+    biography: biography || description || null,
+    followersCount: followers,
+    followsCount: following,
+    postsCount,
+    verified: false,
+    isBusinessAccount: false,
+    profilePicUrl: profilePicUrl || null,
+    url: `https://www.instagram.com/${username}/`,
+    source: "instagram_public_html_fallback",
+    publicHtmlMeta: { title, description, profilePicUrl },
+  };
+}
+
+async function fetchInstagramHtmlFallback(username: string): Promise<Record<string, unknown> | null> {
+  const res = await fetch(`https://www.instagram.com/${encodeURIComponent(username)}/`, {
+    headers: {
+      accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "accept-language": "en-US,en;q=0.9",
+      "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36",
+    },
+  });
+  const html = await res.text();
+  return parseInstagramHtml(html, username);
+}
+
+function uniqTargets(values: Array<InstagramTarget | null | undefined>): InstagramTarget[] {
+  const seen = new Set<string>();
+  const out: InstagramTarget[] = [];
+  for (const value of values) {
+    if (!value) continue;
+    const key = value.username.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(value);
+  }
+  return out;
+}
+
+async function findInstagramViaGoogle(row: Record<string, unknown> | undefined): Promise<InstagramTarget[]> {
+  const title = typeof row?.title === "string" ? row.title : "";
+  const website = typeof row?.website === "string" ? row.website.replace(/^https?:\/\//, "") : "";
+  if (!title && !website) return [];
+  const q = encodeURIComponent(`"${title || website}" Instagram`);
+  try {
+    const res = await fetch(`https://www.google.com/search?q=${q}`, {
+      headers: { "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122 Safari/537.36" },
+    });
+    const html = await res.text();
+    return extractInstagramCandidatesFromPayload(html).slice(0, 5);
+  } catch {
+    return [];
+  }
+}
+
+async function scrapeInstagramCandidate(apifyToken: string, target: InstagramTarget): Promise<Record<string, unknown> | null> {
+  const apifyRes = await fetch(
+    `https://api.apify.com/v2/acts/apify~instagram-profile-scraper/run-sync-get-dataset-items?token=${apifyToken}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ includeAboutSection: false, usernames: [target.username] }),
+    },
+  );
+  if (!apifyRes.ok) return null;
+  const items = (await apifyRes.json()) as Array<Record<string, unknown>>;
+  let item = items?.find((candidate) => !actorSaysMissing(candidate)) || items?.[0];
+  if (actorSaysMissing(item)) item = (await fetchInstagramHtmlFallback(target.username).catch(() => null)) || item;
+  return item && !actorSaysMissing(item) ? item : null;
+}
 
 // Scrape a lead's Instagram profile via Apify, then score it deterministically.
 // Persists structured profile + verdict to the leads row.
@@ -18,13 +150,14 @@ export const Route = createFileRoute("/api/public/instagram/analyze")({
         const supabaseUrl = process.env.SUPABASE_URL;
         const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
         let target = extractInstagramTarget(body.url || body.username || "");
+        let row: Record<string, unknown> | undefined;
 
         // If the card did not pass a handle, recover it from stored Google Maps,
         // Website, or Brand DNA raw payloads. Brand DNA commonly stores it as
         // { platform: "instagram", handle, url } inside pages/socialProfiles.
         if (!target && supabaseUrl && serviceKey) {
           const dbRes = await fetch(
-            `${supabaseUrl}/rest/v1/leads?id=eq.${leadId}&select=instagram_url,instagram_username,brand_dna_raw,raw,website_raw`,
+            `${supabaseUrl}/rest/v1/leads?id=eq.${leadId}&select=title,website,instagram_url,instagram_username,brand_dna_raw,raw,website_raw`,
             {
               headers: {
                 apikey: serviceKey,
@@ -33,7 +166,7 @@ export const Route = createFileRoute("/api/public/instagram/analyze")({
             },
           );
           const rows = dbRes.ok ? ((await dbRes.json()) as Array<Record<string, unknown>>) : [];
-          const row = rows[0];
+          row = rows[0];
           if (row) {
             target =
               extractInstagramTarget(row.instagram_url) ||
@@ -46,35 +179,33 @@ export const Route = createFileRoute("/api/public/instagram/analyze")({
 
         if (!target) return Response.json({ error: "Instagram profile not found in lead or Brand DNA data" }, { status: 400 });
 
-        // 1) Apify instagram-profile-scraper (sync)
-        const apifyRes = await fetch(
-          `https://api.apify.com/v2/acts/apify~instagram-profile-scraper/run-sync-get-dataset-items?token=${apifyToken}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              includeAboutSection: false,
-              usernames: [target.username],
-            }),
-          },
-        );
-        if (!apifyRes.ok) {
-          const t = await apifyRes.text();
-          return Response.json({ error: `Instagram scrape failed: ${apifyRes.status}`, detail: t.slice(0, 400) }, { status: 502 });
+        // Try every possible handle. Brand DNA/social links are sometimes stale
+        // (example: website links @elisummedspa, but live public IG is @elisum_medspa),
+        // so if a candidate fails, recover alternatives from the stored payloads and Google.
+        const candidates = uniqTargets([
+          target,
+          ...(row ? extractInstagramCandidatesFromPayload(row.brand_dna_raw) : []),
+          ...(row ? extractInstagramCandidatesFromPayload(row.raw) : []),
+          ...(row ? extractInstagramCandidatesFromPayload(row.website_raw) : []),
+          ...(await findInstagramViaGoogle(row)),
+        ]);
+        let item: Record<string, unknown> | null = null;
+        for (const candidate of candidates) {
+          item = await scrapeInstagramCandidate(apifyToken, candidate);
+          if (item) {
+            target = candidate;
+            break;
+          }
         }
-        const items = (await apifyRes.json()) as Array<Record<string, unknown>>;
-        const item = items?.[0];
-        if (!item || (item as { error?: unknown }).error) {
-          return Response.json({ error: "Profile not found or private", item }, { status: 404 });
-        }
+        if (!item) return Response.json({ error: "Profile not found after checking stored handles and public search", tried: candidates }, { status: 404 });
 
         const profile = {
           username: (item.username as string) ?? null,
           fullName: (item.fullName as string) ?? null,
           biography: (item.biography as string) ?? null,
-          followers: typeof item.followersCount === "number" ? (item.followersCount as number) : null,
-          following: typeof item.followsCount === "number" ? (item.followsCount as number) : null,
-          postsCount: typeof item.postsCount === "number" ? (item.postsCount as number) : null,
+          followers: parseCount(item.followersCount) ?? parseCount(item.followers) ?? null,
+          following: parseCount(item.followsCount) ?? parseCount(item.following) ?? null,
+          postsCount: parseCount(item.postsCount) ?? parseCount(item.posts) ?? null,
           verified: Boolean(item.verified),
           isBusinessAccount: Boolean(item.isBusinessAccount),
           profilePicUrl: (item.profilePicUrl as string) ?? (item.profilePicUrlHD as string) ?? null,

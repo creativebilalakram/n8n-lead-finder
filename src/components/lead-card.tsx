@@ -21,7 +21,7 @@ import { ensureOpenedLoaded, isClicked, leadKey, markClicked, subscribeClicked, 
 import { supabase } from "@/integrations/supabase/client";
 import { computeAdjustedScore } from "@/lib/score-adjust";
 import { Link } from "@tanstack/react-router";
-import { extractBrandDnaInsights, extractInstagramFromPayload } from "@/lib/brand-dna";
+import { extractBrandDnaInsights, extractInstagramFromPayload, extractInstagramTarget } from "@/lib/brand-dna";
 
 export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean }) {
   const key = leadKey(lead);
@@ -237,6 +237,7 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
 
   const phone = lead.phone || lead.phones?.[0];
   const email = lead.emails?.[0] || (typeof lead.email === "string" ? lead.email : undefined);
+  const detectedIgUsername = brand?.instagramUsername || extractInstagramTarget(igHandle || "")?.username;
 
   const buildPromptUrl = (payload: unknown) => {
     const prompt =
@@ -356,37 +357,58 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
       {lead.website && (
         <div className="mt-3">
           {brand ? (
-            <div className="flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50/60 px-3 py-2">
-              <Palette className="h-3.5 w-3.5 text-violet-600" />
-              <span
-                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-                  brand.score <= 3
-                    ? "bg-rose-100 text-rose-700"
-                    : brand.score <= 5
-                      ? "bg-amber-100 text-amber-700"
-                      : brand.score <= 7
-                        ? "bg-sky-100 text-sky-700"
-                        : "bg-emerald-100 text-emerald-700"
-                }`}
-              >
-                {brand.label} · {brand.score}/10
-              </span>
-              {brand.summary && (
-                <span className="truncate text-[11px] text-slate-600" title={brand.summary}>
-                  {brand.summary}
+            <div className="rounded-lg border border-violet-200 bg-violet-50/60 px-3 py-2">
+              <div className="flex items-center gap-2">
+                <Palette className="h-3.5 w-3.5 text-violet-600" />
+                <span
+                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                    brand.score <= 3
+                      ? "bg-rose-100 text-rose-700"
+                      : brand.score <= 5
+                        ? "bg-amber-100 text-amber-700"
+                        : brand.score <= 7
+                          ? "bg-sky-100 text-sky-700"
+                          : "bg-emerald-100 text-emerald-700"
+                  }`}
+                >
+                  {brand.label} · {brand.score}/10
                 </span>
+                {brand.logoUrl ? (
+                  <img src={brand.logoUrl} alt="Brand logo" className="h-6 w-6 rounded bg-white object-contain p-0.5" />
+                ) : null}
+                <button
+                  type="button"
+                  onClick={analyzeBrand}
+                  disabled={brandLoading}
+                  className="ml-auto text-[10px] font-medium text-violet-600 hover:underline disabled:opacity-50"
+                >
+                  {brandLoading ? "…" : "Re-analyze"}
+                </button>
+              </div>
+              {brand.summary && (
+                <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-slate-600" title={brand.summary}>
+                  {brand.summary}
+                </p>
               )}
-              {brand.logoUrl ? (
-                <img src={brand.logoUrl} alt="Brand logo" className="h-5 w-5 rounded object-contain" />
+              {(brand.colors?.length || brand.fonts?.length || brand.pagesCount || detectedIgUsername) ? (
+                <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] text-slate-600">
+                  {brand.colors?.slice(0, 6).map((color) => (
+                    <span
+                      key={color}
+                      title={color}
+                      className="h-4 w-4 rounded-full border border-white shadow-sm ring-1 ring-slate-200"
+                      style={{ background: color }}
+                    />
+                  ))}
+                  {brand.fonts?.slice(0, 2).map((font) => (
+                    <span key={font} className="rounded-full bg-white/70 px-2 py-0.5 font-medium text-violet-700">
+                      {font}
+                    </span>
+                  ))}
+                  {brand.pagesCount ? <span className="rounded-full bg-white/70 px-2 py-0.5">{brand.pagesCount} pages</span> : null}
+                  {detectedIgUsername ? <span className="rounded-full bg-fuchsia-50 px-2 py-0.5 text-fuchsia-700">@{detectedIgUsername}</span> : null}
+                </div>
               ) : null}
-              <button
-                type="button"
-                onClick={analyzeBrand}
-                disabled={brandLoading}
-                className="ml-auto text-[10px] font-medium text-violet-600 hover:underline disabled:opacity-50"
-              >
-                {brandLoading ? "…" : "Re-analyze"}
-              </button>
             </div>
           ) : (
             <button
@@ -527,7 +549,7 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
             {igLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Instagram className="h-3 w-3" />}
             {igLoading
               ? "Analyzing Instagram…"
-              : `Analyze Instagram${brand?.instagramUsername ? ` @${brand.instagramUsername}` : ""}`}
+              : `Analyze Instagram${detectedIgUsername ? ` @${detectedIgUsername}` : ""}`}
           </button>
         ) : (
           <div className="flex items-center gap-2">
