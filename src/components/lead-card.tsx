@@ -231,6 +231,49 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
         )}
       </div>
 
+      {lead.website && (
+        <div className="mt-3">
+          {analysis ? (
+            <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white/60 px-3 py-2">
+              <span
+                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                  analysis.score < 6
+                    ? "bg-rose-100 text-rose-700"
+                    : analysis.score < 8
+                      ? "bg-amber-100 text-amber-700"
+                      : "bg-emerald-100 text-emerald-700"
+                }`}
+              >
+                {analysis.label || (analysis.score < 6 ? "OUTDATED" : "MODERN")} · {analysis.score}/10
+              </span>
+              {analysis.reason && (
+                <span className="truncate text-[11px] text-slate-500" title={analysis.reason}>
+                  {analysis.reason}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={analyzeWebsite}
+                disabled={analyzing}
+                className="ml-auto text-[10px] font-medium text-indigo-600 hover:underline disabled:opacity-50"
+              >
+                {analyzing ? "…" : "Re-analyze"}
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={analyzeWebsite}
+              disabled={analyzing || !leadIdForAnalysis}
+              className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white/70 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-white disabled:opacity-50"
+            >
+              {analyzing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Camera className="h-3 w-3" />}
+              {analyzing ? "Analyzing website…" : "Analyze website (AI)"}
+            </button>
+          )}
+        </div>
+      )}
+
       {muted && lead.rejectionReasons && lead.rejectionReasons.length > 0 && (
         <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2">
           <div className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-amber-700">
