@@ -28,7 +28,7 @@ export const Route = createFileRoute("/api/public/brand/analyze")({
               adaptiveConcurrency: true,
               captureScreenshot: true,
               debug: false,
-              extractImageColors: false,
+              extractImageColors: true,
               forceRefresh: false,
               includeBlog: true,
               outputComparison: false,
