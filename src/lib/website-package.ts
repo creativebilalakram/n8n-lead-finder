@@ -524,25 +524,142 @@ function buildFaqFallback(
   return out.slice(0, 10);
 }
 
-/** Build a hero-ready value proposition by combining the strongest signals. */
-function buildHeroValueProp(
+/** Title-case a phrase for tagline polish. */
+function titleCase(s: string): string {
+  return s.replace(/\w\S*/g, (w) => w[0].toUpperCase() + w.slice(1).toLowerCase());
+}
+
+/** Industry persona inferred from categories — used to pick the right noun
+ * (Dentistry → "dental care", MedSpa → "aesthetic care", Salon → "beauty"). */
+function inferIndustryNoun(categories: string[], services: string[]): string {
+  const hay = (categories.join(" ") + " " + services.join(" ")).toLowerCase();
+  if (/dent|orthodont|endodont|periodont/.test(hay)) return "dental care";
+  if (/med ?spa|botox|filler|laser|aesthetic|cosmetic surgery|dermatolog/.test(hay)) return "aesthetic care";
+  if (/salon|hair|barber|nail|lash|brow|wax/.test(hay)) return "beauty";
+  if (/spa|massage|wellness|acupuncture|chiropract/.test(hay)) return "wellness";
+  if (/restaurant|cafe|coffee|bakery|food|bar|pizza/.test(hay)) return "dining";
+  if (/gym|fitness|yoga|pilates|crossfit/.test(hay)) return "fitness";
+  if (/law|attorney|legal/.test(hay)) return "legal services";
+  if (/real estate|realtor|broker/.test(hay)) return "real estate";
+  return "service";
+}
+
+/** Build several strong, hero-ready tagline candidates from real signals. */
+function buildHeroTaglineCandidates(
   taglineCandidates: string[],
   services: string[],
   attributes: string[],
   reviewStats: WebsiteDataPackage["reviewStats"],
-): string | undefined {
-  // 1) An already-strong tagline wins
-  const strong = taglineCandidates.find((t) => /award|trusted|leading|premier|top-rated|best|board.?certified|expert/i.test(t));
-  if (strong) return strong;
-  // 2) Build one from facts
-  const parts: string[] = [];
-  if (attributes.length) parts.push(attributes.slice(0, 2).join(" · "));
-  if (services.length) parts.push(services.slice(0, 3).join(", "));
-  if (reviewStats.averageRating && reviewStats.total) {
-    parts.push(`${reviewStats.averageRating.toFixed(1)}★ from ${reviewStats.total.toLocaleString()} reviews`);
+  categories: string[],
+  city: string | undefined,
+  yearEstablished: number | undefined,
+): string[] {
+  const out: string[] = [];
+  const noun = inferIndustryNoun(categories, services);
+  const rating = reviewStats.averageRating;
+  const total = reviewStats.total ?? 0;
+  const top3 = services.slice(0, 3);
+  const locale = city ? ` in ${city}` : "";
+  const years = yearEstablished ? new Date().getFullYear() - yearEstablished : undefined;
+
+  // 1) Existing strong tagline wins
+  const strong = taglineCandidates.find((t) =>
+    /award|trusted|leading|premier|top.?rated|board.?certified|expert|voted|#1/i.test(t),
+  );
+  if (strong) out.push(strong);
+
+  // 2) Rating-led headline
+  if (rating && total >= 25) {
+    out.push(`${rating.toFixed(1)}★ ${titleCase(noun)}${locale} — Loved by ${total.toLocaleString()}+ Clients`);
   }
-  if (parts.length >= 2) return parts.join(" — ");
-  return taglineCandidates[0];
+
+  // 3) Service-led promise
+  if (top3.length >= 2) {
+    out.push(`${top3.slice(0, 2).join(" · ")} & More — Done Right${locale}`);
+  }
+
+  // 4) Trust-attribute headline
+  const trust = attributes.find((a) => /owned|certified|licensed|award|veteran|family/i.test(a));
+  if (trust && top3[0]) {
+    out.push(`${trust} — Trusted ${titleCase(noun)}${locale}`);
+  }
+
+  // 5) Tenure headline
+  if (years && years >= 3) {
+    out.push(`${years}+ Years of Exceptional ${titleCase(noun)}${locale}`);
+  }
+
+  // 6) Outcome-style fallback
+  if (top3[0]) out.push(`Modern ${titleCase(noun)} You Can Smile About${locale}`.replace(" Smile About", noun === "dental care" ? " Smile About" : " Trust"));
+
+  // 7) Whatever original candidates remain
+  for (const t of taglineCandidates) if (!out.includes(t)) out.push(t);
+
+  return uniq(out).slice(0, 8);
+}
+
+/** Build a conversion-ready set of short value props from concrete signals. */
+function buildStrongValueProps(
+  attributes: string[],
+  services: string[],
+  amenities: WebsiteDataPackage["amenities"],
+  reviewStats: WebsiteDataPackage["reviewStats"],
+  recentActivity: WebsiteDataPackage["recentActivity"],
+  hours: Array<{ day: string; hours: string }>,
+  yearEstablished: number | undefined,
+  claimed: boolean | undefined,
+  bookingLinks: string[],
+  languages: string[],
+  rawDescription: string | undefined,
+): string[] {
+  const props: string[] = [];
+  const add = (p?: string) => { if (p && p.trim()) props.push(p.trim()); };
+
+  // Social proof
+  if (reviewStats.averageRating && (reviewStats.total ?? 0) >= 15) {
+    add(`${reviewStats.averageRating.toFixed(1)}★ rated by ${(reviewStats.total ?? 0).toLocaleString()}+ clients`);
+  }
+  // Tenure
+  if (yearEstablished) {
+    const years = new Date().getFullYear() - yearEstablished;
+    if (years >= 2) add(`Serving the community since ${yearEstablished} (${years}+ years)`);
+  }
+  // Trust attributes
+  const trustPriority = ["women-owned", "woman-owned", "black-owned", "veteran-owned", "family-owned", "lgbtq", "minority-owned", "locally owned", "award-winning", "board-certified", "licensed"];
+  for (const t of attributes) {
+    if (trustPriority.some((k) => t.toLowerCase().includes(k))) add(t);
+    if (props.length >= 4) break;
+  }
+  // Booking convenience
+  if (bookingLinks.length) add("Easy online booking — appointments in minutes");
+  // Hours
+  const dayCount = hours.length;
+  const weekendOpen = hours.some((h) => /sat|sun/i.test(h.day) && !/closed/i.test(h.hours));
+  if (weekendOpen) add("Open weekends for your convenience");
+  else if (dayCount >= 6) add("Open 6+ days a week — flexible scheduling");
+  // Accessibility
+  if (amenities.accessibility.length) add(`Accessible facility — ${amenities.accessibility.slice(0, 2).join(", ")}`);
+  // Parking
+  if (amenities.parking.length) add(amenities.parking.find((p) => /free/i.test(p)) ?? amenities.parking[0]);
+  // Payments / insurance
+  if (amenities.payments.length) {
+    const ins = amenities.payments.find((p) => /insurance/i.test(p));
+    if (ins) add("Most major insurance accepted");
+    const cards = amenities.payments.filter((p) => /credit|debit|nfc|apple pay|google pay/i.test(p));
+    if (cards.length) add(`Pay your way — ${cards.slice(0, 3).join(", ")}`);
+  } else if (/\binsurance\b/i.test(rawDescription ?? "")) {
+    add("Most major insurance accepted");
+  }
+  // Languages
+  if (languages.length > 1) add(`Spoken here: ${languages.slice(0, 4).join(", ")}`);
+  // Service breadth
+  if (services.length >= 5) add(`${services.length}+ services under one roof`);
+  // Activity
+  if (recentActivity?.isActive) add("Actively engaged with patients & community");
+  // Claimed / verified
+  if (claimed) add("Verified business profile");
+
+  return uniq(props).slice(0, 10);
 }
 
 function extractCompetitors(raw: AnyRow): string[] {
