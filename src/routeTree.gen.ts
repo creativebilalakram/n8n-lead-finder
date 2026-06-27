@@ -18,6 +18,7 @@ import { Route as HistoryIndexRouteImport } from './routes/history.index'
 import { Route as WebsiteIdRouteImport } from './routes/website.$id'
 import { Route as LeadsIdRouteImport } from './routes/leads.$id'
 import { Route as HistoryIdRouteImport } from './routes/history.$id'
+import { Route as ApiPublicAutoEnrichRouteImport } from './routes/api/public/auto-enrich'
 import { Route as ApiPublicWebsiteAnalyzeRouteImport } from './routes/api/public/website.analyze'
 import { Route as ApiPublicWebsitePackageRebuildRouteImport } from './routes/api/public/website-package.rebuild'
 import { Route as ApiPublicLeadsStatusRouteImport } from './routes/api/public/leads.status'
@@ -70,6 +71,11 @@ const LeadsIdRoute = LeadsIdRouteImport.update({
 const HistoryIdRoute = HistoryIdRouteImport.update({
   id: '/history/$id',
   path: '/history/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicAutoEnrichRoute = ApiPublicAutoEnrichRouteImport.update({
+  id: '/api/public/auto-enrich',
+  path: '/api/public/auto-enrich',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicWebsiteAnalyzeRoute = ApiPublicWebsiteAnalyzeRouteImport.update({
@@ -125,6 +131,7 @@ export interface FileRoutesByFullPath {
   '/website/$id': typeof WebsiteIdRoute
   '/history/': typeof HistoryIndexRoute
   '/leads/': typeof LeadsIndexRoute
+  '/api/public/auto-enrich': typeof ApiPublicAutoEnrichRoute
   '/api/public/apify/import': typeof ApiPublicApifyImportRoute
   '/api/public/apify/runs': typeof ApiPublicApifyRunsRoute
   '/api/public/brand/analyze': typeof ApiPublicBrandAnalyzeRoute
@@ -144,6 +151,7 @@ export interface FileRoutesByTo {
   '/website/$id': typeof WebsiteIdRoute
   '/history': typeof HistoryIndexRoute
   '/leads': typeof LeadsIndexRoute
+  '/api/public/auto-enrich': typeof ApiPublicAutoEnrichRoute
   '/api/public/apify/import': typeof ApiPublicApifyImportRoute
   '/api/public/apify/runs': typeof ApiPublicApifyRunsRoute
   '/api/public/brand/analyze': typeof ApiPublicBrandAnalyzeRoute
@@ -164,6 +172,7 @@ export interface FileRoutesById {
   '/website/$id': typeof WebsiteIdRoute
   '/history/': typeof HistoryIndexRoute
   '/leads/': typeof LeadsIndexRoute
+  '/api/public/auto-enrich': typeof ApiPublicAutoEnrichRoute
   '/api/public/apify/import': typeof ApiPublicApifyImportRoute
   '/api/public/apify/runs': typeof ApiPublicApifyRunsRoute
   '/api/public/brand/analyze': typeof ApiPublicBrandAnalyzeRoute
@@ -185,6 +194,7 @@ export interface FileRouteTypes {
     | '/website/$id'
     | '/history/'
     | '/leads/'
+    | '/api/public/auto-enrich'
     | '/api/public/apify/import'
     | '/api/public/apify/runs'
     | '/api/public/brand/analyze'
@@ -204,6 +214,7 @@ export interface FileRouteTypes {
     | '/website/$id'
     | '/history'
     | '/leads'
+    | '/api/public/auto-enrich'
     | '/api/public/apify/import'
     | '/api/public/apify/runs'
     | '/api/public/brand/analyze'
@@ -223,6 +234,7 @@ export interface FileRouteTypes {
     | '/website/$id'
     | '/history/'
     | '/leads/'
+    | '/api/public/auto-enrich'
     | '/api/public/apify/import'
     | '/api/public/apify/runs'
     | '/api/public/brand/analyze'
@@ -243,6 +255,7 @@ export interface RootRouteChildren {
   WebsiteIdRoute: typeof WebsiteIdRoute
   HistoryIndexRoute: typeof HistoryIndexRoute
   LeadsIndexRoute: typeof LeadsIndexRoute
+  ApiPublicAutoEnrichRoute: typeof ApiPublicAutoEnrichRoute
   ApiPublicApifyImportRoute: typeof ApiPublicApifyImportRoute
   ApiPublicApifyRunsRoute: typeof ApiPublicApifyRunsRoute
   ApiPublicBrandAnalyzeRoute: typeof ApiPublicBrandAnalyzeRoute
@@ -318,6 +331,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HistoryIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/auto-enrich': {
+      id: '/api/public/auto-enrich'
+      path: '/api/public/auto-enrich'
+      fullPath: '/api/public/auto-enrich'
+      preLoaderRoute: typeof ApiPublicAutoEnrichRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/website/analyze': {
       id: '/api/public/website/analyze'
       path: '/api/public/website/analyze'
@@ -387,6 +407,7 @@ const rootRouteChildren: RootRouteChildren = {
   WebsiteIdRoute: WebsiteIdRoute,
   HistoryIndexRoute: HistoryIndexRoute,
   LeadsIndexRoute: LeadsIndexRoute,
+  ApiPublicAutoEnrichRoute: ApiPublicAutoEnrichRoute,
   ApiPublicApifyImportRoute: ApiPublicApifyImportRoute,
   ApiPublicApifyRunsRoute: ApiPublicApifyRunsRoute,
   ApiPublicBrandAnalyzeRoute: ApiPublicBrandAnalyzeRoute,

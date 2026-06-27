@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LeadCard } from "@/components/lead-card";
 import { saveSearchRun } from "@/lib/leads-db";
+import { triggerAutoEnrichForRun } from "@/lib/auto-enrich";
 import type { Lead } from "@/lib/lead-types";
 
 const START_URL = "/api/public/leads/start";
