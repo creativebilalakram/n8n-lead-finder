@@ -6,7 +6,7 @@
 // stale packages and offer a rebuild.
 import { extractBrandDnaInsights, extractInstagramFromPayload } from "./brand-dna";
 
-export const WDP_VERSION = 4;
+export const WDP_VERSION = 5;
 
 export type WebsiteDataPackage = {
   version: number;
@@ -67,6 +67,8 @@ export type WebsiteDataPackage = {
     galleryByCategory: Array<{ category: string; count: number; sample?: string }>;
   };
   reviews: Array<{ author?: string; rating?: number; text: string; date?: string }>;
+  reviewsTags: Array<{ title: string; count: number }>;
+  ownerResponses: Array<{ reviewExcerpt: string; response: string; date?: string }>;
   reviewStats: {
     averageRating?: number;
     total?: number;
@@ -107,6 +109,14 @@ export type WebsiteDataPackage = {
     screenshotUrl?: string;
   };
   seo: { metaTitle?: string; metaDescription?: string; keywords: string[] };
+  leadIntelligence?: {
+    score?: number;
+    tier?: string;
+    redFlags: string[];
+    rejectionReasons: string[];
+    passed?: boolean;
+    ownerUpdateAgeDays?: number;
+  };
   instagram?: {
     handle?: string;
     url?: string;
