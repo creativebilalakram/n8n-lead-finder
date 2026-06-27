@@ -297,7 +297,14 @@ function BackfillAutomationCard() {
         onProgress: (done, total) => setProgress({ done, total }),
       });
       if (res.total === 0) toast.info("No qualified leads need enrichment — all caught up.");
-      else toast.success(`Triggered automation for ${res.triggered}/${res.total} qualified leads.`);
+      else if (res.triggered === 0)
+        toast.warning(
+          `All ${res.total} skipped (already processed or previously failed). Use "Retry failed" or "Force all" to actually run them.`,
+        );
+      else
+        toast.success(
+          `Fired ${res.triggered} of ${res.total} leads to Apify.${res.skipped ? ` Skipped ${res.skipped} (already processed or failed).` : ""}`,
+        );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Backfill failed");
     } finally {
