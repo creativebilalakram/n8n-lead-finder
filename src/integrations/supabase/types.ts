@@ -36,6 +36,12 @@ export type Database = {
         Row: {
           address: string | null
           apify_run_id: string | null
+          brand_dna_analyzed_at: string | null
+          brand_dna_label: string | null
+          brand_dna_raw: Json | null
+          brand_dna_score: number | null
+          brand_dna_screenshot_url: string | null
+          brand_dna_summary: string | null
           category: string | null
           city: string | null
           country_code: string | null
@@ -84,6 +90,12 @@ export type Database = {
         Insert: {
           address?: string | null
           apify_run_id?: string | null
+          brand_dna_analyzed_at?: string | null
+          brand_dna_label?: string | null
+          brand_dna_raw?: Json | null
+          brand_dna_score?: number | null
+          brand_dna_screenshot_url?: string | null
+          brand_dna_summary?: string | null
           category?: string | null
           city?: string | null
           country_code?: string | null
@@ -132,6 +144,12 @@ export type Database = {
         Update: {
           address?: string | null
           apify_run_id?: string | null
+          brand_dna_analyzed_at?: string | null
+          brand_dna_label?: string | null
+          brand_dna_raw?: Json | null
+          brand_dna_score?: number | null
+          brand_dna_screenshot_url?: string | null
+          brand_dna_summary?: string | null
           category?: string | null
           city?: string | null
           country_code?: string | null
