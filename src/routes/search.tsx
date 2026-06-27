@@ -119,7 +119,7 @@ function SearchPage() {
     onSuccess: async (data, _vars, _ctx) => {
       setResult({ leads: data.leads, filteredOut: data.filteredOut });
       try {
-        await saveSearchRun({
+        const runId = await saveSearchRun({
           apifyRunId: data.runId ?? null,
           source: "search",
           params: {
@@ -136,6 +136,12 @@ function SearchPage() {
           filteredOut: data.filteredOut,
           total: data.total,
         });
+        // Fire-and-forget background enrichment for every Hot lead.
+        triggerAutoEnrichForRun(runId).then((r) => {
+          if (r.triggered > 0) {
+            toast.message(`Auto-enriching ${r.triggered} qualified lead${r.triggered === 1 ? "" : "s"} in background`);
+          }
+        }).catch(() => {});
       } catch (e) {
         toast.error(
           `Saved to view but DB save failed: ${e instanceof Error ? e.message : "unknown"}`,
