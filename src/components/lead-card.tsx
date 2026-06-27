@@ -11,6 +11,7 @@ import {
   Camera,
   Loader2,
   Instagram,
+  Palette,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -51,6 +52,11 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
   const [igLoading, setIgLoading] = useState(false);
   const [igHandle, setIgHandle] = useState<string | null>(null);
   const [igInput, setIgInput] = useState("");
+
+  // Brand DNA analysis
+  type BrandAnalysis = { score: number; label: string; summary?: string; screenshotUrl?: string };
+  const [brand, setBrand] = useState<BrandAnalysis | null>(null);
+  const [brandLoading, setBrandLoading] = useState(false);
   const leadIdForAnalysis = typeof lead.id === "string" ? lead.id : undefined;
   useEffect(() => {
     if (!leadIdForAnalysis) return;
@@ -58,7 +64,7 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
     void supabase
       .from("leads")
       .select(
-        "website_modern_score, website_label, website_analysis, website_screenshot_url, instagram_score, instagram_label, instagram_analysis, instagram_username, instagram_url, instagram_followers, instagram_posts_count, instagram_verified, raw",
+        "website_modern_score, website_label, website_analysis, website_screenshot_url, instagram_score, instagram_label, instagram_analysis, instagram_username, instagram_url, instagram_followers, instagram_posts_count, instagram_verified, brand_dna_score, brand_dna_label, brand_dna_summary, brand_dna_screenshot_url, raw",
       )
       .eq("id", leadIdForAnalysis)
       .maybeSingle()
@@ -82,6 +88,14 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
             followers: data.instagram_followers ?? undefined,
             postsCount: data.instagram_posts_count ?? undefined,
             verified: data.instagram_verified ?? undefined,
+          });
+        }
+        if (data.brand_dna_score != null) {
+          setBrand({
+            score: data.brand_dna_score,
+            label: data.brand_dna_label || "",
+            summary: data.brand_dna_summary ?? undefined,
+            screenshotUrl: data.brand_dna_screenshot_url ?? undefined,
           });
         }
         // Try to auto-detect an instagram handle from the raw Apify payload.
@@ -153,6 +167,26 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
       toast.error(e instanceof Error ? e.message : "Instagram analysis failed");
     } finally {
       setIgLoading(false);
+    }
+  };
+
+  const analyzeBrand = async () => {
+    if (!leadIdForAnalysis || !lead.website || brandLoading) return;
+    setBrandLoading(true);
+    try {
+      const res = await fetch("/api/public/brand/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadId: leadIdForAnalysis, url: lead.website }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      setBrand({ score: json.score, label: json.label, summary: json.summary, screenshotUrl: json.screenshotUrl });
+      toast.success(`Brand ${json.score}/10 · ${json.label}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Brand analysis failed");
+    } finally {
+      setBrandLoading(false);
     }
   };
 
@@ -279,6 +313,52 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
           </span>
         )}
       </div>
+
+      {lead.website && (
+        <div className="mt-3">
+          {brand ? (
+            <div className="flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50/60 px-3 py-2">
+              <Palette className="h-3.5 w-3.5 text-violet-600" />
+              <span
+                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                  brand.score <= 3
+                    ? "bg-rose-100 text-rose-700"
+                    : brand.score <= 5
+                      ? "bg-amber-100 text-amber-700"
+                      : brand.score <= 7
+                        ? "bg-sky-100 text-sky-700"
+                        : "bg-emerald-100 text-emerald-700"
+                }`}
+              >
+                {brand.label} · {brand.score}/10
+              </span>
+              {brand.summary && (
+                <span className="truncate text-[11px] text-slate-600" title={brand.summary}>
+                  {brand.summary}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={analyzeBrand}
+                disabled={brandLoading}
+                className="ml-auto text-[10px] font-medium text-violet-600 hover:underline disabled:opacity-50"
+              >
+                {brandLoading ? "…" : "Re-analyze"}
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={analyzeBrand}
+              disabled={brandLoading || !leadIdForAnalysis}
+              className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50/40 px-3 py-1.5 text-xs font-medium text-violet-700 transition hover:bg-violet-50 disabled:opacity-50"
+            >
+              {brandLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Palette className="h-3 w-3" />}
+              {brandLoading ? "Analyzing brand…" : "Analyze Brand DNA (AI)"}
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="space-y-2 text-sm text-slate-600">
         {lead.address && (
