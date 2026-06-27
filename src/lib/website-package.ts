@@ -993,7 +993,33 @@ export function buildWebsitePackage(
   const services = extractServices(raw);
   const attributes = extractAttributes(raw);
   const hours = extractHours(raw);
-  const heroValueProp = buildHeroValueProp(valueProps.candidates, services, attributes, reviewStats);
+  const categories = extractCategories(raw);
+  const yearEstablished = n(pick(raw, "yearEstablished", "establishedYear"));
+  const claimed = b(pick(raw, "claimThisBusiness")) ?? b(pick(raw, "isClaimed"));
+  const languages = uniq(arr(pick(raw, "languages")).map((l) => (typeof l === "string" ? l : "")));
+  const heroTaglines = buildHeroTaglineCandidates(
+    valueProps.candidates,
+    services,
+    attributes,
+    reviewStats,
+    categories,
+    location.city,
+    yearEstablished,
+  );
+  const heroValueProp = heroTaglines[0];
+  const strongValueProps = buildStrongValueProps(
+    attributes,
+    services,
+    amenityGroups,
+    reviewStats,
+    recentActivity,
+    hours,
+    yearEstablished,
+    claimed,
+    links.booking,
+    languages,
+    s(pick(raw, "description")),
+  );
   const faq = buildFaqFallback(extractFaq(raw), raw, services, hours, amenityGroups);
 
   // Website quality analysis (split summary into strengths/weaknesses heuristically)
@@ -1036,17 +1062,18 @@ export function buildWebsitePackage(
         ...reviews.slice(0, 5).map((r) => r.text),
       ),
       tagline: heroValueProp ?? valueProps.tagline,
-      taglineCandidates: uniq([heroValueProp, ...valueProps.candidates].filter((v): v is string => Boolean(v))).slice(0, 8),
-      valueProps: uniq([...valueProps.valueProps, ...attributes.slice(0, 4)]).slice(0, 10),
+      taglineCandidates: uniq([...heroTaglines, ...valueProps.candidates]).slice(0, 8),
+      valueProps: uniq([...strongValueProps, ...valueProps.valueProps]).slice(0, 10),
       description: brand?.description ?? s(pick(raw, "description")),
       shortDescription: s(pick(raw, "description"))?.split(/(?<=[.!?])\s/)[0],
-      categories: extractCategories(raw),
+      categories,
       services,
       serviceDetails: buildServiceDetails(services),
       attributes,
       priceRange: s(pick(raw, "price", "priceRange")),
-      languages: uniq(arr(pick(raw, "languages")).map((l) => (typeof l === "string" ? l : ""))),
-      claimed: b(pick(raw, "claimThisBusiness")) ?? b(pick(raw, "isClaimed")),
+      languages,
+      claimed,
+      yearEstablished,
       permanentlyClosed: b(pick(raw, "permanentlyClosed")),
       serviceArea: uniq(arr(pick(raw, "serviceArea")).map((l) => (typeof l === "string" ? l : ""))),
     },
