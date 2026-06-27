@@ -11,6 +11,7 @@ import {
   Camera,
   Loader2,
   Instagram,
+  Palette,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -51,6 +52,11 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
   const [igLoading, setIgLoading] = useState(false);
   const [igHandle, setIgHandle] = useState<string | null>(null);
   const [igInput, setIgInput] = useState("");
+
+  // Brand DNA analysis
+  type BrandAnalysis = { score: number; label: string; summary?: string; screenshotUrl?: string };
+  const [brand, setBrand] = useState<BrandAnalysis | null>(null);
+  const [brandLoading, setBrandLoading] = useState(false);
   const leadIdForAnalysis = typeof lead.id === "string" ? lead.id : undefined;
   useEffect(() => {
     if (!leadIdForAnalysis) return;
@@ -58,7 +64,7 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
     void supabase
       .from("leads")
       .select(
-        "website_modern_score, website_label, website_analysis, website_screenshot_url, instagram_score, instagram_label, instagram_analysis, instagram_username, instagram_url, instagram_followers, instagram_posts_count, instagram_verified, raw",
+        "website_modern_score, website_label, website_analysis, website_screenshot_url, instagram_score, instagram_label, instagram_analysis, instagram_username, instagram_url, instagram_followers, instagram_posts_count, instagram_verified, brand_dna_score, brand_dna_label, brand_dna_summary, brand_dna_screenshot_url, raw",
       )
       .eq("id", leadIdForAnalysis)
       .maybeSingle()
@@ -82,6 +88,14 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
             followers: data.instagram_followers ?? undefined,
             postsCount: data.instagram_posts_count ?? undefined,
             verified: data.instagram_verified ?? undefined,
+          });
+        }
+        if (data.brand_dna_score != null) {
+          setBrand({
+            score: data.brand_dna_score,
+            label: data.brand_dna_label || "",
+            summary: data.brand_dna_summary ?? undefined,
+            screenshotUrl: data.brand_dna_screenshot_url ?? undefined,
           });
         }
         // Try to auto-detect an instagram handle from the raw Apify payload.
@@ -153,6 +167,26 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
       toast.error(e instanceof Error ? e.message : "Instagram analysis failed");
     } finally {
       setIgLoading(false);
+    }
+  };
+
+  const analyzeBrand = async () => {
+    if (!leadIdForAnalysis || !lead.website || brandLoading) return;
+    setBrandLoading(true);
+    try {
+      const res = await fetch("/api/public/brand/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadId: leadIdForAnalysis, url: lead.website }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      setBrand({ score: json.score, label: json.label, summary: json.summary, screenshotUrl: json.screenshotUrl });
+      toast.success(`Brand ${json.score}/10 · ${json.label}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Brand analysis failed");
+    } finally {
+      setBrandLoading(false);
     }
   };
 
