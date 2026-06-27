@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { buildLovablePromptUrl, type WebsiteDataPackage } from "@/lib/website-package";
 import {
   ensureOpenedLoaded,
   isClicked,
@@ -117,15 +118,25 @@ function LeadDetailPage() {
 
   const openInLovable = async () => {
     void markClicked(id).catch(() => {});
-    let url = (lead?.lovable_url as string | null) ?? null;
-    if (!url && lead?.raw) {
-      const prompt =
-        "Create a premium, modern, and highly trustworthy website by using the same flow in your instructions for\n\n" +
-        JSON.stringify(lead.raw, null, 2);
-      url = "https://lovable.dev/?autosubmit=true#prompt=" + encodeURIComponent(prompt);
+    let pkg = (lead?.website_package ?? null) as WebsiteDataPackage | null;
+    if (!pkg) {
+      try {
+        const res = await fetch("/api/public/website-package/rebuild", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ leadId: id }),
+        });
+        if (res.ok) {
+          const json = (await res.json()) as { package?: WebsiteDataPackage };
+          pkg = json.package ?? null;
+        }
+      } catch {
+        // ignore
+      }
     }
+    const url = pkg ? buildLovablePromptUrl(pkg) : null;
     if (!url) {
-      toast.error("No payload available");
+      toast.error("Website package unavailable — rebuild it first.");
       return;
     }
     const a = document.createElement("a");

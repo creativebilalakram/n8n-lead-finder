@@ -1561,3 +1561,17 @@ function stripEmpty(value: unknown): unknown {
 export function isPackageStale(version: number | null | undefined): boolean {
   return (version ?? 0) < WDP_VERSION;
 }
+
+/**
+ * Canonical "Open in Lovable" / "Send to website generator" URL. Uses the
+ * full structured brief (buildWebsiteBrief) so every entry point — lead
+ * cards, lead detail page, website builder — sends the exact same payload
+ * to the generator. Never falls back to raw GBP dumps.
+ */
+export const LOVABLE_PROMPT_PREFIX =
+  "Build a premium, modern, conversion-focused website for this business using ONLY the structured data below as the source of truth. Follow the workflow and rules in your instructions tab.\n\nWEBSITE_DATA_PACKAGE:\n";
+
+export function buildLovablePromptUrl(pkg: WebsiteDataPackage): string {
+  const prompt = LOVABLE_PROMPT_PREFIX + stringifyWebsitePackage(pkg);
+  return "https://lovable.dev/?autosubmit=true#prompt=" + encodeURIComponent(prompt);
+}
