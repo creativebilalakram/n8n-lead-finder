@@ -3,58 +3,16 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Loader2, Users, Search as SearchIcon, Check } from "lucide-react";
 import { LeadCard } from "@/components/lead-card";
-import { supabase } from "@/integrations/supabase/client";
 import type { Lead } from "@/lib/lead-types";
 import { isClicked, leadKey, useClickedSync } from "@/lib/clicked-leads";
-import { leadIdentityKey } from "@/lib/lead-identity";
-import { applyFiltersToLead, useFilterSettings } from "@/lib/filter-settings";
+import { useFilterSettings } from "@/lib/filter-settings";
+import { fetchCompactLeads, getLiveLeadSets } from "@/lib/leads-query";
 import { Link } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/leads/")({
   head: () => ({ meta: [{ title: "All Leads — LeadForge" }] }),
   component: AllLeadsPage,
 });
-
-async function fetchAllLeads(): Promise<Lead[]> {
-  const PAGE = 1000;
-  let from = 0;
-  const out: Lead[] = [];
-  while (true) {
-    const { data, error } = await supabase
-      .from("leads")
-      .select(
-        "id, place_id, title, category, address, city, country_code, phone, email, website, rating, reviews_count, lead_score, lead_tier, passed, owner_update_age_days",
-      )
-      .range(from, from + PAGE - 1);
-    if (error) throw error;
-    const rows = data ?? [];
-    for (const r of rows) {
-      out.push({
-        id: r.id,
-        title: r.title ?? undefined,
-        categoryName: r.category ?? undefined,
-        address: r.address ?? undefined,
-        city: r.city ?? undefined,
-        countryCode: r.country_code ?? undefined,
-        phone: r.phone ?? undefined,
-        email: r.email ?? undefined,
-        emails: r.email ? [r.email] : undefined,
-        website: r.website ?? undefined,
-        totalScore: r.rating ?? undefined,
-        reviewsCount: r.reviews_count ?? undefined,
-        leadScore: r.lead_score ?? undefined,
-        leadTier: r.lead_tier ?? undefined,
-        ownerUpdateAgeDays: r.owner_update_age_days ?? undefined,
-        passed: r.passed,
-        placeId: r.place_id ?? undefined,
-      });
-    }
-    if (rows.length < PAGE) break;
-    from += PAGE;
-  }
-  // sort client-side to avoid DB sort on huge jsonb result
-  return out.sort((a, b) => (b.leadScore ?? 0) - (a.leadScore ?? 0));
-}
 
 function AllLeadsPage() {
   useClickedSync();
@@ -65,8 +23,8 @@ function AllLeadsPage() {
   const [view, setView] = useState<"qualified" | "filtered">("qualified");
 
   const { data: rawLeads, isLoading, isError, error } = useQuery({
-    queryKey: ["all-leads-compact-v3"],
-    queryFn: fetchAllLeads,
+    queryKey: ["all-leads-compact-v4"],
+    queryFn: () => fetchCompactLeads(),
     retry: 1,
   });
 
@@ -79,28 +37,7 @@ function AllLeadsPage() {
   // cannot be the dedup key.
   const { qualified, filteredOut } = useMemo(() => {
     if (!rawLeads) return { qualified: undefined as Lead[] | undefined, filteredOut: undefined as Lead[] | undefined };
-    const evaluated = rawLeads.map((l) => applyFiltersToLead(l, settings));
-    // Dedupe across BOTH sets together so the same business doesn't appear
-    // once as Qualified and again as Filtered after a settings change.
-    const map = new Map<string, Lead>();
-    for (const l of evaluated) {
-      const k = leadIdentityKey(l);
-      const ex = map.get(k);
-      if (!ex) {
-        map.set(k, l);
-        continue;
-      }
-      // Prefer the qualified copy; otherwise the one with the higher score.
-      const better =
-        (l.passed && !ex.passed) ||
-        (l.passed === ex.passed && (l.leadScore ?? 0) > (ex.leadScore ?? 0));
-      if (better) map.set(k, l);
-    }
-    const all = [...map.values()].sort((a, b) => (b.leadScore ?? 0) - (a.leadScore ?? 0));
-    return {
-      qualified: all.filter((l) => l.passed),
-      filteredOut: all.filter((l) => !l.passed),
-    };
+    return getLiveLeadSets(rawLeads, settings);
   }, [rawLeads, settings]);
 
   const leads = view === "qualified" ? qualified : filteredOut;

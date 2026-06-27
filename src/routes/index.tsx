@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Flame,
@@ -11,7 +12,8 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { listSearchRuns, migrateLegacyLocalStorage, type SearchRunSummary } from "@/lib/leads-db";
-import { supabase } from "@/integrations/supabase/client";
+import { useFilterSettings } from "@/lib/filter-settings";
+import { fetchCompactLeads, getLiveLeadSets } from "@/lib/leads-query";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -27,11 +29,17 @@ export const Route = createFileRoute("/")({
 });
 
 function DashboardPage() {
-  const [hotCount, setHotCount] = useState<number>(0);
+  const [settings] = useFilterSettings();
 
   const { data: searches = [], refetch } = useQuery<SearchRunSummary[]>({
     queryKey: ["search_runs"],
     queryFn: () => listSearchRuns(200),
+  });
+
+  const { data: rawLeads = [] } = useQuery({
+    queryKey: ["dashboard-leads-compact-v4"],
+    queryFn: () => fetchCompactLeads(),
+    retry: 1,
   });
 
   useEffect(() => {
@@ -41,19 +49,14 @@ function DashboardPage() {
     })();
   }, [refetch]);
 
-  useEffect(() => {
-    (async () => {
-      const { count } = await supabase
-        .from("leads")
-        .select("id", { count: "exact", head: true })
-        .eq("passed", true)
-        .eq("lead_tier", "Hot");
-      setHotCount(count ?? 0);
-    })();
-  }, [searches.length]);
-
-  const totalLeads = searches.reduce((s, r) => s + r.qualifiedCount, 0);
-  const totalFiltered = searches.reduce((s, r) => s + r.filteredCount, 0);
+  const liveStats = useMemo(() => {
+    const { qualified, filteredOut } = getLiveLeadSets(rawLeads, settings);
+    return {
+      qualified: qualified.length,
+      filtered: filteredOut.length,
+      hot: qualified.filter((l) => (l.leadTier || "").toLowerCase() === "hot").length,
+    };
+  }, [rawLeads, settings]);
 
   return (
     <div className="relative min-h-[calc(100vh-3rem)] overflow-hidden">

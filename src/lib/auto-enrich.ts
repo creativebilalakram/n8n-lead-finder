@@ -1,4 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
+import { loadFilterSettings } from "./filter-settings";
+import { fetchCompactLeads, getLiveLeadSets } from "./leads-query";
 
 // Client-side trigger: finds the qualified "Hot" leads (lead_score >= 85)
 // in a freshly saved search run and fires the background auto-enrich
@@ -10,16 +12,17 @@ export async function triggerAutoEnrichForRun(
 ) {
   const minScore = opts.minScore ?? 85;
   const concurrency = opts.concurrency ?? 2;
-
-  const { data, error } = await supabase
-    .from("leads")
-    .select("id, website, lead_score, lead_tier, auto_enrich_status")
-    .eq("search_run_id", searchRunId)
-    .eq("passed", true)
-    .gte("lead_score", minScore);
-  if (error || !data?.length) return { triggered: 0 };
-
-  const queue = data.filter((l) => !l.auto_enrich_status).map((l) => l.id);
+  const [settings, rawLeads] = await Promise.all([
+    loadFilterSettings(),
+    fetchCompactLeads(searchRunId),
+  ]);
+  const { qualified } = getLiveLeadSets(rawLeads, settings);
+  const queue = qualified
+    .filter((l) => (l.leadScore ?? 0) >= minScore)
+    .filter((l) => !(l as Record<string, unknown>).autoEnrichStatus)
+    .map((l) => l.id as string)
+    .filter(Boolean);
+  if (!queue.length) return { triggered: 0 };
   let i = 0;
   let triggered = 0;
   async function worker() {
@@ -52,10 +55,9 @@ export async function triggerAutoEnrichLead(leadId: string, force = false) {
   return res.json().catch(() => ({}));
 }
 
-// Backfill trigger: finds every qualified lead across ALL runs that hasn't
-// been auto-enriched yet (or failed), and fires the orchestrator with a
-// concurrency cap. Useful for older leads that existed before automation
-// was wired up.
+// Backfill trigger: finds every currently qualified lead across ALL runs that
+// hasn't been auto-enriched yet. Failed leads are skipped by default so the
+// system doesn't burn credits retrying known-bad sites/handles.
 export async function triggerAutoEnrichBacklog(
   opts: {
     minScore?: number;
@@ -66,25 +68,20 @@ export async function triggerAutoEnrichBacklog(
 ) {
   const minScore = opts.minScore ?? 85;
   const concurrency = opts.concurrency ?? 2;
-  const includeFailed = opts.includeFailed ?? true;
+  const includeFailed = opts.includeFailed ?? false;
 
-  const query = supabase
-    .from("leads")
-    .select("id, auto_enrich_status")
-    .eq("passed", true)
-    .gte("lead_score", minScore);
-
-  const { data, error } = await query;
-  if (error || !data?.length) return { triggered: 0, total: 0 };
-
-  const queue = data
+  const [settings, rawLeads] = await Promise.all([loadFilterSettings(), fetchCompactLeads()]);
+  const { qualified } = getLiveLeadSets(rawLeads, settings);
+  const queue = qualified
+    .filter((l) => (l.leadScore ?? 0) >= minScore)
     .filter((l) => {
-      const s = l.auto_enrich_status as string | null;
+      const s = ((l as Record<string, unknown>).autoEnrichStatus as string | null) ?? null;
       if (!s) return true;
       if (includeFailed && s === "error") return true;
       return false;
     })
-    .map((l) => l.id as string);
+    .map((l) => l.id as string)
+    .filter(Boolean);
 
   const total = queue.length;
   let i = 0;

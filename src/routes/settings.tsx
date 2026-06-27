@@ -16,6 +16,7 @@ import type { Lead } from "@/lib/lead-types";
 import { isClicked, leadKey, useClickedSync } from "@/lib/clicked-leads";
 import { leadIdentityKey } from "@/lib/lead-identity";
 import { triggerAutoEnrichBacklog } from "@/lib/auto-enrich";
+import { fetchCompactLeads, getLiveLeadSets } from "@/lib/leads-query";
 import { toast } from "sonner";
 import {
   DEFAULT_FILTERS,
@@ -337,41 +338,7 @@ function BackfillAutomationCard() {
 }
 
 async function fetchAllLeadsLite(): Promise<Lead[]> {
-  const PAGE = 1000;
-  let from = 0;
-  const out: Lead[] = [];
-  while (true) {
-    const { data, error } = await supabase
-      .from("leads")
-      .select(
-        "id, place_id, title, category, address, phone, country_code, website, email, rating, reviews_count, lead_score, lead_tier, owner_update_age_days",
-      )
-      .range(from, from + PAGE - 1);
-    if (error) throw error;
-    const rows = data ?? [];
-    for (const r of rows) {
-      out.push({
-        id: r.id,
-        title: r.title ?? undefined,
-        categoryName: r.category ?? undefined,
-        address: r.address ?? undefined,
-        phone: r.phone ?? undefined,
-        countryCode: r.country_code ?? undefined,
-        totalScore: r.rating ?? undefined,
-        reviewsCount: r.reviews_count ?? undefined,
-        leadScore: r.lead_score ?? undefined,
-        leadTier: r.lead_tier ?? undefined,
-        email: r.email ?? undefined,
-        emails: r.email ? [r.email] : undefined,
-        website: r.website ?? undefined,
-        placeId: r.place_id ?? undefined,
-        ownerUpdateAgeDays: r.owner_update_age_days ?? undefined,
-      } as Lead);
-    }
-    if (rows.length < PAGE) break;
-    from += PAGE;
-  }
-  return out;
+  return fetchCompactLeads();
 }
 
 function AnalyticsPanel({ settings }: { settings: FilterSettings }) {
@@ -393,17 +360,12 @@ function AnalyticsPanel({ settings }: { settings: FilterSettings }) {
 
   const stats = useMemo(() => {
     if (!raw) return null;
-    // Dedupe by business identity (placeId / website / title+address),
-    // NOT by DB row id — every import creates a fresh row id.
-    const map = new Map<string, Lead>();
     const counts = new Map<string, number>();
     for (const l of raw) {
       const k = leadIdentityKey(l);
-      const ex = map.get(k);
-      if (!ex || (l.leadScore ?? 0) > (ex.leadScore ?? 0)) map.set(k, l);
       counts.set(k, (counts.get(k) ?? 0) + 1);
     }
-    const leads = [...map.values()];
+    const { all: leads } = getLiveLeadSets(raw, settings);
     const total = leads.length;
     const rawTotal = raw.length;
     const duplicates = rawTotal - total;

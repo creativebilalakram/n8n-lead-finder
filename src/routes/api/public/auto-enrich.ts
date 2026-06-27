@@ -70,6 +70,9 @@ export const Route = createFileRoute("/api/public/auto-enrich")({
           if (status === "running") {
             return Response.json({ leadId, skipped: "already_running" });
           }
+          if (status === "error") {
+            return Response.json({ leadId, skipped: "previously_failed" });
+          }
           if (status === "done" && finishedAt) {
             const ageMs = Date.now() - new Date(finishedAt).getTime();
             if (ageMs < 24 * 60 * 60 * 1000) {
@@ -110,6 +113,7 @@ export const Route = createFileRoute("/api/public/auto-enrich")({
 
         // 4) Website analysis (screenshot + AI modernity score)
         let websiteScore: number | null = (lead.website_modern_score as number | null) ?? null;
+        let websiteFailure: string | null = null;
         try {
           const r = await fetch(`${origin}/api/public/website/analyze`, {
             method: "POST",
@@ -118,10 +122,11 @@ export const Route = createFileRoute("/api/public/auto-enrich")({
           });
           const j = (await r.json().catch(() => ({}))) as { score?: number; error?: string };
           if (!r.ok) {
+            websiteFailure = j.error || `HTTP ${r.status}`;
             steps.push({
               step: "website.analyze",
               status: "error",
-              detail: j.error || `HTTP ${r.status}`,
+              detail: websiteFailure,
               at: new Date().toISOString(),
             });
           } else {
@@ -134,12 +139,23 @@ export const Route = createFileRoute("/api/public/auto-enrich")({
             });
           }
         } catch (e) {
+          websiteFailure = e instanceof Error ? e.message : String(e);
           steps.push({
             step: "website.analyze",
             status: "error",
-            detail: e instanceof Error ? e.message : String(e),
+            detail: websiteFailure,
             at: new Date().toISOString(),
           });
+        }
+
+        if (websiteScore === null) {
+          await patchLead(supabaseUrl, serviceKey, leadId, {
+            auto_enrich_status: "error",
+            auto_enrich_finished_at: new Date().toISOString(),
+            auto_enrich_error: websiteFailure || "Website analysis failed",
+            auto_enrich_steps: steps,
+          });
+          return Response.json({ leadId, status: "error", error: websiteFailure || "Website analysis failed", steps });
         }
 
         // 5) Conditional deep enrichment when site looks weak (< 7)
