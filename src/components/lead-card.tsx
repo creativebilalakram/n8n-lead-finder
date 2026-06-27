@@ -261,14 +261,21 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
           .maybeSingle();
         let pkg = (data?.website_package ?? null) as WebsiteDataPackage | null;
         if (!pkg) {
-          const res = await fetch("/api/public/website-package/rebuild", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ leadId }),
-          });
-          if (res.ok) {
-            const json = (await res.json()) as { package?: WebsiteDataPackage };
-            pkg = json.package ?? null;
+          // Retry once on transient 5xx (Supabase PATCH can flake on
+          // large jsonb payloads).
+          for (let attempt = 0; attempt < 2 && !pkg; attempt++) {
+            const res = await fetch("/api/public/website-package/rebuild", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ leadId }),
+            });
+            if (res.ok) {
+              const json = (await res.json()) as { package?: WebsiteDataPackage };
+              pkg = json.package ?? null;
+              break;
+            }
+            if (res.status < 500) break;
+            await new Promise((r) => setTimeout(r, 400));
           }
         }
         if (pkg) url = buildLovablePromptUrl(pkg);

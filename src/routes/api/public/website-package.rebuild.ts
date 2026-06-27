@@ -56,19 +56,32 @@ export const Route = createFileRoute("/api/public/website-package/rebuild")({
         const overrides = lead.website_package_overrides as Record<string, unknown> | null;
         const pkg = overrides ? mergeOverrides(base, overrides as never) : base;
 
-        const patchRes = await fetch(`${supabaseUrl}/rest/v1/leads?id=eq.${body.leadId}`, {
-          method: "PATCH",
-          headers: { ...headers, Prefer: "return=minimal" },
-          body: JSON.stringify({
-            website_package: pkg,
-            website_package_version: WDP_VERSION,
-            website_package_built_at: new Date().toISOString(),
-          }),
-        });
-        if (!patchRes.ok) {
-          return Response.json({ error: "Persist failed", detail: await patchRes.text() }, { status: 502 });
+        // Persist is best-effort — never block the caller from getting
+        // the freshly-built package, even if Supabase's PATCH flakes on
+        // very large jsonb payloads.
+        let persisted = true;
+        let persistDetail: string | undefined;
+        try {
+          const patchRes = await fetch(`${supabaseUrl}/rest/v1/leads?id=eq.${body.leadId}`, {
+            method: "PATCH",
+            headers: { ...headers, Prefer: "return=minimal" },
+            body: JSON.stringify({
+              website_package: pkg,
+              website_package_version: WDP_VERSION,
+              website_package_built_at: new Date().toISOString(),
+            }),
+          });
+          if (!patchRes.ok) {
+            persisted = false;
+            persistDetail = await patchRes.text();
+            console.error("[website-package.rebuild] persist failed", patchRes.status, persistDetail);
+          }
+        } catch (e) {
+          persisted = false;
+          persistDetail = e instanceof Error ? e.message : String(e);
+          console.error("[website-package.rebuild] persist threw", persistDetail);
         }
-        return Response.json({ ok: true, version: WDP_VERSION, package: pkg });
+        return Response.json({ ok: true, version: WDP_VERSION, package: pkg, persisted, persistDetail });
       },
     },
   },
