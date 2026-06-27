@@ -51,3 +51,63 @@ export async function triggerAutoEnrichLead(leadId: string, force = false) {
   });
   return res.json().catch(() => ({}));
 }
+
+// Backfill trigger: finds every qualified lead across ALL runs that hasn't
+// been auto-enriched yet (or failed), and fires the orchestrator with a
+// concurrency cap. Useful for older leads that existed before automation
+// was wired up.
+export async function triggerAutoEnrichBacklog(
+  opts: {
+    minScore?: number;
+    concurrency?: number;
+    includeFailed?: boolean;
+    onProgress?: (done: number, total: number) => void;
+  } = {},
+) {
+  const minScore = opts.minScore ?? 85;
+  const concurrency = opts.concurrency ?? 2;
+  const includeFailed = opts.includeFailed ?? true;
+
+  const query = supabase
+    .from("leads")
+    .select("id, auto_enrich_status")
+    .eq("passed", true)
+    .gte("lead_score", minScore);
+
+  const { data, error } = await query;
+  if (error || !data?.length) return { triggered: 0, total: 0 };
+
+  const queue = data
+    .filter((l) => {
+      const s = l.auto_enrich_status as string | null;
+      if (!s) return true;
+      if (includeFailed && s === "error") return true;
+      return false;
+    })
+    .map((l) => l.id as string);
+
+  const total = queue.length;
+  let i = 0;
+  let triggered = 0;
+  async function worker() {
+    while (i < queue.length) {
+      const idx = i++;
+      const leadId = queue[idx];
+      try {
+        await fetch("/api/public/auto-enrich", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ leadId }),
+        });
+        triggered++;
+      } catch {
+        /* swallow */
+      }
+      opts.onProgress?.(triggered, total);
+    }
+  }
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, queue.length || 1) }, worker),
+  );
+  return { triggered, total };
+}
