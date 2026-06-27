@@ -1228,6 +1228,169 @@ export function mergeOverrides(base: WebsiteDataPackage, overrides: Partial<Webs
   return out;
 }
 
+/**
+ * Database JSONB does not preserve insertion order. The saved package can be
+ * correct, but when it is read back for Copy JSON / generator prompts the keys
+ * may appear in an old-looking order. Rebuild a presentation/export object in
+ * the exact Website Builder order every time before stringifying.
+ */
+export function orderWebsitePackageForExport(pkg: WebsiteDataPackage): WebsiteDataPackage {
+  const business = pkg.business ?? ({} as WebsiteDataPackage["business"]);
+  const attributesMap = business.attributesMap ?? {};
+  const brand = pkg.brand ?? ({} as WebsiteDataPackage["brand"]);
+  const media = pkg.media ?? ({} as WebsiteDataPackage["media"]);
+  const contact = pkg.contact ?? ({} as WebsiteDataPackage["contact"]);
+  const trustSignals = pkg.trustSignals ?? ({} as WebsiteDataPackage["trustSignals"]);
+  const reviewStats = pkg.reviewStats ?? ({} as WebsiteDataPackage["reviewStats"]);
+  const amenities = pkg.amenities ?? ({} as WebsiteDataPackage["amenities"]);
+  const websiteAnalysis = pkg.websiteAnalysis;
+  const seo = pkg.seo ?? ({} as WebsiteDataPackage["seo"]);
+  const leadIntelligence = pkg.leadIntelligence;
+  const instagram = pkg.instagram;
+
+  return {
+    business: {
+      name: business.name,
+      owner: business.owner,
+      tagline: business.tagline,
+      description: business.description,
+      shortDescription: business.shortDescription,
+      taglineCandidates: business.taglineCandidates ?? [],
+      valueProps: business.valueProps ?? [],
+      categories: business.categories ?? [],
+      services: business.services ?? [],
+      serviceDetails: business.serviceDetails ?? [],
+      attributes: business.attributes ?? [],
+      attributesMap: {
+        womenOwned: attributesMap.womenOwned,
+        blackOwned: attributesMap.blackOwned,
+        veteranOwned: attributesMap.veteranOwned,
+        familyOwned: attributesMap.familyOwned,
+        lgbtqFriendly: attributesMap.lgbtqFriendly,
+        wheelchairAccessible: attributesMap.wheelchairAccessible,
+        freeParking: attributesMap.freeParking,
+        onsiteServices: attributesMap.onsiteServices,
+      },
+      priceRange: business.priceRange,
+      languages: business.languages ?? [],
+      claimed: business.claimed,
+      permanentlyClosed: business.permanentlyClosed,
+      yearEstablished: business.yearEstablished,
+      serviceArea: business.serviceArea ?? [],
+    },
+    brand: {
+      logoUrl: brand.logoUrl,
+      colors: brand.colors ?? [],
+      colorRoles: brand.colorRoles,
+      fonts: brand.fonts ?? [],
+      tone: brand.tone,
+      personality: brand.personality ?? [],
+      faviconUrl: brand.faviconUrl,
+    },
+    media: {
+      heroImage: media.heroImage,
+      gallery: media.gallery ?? [],
+      websiteScreenshot: media.websiteScreenshot,
+      galleryByCategory: media.galleryByCategory ?? [],
+    },
+    contact: {
+      phone: contact.phone,
+      emails: contact.emails ?? [],
+      address: contact.address,
+      hours: contact.hours ?? [],
+      socials: contact.socials ?? {},
+      bookingLinks: contact.bookingLinks ?? [],
+      menuLinks: contact.menuLinks ?? [],
+      reservationLinks: contact.reservationLinks ?? [],
+    },
+    trustSignals: {
+      averageRating: trustSignals.averageRating,
+      totalReviews: trustSignals.totalReviews,
+      womenOwned: trustSignals.womenOwned,
+      blackOwned: trustSignals.blackOwned,
+      veteranOwned: trustSignals.veteranOwned,
+      familyOwned: trustSignals.familyOwned,
+      lgbtqFriendly: trustSignals.lgbtqFriendly,
+      wheelchairAccessible: trustSignals.wheelchairAccessible,
+      freeParking: trustSignals.freeParking,
+      paymentMethods: trustSignals.paymentMethods ?? [],
+      reviewTags: trustSignals.reviewTags ?? [],
+    },
+    reviews: pkg.reviews ?? [],
+    reviewsTags: pkg.reviewsTags ?? [],
+    ownerResponses: pkg.ownerResponses ?? [],
+    reviewStats: {
+      averageRating: reviewStats.averageRating,
+      total: reviewStats.total,
+      distribution: reviewStats.distribution,
+      sampleHighlights: reviewStats.sampleHighlights ?? [],
+    },
+    recentUpdates: pkg.recentUpdates ?? [],
+    updates: pkg.updates ?? [],
+    recentActivity: pkg.recentActivity,
+    amenities: {
+      serviceOptions: amenities.serviceOptions ?? [],
+      highlights: amenities.highlights ?? [],
+      accessibility: amenities.accessibility ?? [],
+      amenities: amenities.amenities ?? [],
+      payments: amenities.payments ?? [],
+      parking: amenities.parking ?? [],
+      crowd: amenities.crowd ?? [],
+      planning: amenities.planning ?? [],
+      children: amenities.children ?? [],
+      pets: amenities.pets ?? [],
+      fromTheBusiness: amenities.fromTheBusiness ?? [],
+    },
+    faq: pkg.faq ?? [],
+    popularTimes: pkg.popularTimes,
+    competitors: pkg.competitors ?? [],
+    websiteAnalysis: websiteAnalysis
+      ? {
+          score: websiteAnalysis.score,
+          label: websiteAnalysis.label,
+          summary: websiteAnalysis.summary,
+          weaknesses: websiteAnalysis.weaknesses ?? [],
+          strengths: websiteAnalysis.strengths ?? [],
+          screenshotUrl: websiteAnalysis.screenshotUrl,
+        }
+      : undefined,
+    seo: {
+      metaTitle: seo.metaTitle,
+      metaDescription: seo.metaDescription,
+      keywords: seo.keywords ?? [],
+    },
+    leadIntelligence: leadIntelligence
+      ? {
+          score: leadIntelligence.score,
+          tier: leadIntelligence.tier,
+          redFlags: leadIntelligence.redFlags ?? [],
+          rejectionReasons: leadIntelligence.rejectionReasons ?? [],
+          passed: leadIntelligence.passed,
+          ownerUpdateAgeDays: leadIntelligence.ownerUpdateAgeDays,
+        }
+      : undefined,
+    instagram: instagram
+      ? {
+          handle: instagram.handle,
+          url: instagram.url,
+          followers: instagram.followers,
+          following: instagram.following,
+          postsCount: instagram.postsCount,
+          bio: instagram.bio,
+          fullName: instagram.fullName,
+          profilePicUrl: instagram.profilePicUrl,
+          verified: instagram.verified,
+          isBusiness: instagram.isBusiness,
+        }
+      : undefined,
+    version: pkg.version ?? WDP_VERSION,
+  };
+}
+
+export function stringifyWebsitePackage(pkg: WebsiteDataPackage): string {
+  return JSON.stringify(orderWebsitePackageForExport(pkg), null, 2);
+}
+
 export function isPackageStale(version: number | null | undefined): boolean {
   return (version ?? 0) < WDP_VERSION;
 }
