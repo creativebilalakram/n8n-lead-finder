@@ -1,4 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
+import {
+  runWebsiteAnalysis,
+  runBrandAnalysis,
+  runInstagramAnalysis,
+} from "@/lib/enrichment-runner.server";
 
 // Background-style orchestrator: given a qualified leadId, automatically
 // runs website screenshot+modernity scoring; if score < 7, additionally
@@ -108,21 +113,18 @@ export const Route = createFileRoute("/api/public/auto-enrich")({
           return Response.json({ leadId, status: "done", note: "no_website", steps });
         }
 
-        // Resolve base URL for sibling internal API calls
-        const origin = new URL(request.url).origin;
-
-        // 4) Website analysis (screenshot + AI modernity score)
+        // 4) Website analysis (screenshot + AI modernity score) — called
+        // directly in-process. Self-fetching a sibling /api/public/* route
+        // from a Worker is unreliable for 90s+ Apify sync calls (subrequest
+        // budget drops the connection before Apify is ever hit), so the
+        // logic lives in src/lib/enrichment-runner.server.ts and we invoke
+        // it as a function.
         let websiteScore: number | null = (lead.website_modern_score as number | null) ?? null;
         let websiteFailure: string | null = null;
         try {
-          const r = await fetch(`${origin}/api/public/website/analyze`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ leadId, url: website }),
-          });
-          const j = (await r.json().catch(() => ({}))) as { score?: number; error?: string };
+          const r = await runWebsiteAnalysis(leadId, website);
           if (!r.ok) {
-            websiteFailure = j.error || `HTTP ${r.status}`;
+            websiteFailure = r.error || `HTTP ${r.status}`;
             steps.push({
               step: "website.analyze",
               status: "error",
@@ -130,7 +132,8 @@ export const Route = createFileRoute("/api/public/auto-enrich")({
               at: new Date().toISOString(),
             });
           } else {
-            websiteScore = typeof j.score === "number" ? j.score : websiteScore;
+            const s = (r.data?.score as number | undefined);
+            websiteScore = typeof s === "number" ? s : websiteScore;
             steps.push({
               step: "website.analyze",
               status: "ok",
@@ -170,16 +173,11 @@ export const Route = createFileRoute("/api/public/auto-enrich")({
             // Brand DNA
             (async () => {
               try {
-                const r = await fetch(`${origin}/api/public/brand/analyze`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ leadId, url: website }),
-                });
-                const j = (await r.json().catch(() => ({}))) as { error?: string; score?: number };
+                const r = await runBrandAnalysis(leadId, website);
                 steps.push({
                   step: "brand.analyze",
                   status: r.ok ? "ok" : "error",
-                  detail: r.ok ? `score=${j.score ?? "?"}` : j.error || `HTTP ${r.status}`,
+                  detail: r.ok ? `score=${(r.data?.score as number | undefined) ?? "?"}` : r.error || `HTTP ${r.status}`,
                   at: new Date().toISOString(),
                 });
               } catch (e) {
@@ -194,16 +192,11 @@ export const Route = createFileRoute("/api/public/auto-enrich")({
             // Instagram
             (async () => {
               try {
-                const r = await fetch(`${origin}/api/public/instagram/analyze`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ leadId }),
-                });
-                const j = (await r.json().catch(() => ({}))) as { error?: string; score?: number };
+                const r = await runInstagramAnalysis(leadId);
                 steps.push({
                   step: "instagram.analyze",
                   status: r.ok ? "ok" : "error",
-                  detail: r.ok ? `score=${j.score ?? "?"}` : j.error || `HTTP ${r.status}`,
+                  detail: r.ok ? `score=${(r.data?.score as number | undefined) ?? "?"}` : r.error || `HTTP ${r.status}`,
                   at: new Date().toISOString(),
                 });
               } catch (e) {
