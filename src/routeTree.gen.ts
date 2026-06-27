@@ -15,6 +15,7 @@ import { Route as RunsRouteImport } from './routes/runs'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LeadsIndexRouteImport } from './routes/leads.index'
 import { Route as HistoryIndexRouteImport } from './routes/history.index'
+import { Route as WebsiteIdRouteImport } from './routes/website.$id'
 import { Route as LeadsIdRouteImport } from './routes/leads.$id'
 import { Route as HistoryIdRouteImport } from './routes/history.$id'
 import { Route as ApiPublicWebsiteAnalyzeRouteImport } from './routes/api/public/website.analyze'
@@ -54,6 +55,11 @@ const LeadsIndexRoute = LeadsIndexRouteImport.update({
 const HistoryIndexRoute = HistoryIndexRouteImport.update({
   id: '/history/',
   path: '/history/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WebsiteIdRoute = WebsiteIdRouteImport.update({
+  id: '/website/$id',
+  path: '/website/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LeadsIdRoute = LeadsIdRouteImport.update({
@@ -116,6 +122,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/history/$id': typeof HistoryIdRoute
   '/leads/$id': typeof LeadsIdRoute
+  '/website/$id': typeof WebsiteIdRoute
   '/history/': typeof HistoryIndexRoute
   '/leads/': typeof LeadsIndexRoute
   '/api/public/apify/import': typeof ApiPublicApifyImportRoute
@@ -134,6 +141,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/history/$id': typeof HistoryIdRoute
   '/leads/$id': typeof LeadsIdRoute
+  '/website/$id': typeof WebsiteIdRoute
   '/history': typeof HistoryIndexRoute
   '/leads': typeof LeadsIndexRoute
   '/api/public/apify/import': typeof ApiPublicApifyImportRoute
@@ -153,6 +161,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/history/$id': typeof HistoryIdRoute
   '/leads/$id': typeof LeadsIdRoute
+  '/website/$id': typeof WebsiteIdRoute
   '/history/': typeof HistoryIndexRoute
   '/leads/': typeof LeadsIndexRoute
   '/api/public/apify/import': typeof ApiPublicApifyImportRoute
@@ -173,6 +182,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/history/$id'
     | '/leads/$id'
+    | '/website/$id'
     | '/history/'
     | '/leads/'
     | '/api/public/apify/import'
@@ -191,6 +201,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/history/$id'
     | '/leads/$id'
+    | '/website/$id'
     | '/history'
     | '/leads'
     | '/api/public/apify/import'
@@ -209,6 +220,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/history/$id'
     | '/leads/$id'
+    | '/website/$id'
     | '/history/'
     | '/leads/'
     | '/api/public/apify/import'
@@ -228,6 +240,7 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   HistoryIdRoute: typeof HistoryIdRoute
   LeadsIdRoute: typeof LeadsIdRoute
+  WebsiteIdRoute: typeof WebsiteIdRoute
   HistoryIndexRoute: typeof HistoryIndexRoute
   LeadsIndexRoute: typeof LeadsIndexRoute
   ApiPublicApifyImportRoute: typeof ApiPublicApifyImportRoute
@@ -282,6 +295,13 @@ declare module '@tanstack/react-router' {
       path: '/history'
       fullPath: '/history/'
       preLoaderRoute: typeof HistoryIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/website/$id': {
+      id: '/website/$id'
+      path: '/website/$id'
+      fullPath: '/website/$id'
+      preLoaderRoute: typeof WebsiteIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/leads/$id': {
@@ -364,6 +384,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   HistoryIdRoute: HistoryIdRoute,
   LeadsIdRoute: LeadsIdRoute,
+  WebsiteIdRoute: WebsiteIdRoute,
   HistoryIndexRoute: HistoryIndexRoute,
   LeadsIndexRoute: LeadsIndexRoute,
   ApiPublicApifyImportRoute: ApiPublicApifyImportRoute,
