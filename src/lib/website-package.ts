@@ -1388,7 +1388,174 @@ export function orderWebsitePackageForExport(pkg: WebsiteDataPackage): WebsiteDa
 }
 
 export function stringifyWebsitePackage(pkg: WebsiteDataPackage): string {
-  return JSON.stringify(orderWebsitePackageForExport(pkg), null, 2);
+  return JSON.stringify(buildWebsiteBrief(pkg), null, 2);
+}
+
+/**
+ * Final AI-facing brief. Reshapes the internal WDP into the premium
+ * website-architect format that the generator agent expects:
+ *   _role / _context / business / trustAndAttributes / brand / media /
+ *   contact / reviews / recentUpdates / websiteAnalysis / instagram
+ * Only signal-dense, generator-relevant fields are kept; analytics, lead
+ * intelligence, FAQ fallbacks, etc. are deliberately omitted.
+ */
+export function buildWebsiteBrief(pkg: WebsiteDataPackage): Record<string, unknown> {
+  const business = pkg.business ?? ({} as WebsiteDataPackage["business"]);
+  const brand = pkg.brand ?? ({} as WebsiteDataPackage["brand"]);
+  const media = pkg.media ?? ({} as WebsiteDataPackage["media"]);
+  const contact = pkg.contact ?? ({} as WebsiteDataPackage["contact"]);
+  const trust = pkg.trustSignals ?? ({} as WebsiteDataPackage["trustSignals"]);
+  const amenities = pkg.amenities ?? ({} as WebsiteDataPackage["amenities"]);
+  const wa = pkg.websiteAnalysis;
+
+  const serviceDetails = (business.serviceDetails ?? []).length
+    ? business.serviceDetails
+    : (business.services ?? []).map((name) => ({ name }));
+
+  const reviewsByText = new Map<string, { reviewExcerpt: string; response: string; date?: string }>();
+  for (const r of pkg.ownerResponses ?? []) {
+    if (r.reviewExcerpt) reviewsByText.set(r.reviewExcerpt.slice(0, 60).toLowerCase(), r);
+  }
+  const reviews = (pkg.reviews ?? []).slice(0, 8).map((r) => {
+    const owner = r.text ? reviewsByText.get(r.text.slice(0, 60).toLowerCase()) : undefined;
+    return {
+      author: r.author,
+      text: r.text,
+      rating: r.rating,
+      date: r.date,
+      ownerResponse: owner?.response,
+    };
+  });
+
+  const address = contact.address
+    ? {
+        full: contact.address.full,
+        city: contact.address.city,
+        state: contact.address.state,
+        postalCode: contact.address.postalCode,
+        googleMapsUrl: contact.address.googleMapsUrl,
+      }
+    : undefined;
+
+  const fonts = (brand.fonts ?? []).filter(Boolean);
+  const fontPair = fonts.length
+    ? { body: fonts[0], headings: fonts[1] ?? fonts[0] }
+    : undefined;
+
+  const primaryColor = brand.colorRoles?.primary ?? brand.colors?.[0];
+  const accentColor =
+    brand.colorRoles?.accent ?? brand.colorRoles?.secondary ?? brand.colors?.[1];
+
+  const trustAndAttributes = {
+    blackOwned: trust.blackOwned,
+    womenOwned: trust.womenOwned,
+    veteranOwned: business.attributesMap?.veteranOwned,
+    familyOwned: business.attributesMap?.familyOwned,
+    lgbtqFriendly: trust.lgbtqFriendly,
+    wheelchairAccessible: trust.wheelchairAccessible,
+    freeParking: trust.freeParking,
+    onsiteServices: business.attributesMap?.onsiteServices,
+    averageRating: trust.averageRating,
+    totalReviews: trust.totalReviews,
+    paymentMethods: trust.paymentMethods ?? [],
+    reviewTags: trust.reviewTags ?? [],
+    valueProps: business.valueProps ?? [],
+    amenities: amenities.amenities ?? [],
+    highlights: amenities.highlights ?? [],
+  };
+  // Strip undefined boolean flags so the brief stays clean.
+  for (const k of Object.keys(trustAndAttributes) as Array<keyof typeof trustAndAttributes>) {
+    if (trustAndAttributes[k] === undefined) delete trustAndAttributes[k];
+  }
+
+  const oldShot = wa?.screenshotUrl ?? media.websiteScreenshot;
+
+  const brief: Record<string, unknown> = {
+    _role:
+      "You are a senior premium website architect at Creative Bilal. Your job is to create deeply personalized, high-converting, and visually premium websites. You must follow the exact same workflow and instructions that were defined in your instructions tab (CRITICAL)",
+    _context: {
+      purpose:
+        "This structured data is prepared for premium website generation. It contains clean, organized business information with helpful context for smart decision-making.",
+      instructionsForLovable:
+        "Build the website using the same workflow defined in your instructions. Deeply analyze the old website screenshot. Make intelligent decisions about logo, colors, and images. Prioritize hyper-personalization using real data points like owner updates, reviews with owner responses, trust signals, and attributes.",
+    },
+    business: {
+      name: business.name,
+      owner: business.owner,
+      tagline: business.tagline,
+      description: business.description,
+      categories: business.categories ?? [],
+      services: serviceDetails,
+    },
+    trustAndAttributes,
+    brand: {
+      tone: brand.tone,
+      personality: brand.personality ?? [],
+      logoUrl: brand.logoUrl,
+      faviconUrl: brand.faviconUrl,
+      primaryColor,
+      accentColor,
+      colors: brand.colors ?? [],
+      fonts: fontPair,
+      _visualDecisionNote:
+        "First, deeply analyze the old website screenshot. Check if the logo and colors from the old website are suitable. Use the old website's logo and colors (as primary and accent) if they look professional and consistent. If the logo is not suitable, verify using the Instagram profile picture as an alternative after checking quality.",
+    },
+    media: {
+      heroImage: media.heroImage,
+      gallery: media.gallery ?? [],
+      oldWebsiteScreenshot: oldShot,
+      _imageNote:
+        "Use high-quality images from the gallery where they add value. For sections where images are weak or missing, generate ultra-realistic premium visuals instead.",
+    },
+    contact: {
+      phone: contact.phone,
+      emails: contact.emails ?? [],
+      address,
+      hours: contact.hours ?? [],
+      socials: contact.socials ?? {},
+      bookingLinks: contact.bookingLinks ?? [],
+    },
+    reviews,
+    recentUpdates: pkg.recentUpdates ?? pkg.updates ?? [],
+    websiteAnalysis: wa
+      ? {
+          verdict: wa.label,
+          score: wa.score,
+          summary: wa.summary,
+          weaknesses: wa.weaknesses ?? [],
+          oldWebsiteScreenshot: oldShot,
+        }
+      : undefined,
+    instagram: pkg.instagram
+      ? {
+          handle: pkg.instagram.handle,
+          bio: pkg.instagram.bio,
+          followers: pkg.instagram.followers,
+          postsCount: pkg.instagram.postsCount,
+          profilePicUrl: pkg.instagram.profilePicUrl,
+          verified: pkg.instagram.verified,
+        }
+      : undefined,
+  };
+
+  return (stripEmpty(brief) as Record<string, unknown>) ?? {};
+}
+
+/** Remove undefined/null and empty arrays/objects from the brief for clean output. */
+function stripEmpty(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    const cleaned = value.map(stripEmpty).filter((v) => v !== undefined);
+    return cleaned.length ? cleaned : undefined;
+  }
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      const cleaned = stripEmpty(v);
+      if (cleaned !== undefined && cleaned !== null && cleaned !== "") out[k] = cleaned;
+    }
+    return Object.keys(out).length ? out : undefined;
+  }
+  return value;
 }
 
 export function isPackageStale(version: number | null | undefined): boolean {
