@@ -66,12 +66,14 @@ export async function triggerAutoEnrichBacklog(
     minScore?: number;
     concurrency?: number;
     includeFailed?: boolean;
+    force?: boolean;
     onProgress?: (done: number, total: number) => void;
   } = {},
 ) {
   const minScore = opts.minScore ?? 85;
   const concurrency = opts.concurrency ?? 2;
   const includeFailed = opts.includeFailed ?? false;
+  const force = opts.force ?? false;
 
   const [settings, rawLeads] = await Promise.all([loadFilterSettings(), fetchCompactLeads()]);
   const { qualified } = getLiveLeadSets(rawLeads, settings);
@@ -80,6 +82,7 @@ export async function triggerAutoEnrichBacklog(
     .filter((l) => {
       const s = ((l as Record<string, unknown>).autoEnrichStatus as string | null) ?? null;
       if (!s) return true;
+      if (force) return true;
       if (includeFailed && isFailedStatus(s)) return true;
       return false;
     })
@@ -97,7 +100,7 @@ export async function triggerAutoEnrichBacklog(
         await fetch("/api/public/auto-enrich", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ leadId }),
+          body: JSON.stringify({ leadId, force }),
         });
         triggered++;
       } catch {
