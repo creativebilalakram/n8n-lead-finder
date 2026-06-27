@@ -622,17 +622,11 @@ function extractValueProps(raw: AnyRow, brandTaglines: string[]): { tagline?: st
   if (candidates.length === 0) candidates.push(...brandTaglines);
 
   const valueProps: string[] = [];
-  for (const block of arr(pick(raw, "additionalInfo"))) {
-    const r = rec(block);
-    if (!r) continue;
-    for (const [k, v] of Object.entries(r)) {
-      if (/highlights|from the business|popular for/i.test(k)) {
-        for (const item of arr(v)) {
-          const ir = rec(item);
-          if (!ir) continue;
-          for (const [name, on] of Object.entries(ir)) if (on === true) valueProps.push(name);
-        }
-      }
+  // Pulls from BOTH array and object shapes of `additionalInfo` (the silent
+  // bug that previously left valueProps empty for most leads).
+  for (const block of normalizeAdditionalInfo(raw)) {
+    if (/highlights|from the business|popular for|service options/i.test(block.group)) {
+      for (const it of block.items) if (it.on) valueProps.push(it.label);
     }
   }
   return {
