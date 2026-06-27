@@ -839,6 +839,14 @@ export function buildWebsitePackage(
     websiteScore?: number | null;
     websiteLabel?: string | null;
     websiteAnalysis?: string | null;
+    leadIntel?: {
+      score?: number | null;
+      tier?: string | null;
+      redFlags?: unknown;
+      rejectionReasons?: unknown;
+      passed?: boolean | null;
+      ownerUpdateAgeDays?: number | null;
+    } | null;
   },
   overrides?: Partial<WebsiteDataPackage> | null,
 ): WebsiteDataPackage {
@@ -853,6 +861,8 @@ export function buildWebsitePackage(
   const ig = extractInstagramFromPayload(enrichment?.instagramRaw) ?? extractInstagramFromPayload(raw);
 
   const reviews = extractReviews(raw);
+  const reviewsTags = extractReviewsTags(raw);
+  const ownerResponses = extractOwnerResponses(raw);
   const updates = extractUpdates(raw);
   const amenityGroups = extractAmenityGroups(raw);
   const links = extractBookingLinks(raw);
@@ -952,6 +962,8 @@ export function buildWebsitePackage(
       galleryByCategory,
     },
     reviews,
+    reviewsTags,
+    ownerResponses,
     reviewStats,
     updates,
     recentActivity,
@@ -961,6 +973,16 @@ export function buildWebsitePackage(
     competitors: extractCompetitors(raw),
     websiteAnalysis,
     seo,
+    leadIntelligence: enrichment?.leadIntel
+      ? {
+          score: enrichment.leadIntel.score ?? undefined,
+          tier: enrichment.leadIntel.tier ?? undefined,
+          redFlags: uniq(arr(enrichment.leadIntel.redFlags).map((v) => (typeof v === "string" ? v : ""))),
+          rejectionReasons: uniq(arr(enrichment.leadIntel.rejectionReasons).map((v) => (typeof v === "string" ? v : ""))),
+          passed: enrichment.leadIntel.passed ?? undefined,
+          ownerUpdateAgeDays: enrichment.leadIntel.ownerUpdateAgeDays ?? undefined,
+        }
+      : undefined,
     instagram: ig
       ? {
           handle: ig.username,
