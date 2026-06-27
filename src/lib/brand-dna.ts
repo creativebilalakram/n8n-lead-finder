@@ -202,6 +202,11 @@ function extractPhones(values: unknown[]): string[] {
     values
       .flatMap(collectDeepStrings)
       .flatMap((value) => value.match(/(?:\+?\d[\d\s().-]{7,}\d)/g) ?? [])
+      .filter((value) => {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(value.trim())) return false;
+        const digits = value.replace(/\D/g, "");
+        return digits.length >= 10 && digits.length <= 15;
+      })
       .map((value) => value.replace(/\s+/g, " ").trim()),
   ).slice(0, 5);
 }
