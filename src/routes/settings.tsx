@@ -290,6 +290,7 @@ function BackfillAutomationCard() {
     setProgress({ done: 0, total: 0 });
     try {
       const res = await triggerAutoEnrichBacklog({
+        minScore: 0,
         concurrency: 2,
         onProgress: (done, total) => setProgress({ done, total }),
       });
