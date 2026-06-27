@@ -13,7 +13,7 @@ export async function rebuildWebsitePackageServer(leadId: string): Promise<Websi
     "Content-Type": "application/json",
   };
   const getRes = await fetch(
-    `${supabaseUrl}/rest/v1/leads?id=eq.${leadId}&select=raw,brand_dna_raw,instagram_raw,website_screenshot_url,website_package_overrides`,
+    `${supabaseUrl}/rest/v1/leads?id=eq.${leadId}&select=raw,brand_dna_raw,instagram_raw,website_screenshot_url,website_modern_score,website_label,website_analysis,website_package_overrides`,
     { headers },
   );
   if (!getRes.ok) return null;
@@ -25,6 +25,9 @@ export async function rebuildWebsitePackageServer(leadId: string): Promise<Websi
     brandDnaRaw: lead.brand_dna_raw,
     instagramRaw: lead.instagram_raw,
     websiteScreenshot: (lead.website_screenshot_url as string | null) ?? null,
+    websiteScore: (lead.website_modern_score as number | null) ?? null,
+    websiteLabel: (lead.website_label as string | null) ?? null,
+    websiteAnalysis: (lead.website_analysis as string | null) ?? null,
   });
   const overrides = lead.website_package_overrides as Partial<WebsiteDataPackage> | null;
   const pkg = overrides ? mergeOverrides(base, overrides) : base;
