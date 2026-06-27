@@ -6,7 +6,7 @@
 // stale packages and offer a rebuild.
 import { extractBrandDnaInsights, extractInstagramFromPayload } from "./brand-dna";
 
-export const WDP_VERSION = 6;
+export const WDP_VERSION = 7;
 
 export type WebsiteDataPackage = {
   version: number;
@@ -22,6 +22,16 @@ export type WebsiteDataPackage = {
     services: string[];
     serviceDetails: Array<{ name: string; description?: string }>;
     attributes: string[];
+    attributesMap?: {
+      blackOwned?: boolean;
+      womenOwned?: boolean;
+      veteranOwned?: boolean;
+      familyOwned?: boolean;
+      lgbtqFriendly?: boolean;
+      wheelchairAccessible?: boolean;
+      freeParking?: boolean;
+      onsiteServices?: boolean;
+    };
     priceRange?: string;
     languages: string[];
     claimed?: boolean;
@@ -76,6 +86,20 @@ export type WebsiteDataPackage = {
     sampleHighlights: string[];
   };
   updates: Array<{ text: string; date?: string; image?: string }>;
+  recentUpdates: Array<{ text: string; date?: string; image?: string }>;
+  trustSignals: {
+    averageRating?: number;
+    totalReviews?: number;
+    blackOwned?: boolean;
+    womenOwned?: boolean;
+    veteranOwned?: boolean;
+    familyOwned?: boolean;
+    lgbtqFriendly?: boolean;
+    wheelchairAccessible?: boolean;
+    freeParking?: boolean;
+    paymentMethods: string[];
+    reviewTags: Array<{ title: string; count: number }>;
+  };
   recentActivity?: {
     lastUpdateDate?: string;
     lastReviewDate?: string;
