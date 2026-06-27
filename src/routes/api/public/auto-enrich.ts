@@ -75,7 +75,10 @@ export const Route = createFileRoute("/api/public/auto-enrich")({
         if (!force) {
           if (status === "running") {
             const ageMs = startedAt ? Date.now() - new Date(startedAt).getTime() : 0;
-            if (!startedAt || ageMs < 30 * 60 * 1000) {
+            // Shorter window: if the orchestrator died mid-flight (worker
+            // crash, fetch failure), unblock retries quickly instead of
+            // making the user wait 30 minutes per stuck lead.
+            if (startedAt && ageMs < 8 * 60 * 1000) {
               return Response.json({ leadId, skipped: "already_running" });
             }
           }
