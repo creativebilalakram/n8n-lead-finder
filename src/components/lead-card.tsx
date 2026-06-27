@@ -10,6 +10,7 @@ import {
   Check,
   Camera,
   Loader2,
+  Instagram,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -34,23 +35,67 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
   type WebsiteAnalysis = { score: number; label: string; reason?: string; screenshotUrl?: string };
   const [analysis, setAnalysis] = useState<WebsiteAnalysis | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
+
+  // Instagram presence analysis
+  type IgAnalysis = {
+    score: number;
+    label: string;
+    reason?: string;
+    username?: string;
+    url?: string;
+    followers?: number;
+    postsCount?: number;
+    verified?: boolean;
+  };
+  const [ig, setIg] = useState<IgAnalysis | null>(null);
+  const [igLoading, setIgLoading] = useState(false);
+  const [igHandle, setIgHandle] = useState<string | null>(null);
+  const [igInput, setIgInput] = useState("");
   const leadIdForAnalysis = typeof lead.id === "string" ? lead.id : undefined;
   useEffect(() => {
     if (!leadIdForAnalysis) return;
     let cancelled = false;
     void supabase
       .from("leads")
-      .select("website_modern_score, website_label, website_analysis, website_screenshot_url")
+      .select(
+        "website_modern_score, website_label, website_analysis, website_screenshot_url, instagram_score, instagram_label, instagram_analysis, instagram_username, instagram_url, instagram_followers, instagram_posts_count, instagram_verified, raw",
+      )
       .eq("id", leadIdForAnalysis)
       .maybeSingle()
       .then(({ data }) => {
-        if (cancelled || !data || data.website_modern_score == null) return;
-        setAnalysis({
-          score: data.website_modern_score,
-          label: data.website_label || "",
-          reason: data.website_analysis ?? undefined,
-          screenshotUrl: data.website_screenshot_url ?? undefined,
-        });
+        if (cancelled || !data) return;
+        if (data.website_modern_score != null) {
+          setAnalysis({
+            score: data.website_modern_score,
+            label: data.website_label || "",
+            reason: data.website_analysis ?? undefined,
+            screenshotUrl: data.website_screenshot_url ?? undefined,
+          });
+        }
+        if (data.instagram_score != null) {
+          setIg({
+            score: data.instagram_score,
+            label: data.instagram_label || "",
+            reason: data.instagram_analysis ?? undefined,
+            username: data.instagram_username ?? undefined,
+            url: data.instagram_url ?? undefined,
+            followers: data.instagram_followers ?? undefined,
+            postsCount: data.instagram_posts_count ?? undefined,
+            verified: data.instagram_verified ?? undefined,
+          });
+        }
+        // Try to auto-detect an instagram handle from the raw Apify payload.
+        const rawObj = (data.raw ?? null) as Record<string, unknown> | null;
+        if (rawObj) {
+          const candidates: unknown[] = [];
+          const igs = rawObj.instagrams;
+          if (Array.isArray(igs)) candidates.push(...igs);
+          if (typeof rawObj.instagram === "string") candidates.push(rawObj.instagram);
+          const profiles = rawObj.profiles as Record<string, unknown> | undefined;
+          if (profiles && typeof profiles.instagram === "string") candidates.push(profiles.instagram);
+          const found = candidates.find((c) => typeof c === "string" && /instagram\.com/i.test(c as string));
+          if (typeof found === "string") setIgHandle(found);
+        }
       });
     return () => {
       cancelled = true;
@@ -74,6 +119,40 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
       toast.error(e instanceof Error ? e.message : "Analysis failed");
     } finally {
       setAnalyzing(false);
+    }
+  };
+
+  const analyzeInstagram = async (handleOverride?: string) => {
+    if (!leadIdForAnalysis || igLoading) return;
+    const handle = (handleOverride ?? igHandle ?? igInput).trim();
+    if (!handle) {
+      toast.error("Enter an Instagram username or URL");
+      return;
+    }
+    setIgLoading(true);
+    try {
+      const res = await fetch("/api/public/instagram/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadId: leadIdForAnalysis, url: handle }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      setIg({
+        score: json.score,
+        label: json.label,
+        reason: json.reason,
+        username: json.profile?.username,
+        url: json.profile?.url,
+        followers: json.profile?.followers,
+        postsCount: json.profile?.postsCount,
+        verified: json.profile?.verified,
+      });
+      toast.success(`Instagram ${json.score}/10 · ${json.label}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Instagram analysis failed");
+    } finally {
+      setIgLoading(false);
     }
   };
 
@@ -283,6 +362,70 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
           )}
         </div>
       )}
+
+      <div className="mt-3">
+        {ig ? (
+          <div className="flex items-center gap-2 rounded-lg border border-fuchsia-200 bg-fuchsia-50/60 px-3 py-2">
+            <Instagram className="h-3.5 w-3.5 text-fuchsia-600" />
+            <span
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                ig.score <= 3
+                  ? "bg-rose-100 text-rose-700"
+                  : ig.score <= 5
+                    ? "bg-amber-100 text-amber-700"
+                    : ig.score <= 7
+                      ? "bg-sky-100 text-sky-700"
+                      : "bg-emerald-100 text-emerald-700"
+              }`}
+            >
+              {ig.label} · {ig.score}/10
+            </span>
+            <span className="truncate text-[11px] text-slate-600" title={ig.reason}>
+              {ig.username ? `@${ig.username}` : ""}
+              {typeof ig.followers === "number" ? ` · ${ig.followers.toLocaleString()} followers` : ""}
+              {typeof ig.postsCount === "number" ? ` · ${ig.postsCount} posts` : ""}
+              {ig.verified ? " · ✓" : ""}
+            </span>
+            <button
+              type="button"
+              onClick={() => analyzeInstagram(ig.url || ig.username)}
+              disabled={igLoading}
+              className="ml-auto text-[10px] font-medium text-fuchsia-600 hover:underline disabled:opacity-50"
+            >
+              {igLoading ? "…" : "Re-analyze"}
+            </button>
+          </div>
+        ) : igHandle ? (
+          <button
+            type="button"
+            onClick={() => analyzeInstagram()}
+            disabled={igLoading || !leadIdForAnalysis}
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-fuchsia-200 bg-fuchsia-50/40 px-3 py-1.5 text-xs font-medium text-fuchsia-700 transition hover:bg-fuchsia-50 disabled:opacity-50"
+          >
+            {igLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Instagram className="h-3 w-3" />}
+            {igLoading ? "Analyzing Instagram…" : "Analyze Instagram (AI)"}
+          </button>
+        ) : (
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={igInput}
+              onChange={(e) => setIgInput(e.target.value)}
+              placeholder="@handle or instagram.com/…"
+              className="flex-1 rounded-lg border border-slate-200 bg-white/70 px-2.5 py-1.5 text-xs text-slate-700 placeholder:text-slate-400 focus:border-fuchsia-300 focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => analyzeInstagram()}
+              disabled={igLoading || !leadIdForAnalysis || !igInput.trim()}
+              className="inline-flex items-center gap-1 rounded-lg border border-fuchsia-200 bg-fuchsia-50/60 px-2.5 py-1.5 text-xs font-medium text-fuchsia-700 transition hover:bg-fuchsia-100 disabled:opacity-50"
+            >
+              {igLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Instagram className="h-3 w-3" />}
+              IG
+            </button>
+          </div>
+        )}
+      </div>
 
       {muted && lead.rejectionReasons && lead.rejectionReasons.length > 0 && (
         <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2">
