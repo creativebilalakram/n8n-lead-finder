@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { extractBrandDnaInsights } from "@/lib/brand-dna";
 
-// Run the solutionssmart/brand-dna Apify actor on a lead's website, then ask
-// Lovable AI to score brand strength 1-10 with a one-line summary.
+// Run the solutionssmart/brand-dna Apify actor on a lead's website, then score
+// the returned brand system deterministically. AI is only used by website analysis.
 export const Route = createFileRoute("/api/public/brand/analyze")({
   server: {
     handlers: {
@@ -51,38 +52,11 @@ export const Route = createFileRoute("/api/public/brand/analyze")({
         const item = items?.[0];
         if (!item) return Response.json({ error: "Brand DNA returned no data" }, { status: 502 });
 
-        const screenshotUrl =
-          (item.screenshotUrl as string | undefined) ||
-          (item.screenshot as string | undefined) ||
-          null;
-
-        // 2) Deterministic brand strength scoring (no AI)
-        const palette = Array.isArray((item as { palette?: unknown[] }).palette)
-          ? ((item as { palette: unknown[] }).palette).length
-          : 0;
-        const fonts = Array.isArray((item as { fonts?: unknown[] }).fonts)
-          ? ((item as { fonts: unknown[] }).fonts).length
-          : 0;
-        const pages = Array.isArray((item as { pages?: unknown[] }).pages)
-          ? ((item as { pages: unknown[] }).pages).length
-          : 0;
-        const hasLogo = Boolean(
-          (item as { logo?: unknown }).logo ||
-            (item as { logoUrl?: unknown }).logoUrl,
-        );
-        const hasDescription = Boolean(
-          (item as { description?: string }).description &&
-            String((item as { description: string }).description).length > 40,
-        );
-        let score = 1;
-        if (hasLogo) score += 2;
-        if (hasDescription) score += 1;
-        if (palette >= 3) score += 2; else if (palette >= 1) score += 1;
-        if (fonts >= 2) score += 2; else if (fonts >= 1) score += 1;
-        if (pages >= 8) score += 2; else if (pages >= 3) score += 1;
-        score = Math.max(1, Math.min(10, score));
-        const label = score <= 3 ? "WEAK" : score <= 5 ? "GENERIC" : score <= 7 ? "SOLID" : "STRONG";
-        const summary = `${pages} pages · ${palette}-color palette · ${fonts} font${fonts === 1 ? "" : "s"}${hasLogo ? " · logo" : " · no logo"}${hasDescription ? "" : " · missing description"}`;
+        // 2) Deterministic brand strength scoring (no AI). The actor nests the
+        // real values under brandKit.assetFingerprint + brandKit.brandSummary.
+        const insights = extractBrandDnaInsights(item);
+        if (!insights) return Response.json({ error: "Brand DNA data could not be parsed" }, { status: 502 });
+        const { score, label, summary, screenshotUrl } = insights;
 
         // 3) Persist
         const supabaseUrl = process.env.SUPABASE_URL;
@@ -107,7 +81,7 @@ export const Route = createFileRoute("/api/public/brand/analyze")({
           });
         }
 
-        return Response.json({ leadId, score, label, summary, screenshotUrl });
+        return Response.json({ leadId, score, label, summary, screenshotUrl, insights });
       },
     },
   },

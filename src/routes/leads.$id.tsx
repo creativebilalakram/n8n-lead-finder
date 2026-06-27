@@ -30,6 +30,7 @@ import {
   toggleClicked,
 } from "@/lib/clicked-leads";
 import { computeAdjustedScore } from "@/lib/score-adjust";
+import { extractBrandDnaInsights, extractInstagramFromPayload } from "@/lib/brand-dna";
 
 export const Route = createFileRoute("/leads/$id")({
   head: () => ({ meta: [{ title: "Lead detail — LeadForge" }] }),
@@ -74,6 +75,7 @@ function LeadDetailPage() {
     if (websiteScore == null) return null;
     return computeAdjustedScore(base, websiteScore);
   }, [lead, websiteScore]);
+  const brandInsights = useMemo(() => extractBrandDnaInsights(lead?.brand_dna_raw), [lead]);
 
   const tier = String(adjusted?.tier ?? lead?.lead_tier ?? "").toLowerCase();
   const tierBadge =
@@ -165,9 +167,14 @@ function LeadDetailPage() {
   const igHandle =
     (lead.instagram_username as string | null) ||
     (lead.instagram_url as string | null) ||
-    extractIgDeep(lead.brand_dna_raw) ||
-    extractIgDeep(lead.raw) ||
-    extractIgDeep(lead.website_raw);
+    brandInsights?.instagramUrl ||
+    extractInstagramFromPayload(lead.brand_dna_raw)?.url ||
+    extractInstagramFromPayload(lead.raw)?.url ||
+    extractInstagramFromPayload(lead.website_raw)?.url;
+  const displayedBrandScore = brandInsights?.score ?? brandScore;
+  const displayedBrandLabel = brandInsights?.label ?? ((lead.brand_dna_label as string | null) || "");
+  const displayedBrandSummary = brandInsights?.summary ?? ((lead.brand_dna_summary as string | null) || "");
+  const displayedBrandScreenshot = brandInsights?.screenshotUrl ?? ((lead.brand_dna_screenshot_url as string | null) || null);
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 px-6 py-8">
@@ -347,30 +354,33 @@ function LeadDetailPage() {
         <ActorPanel
           icon={<Palette className="h-4 w-4 text-violet-700" />}
           title="Brand DNA"
-          subtitle="solutionssmart/brand-dna · Gemini"
+          subtitle="solutionssmart/brand-dna · deterministic"
           accent="violet"
         >
-          {brandScore != null ? (
-            <ScoreBlock
-              score={brandScore}
-              label={(lead.brand_dna_label as string | null) || ""}
-              reason={(lead.brand_dna_summary as string | null) || ""}
-              colorByScore={(s) =>
-                s <= 3 ? "rose" : s <= 5 ? "amber" : s <= 7 ? "sky" : "emerald"
-              }
-            />
+          {displayedBrandScore != null ? (
+            <>
+              <ScoreBlock
+                score={displayedBrandScore}
+                label={displayedBrandLabel}
+                reason={displayedBrandSummary}
+                colorByScore={(s) =>
+                  s <= 3 ? "rose" : s <= 5 ? "amber" : s <= 7 ? "sky" : "emerald"
+                }
+              />
+              {brandInsights ? <BrandSignals insights={brandInsights} /> : null}
+            </>
           ) : (
             <p className="text-xs text-slate-500">Not analyzed yet.</p>
           )}
-          {(lead.brand_dna_screenshot_url as string | null) && (
+          {displayedBrandScreenshot && (
             <a
-              href={lead.brand_dna_screenshot_url as string}
+              href={displayedBrandScreenshot}
               target="_blank"
               rel="noopener noreferrer"
               className="mt-3 block overflow-hidden rounded-lg border border-violet-200"
             >
               <img
-                src={lead.brand_dna_screenshot_url as string}
+                src={displayedBrandScreenshot}
                 alt="Brand"
                 className="h-32 w-full object-cover object-top"
               />
@@ -392,7 +402,7 @@ function LeadDetailPage() {
         <ActorPanel
           icon={<Instagram className="h-4 w-4 text-fuchsia-700" />}
           title="Instagram Presence"
-          subtitle="apify/instagram-profile · Gemini"
+          subtitle="apify/instagram-profile · deterministic"
           accent="fuchsia"
         >
           {igScore != null ? (
@@ -430,7 +440,7 @@ function LeadDetailPage() {
               className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-fuchsia-200 bg-fuchsia-50/50 px-3 py-1.5 text-xs font-medium text-fuchsia-700 hover:bg-fuchsia-50 disabled:opacity-50"
             >
               {analyzing === "instagram" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Instagram className="h-3 w-3" />}
-              {igScore != null ? "Re-analyze" : "Analyze Instagram"}
+              {igScore != null ? "Re-analyze" : `Analyze Instagram${brandInsights?.instagramUsername ? ` @${brandInsights.instagramUsername}` : ""}`}
             </button>
           )}
         </ActorPanel>
@@ -497,46 +507,37 @@ function LeadDetailPage() {
   );
 }
 
-function extractIgFromRaw(raw: unknown): string | null {
-  if (!raw || typeof raw !== "object") return null;
-  const r = raw as Record<string, unknown>;
-  const igs = r.instagrams;
-  if (Array.isArray(igs)) {
-    const f = igs.find((x) => typeof x === "string" && /instagram\.com/i.test(x as string));
-    if (typeof f === "string") return f;
-  }
-  if (typeof r.instagram === "string") return r.instagram;
-  return null;
-}
-
-// Recursively walk any Apify payload and find the first instagram.com URL.
-// Brand DNA actor nests social links under variable keys (socialLinks, links,
-// contacts, etc.), so a structural scan is more reliable than hardcoding keys.
-function extractIgDeep(raw: unknown, depth = 0): string | null {
-  if (raw == null || depth > 6) return null;
-  if (typeof raw === "string") {
-    const m = raw.match(/https?:\/\/(?:www\.)?instagram\.com\/[A-Za-z0-9_.\-/?=&%]+/i);
-    return m ? m[0].replace(/[).,]+$/, "") : null;
-  }
-  if (Array.isArray(raw)) {
-    for (const v of raw) {
-      const f = extractIgDeep(v, depth + 1);
-      if (f) return f;
-    }
-    return null;
-  }
-  if (typeof raw === "object") {
-    for (const v of Object.values(raw as Record<string, unknown>)) {
-      const f = extractIgDeep(v, depth + 1);
-      if (f) return f;
-    }
-  }
-  return null;
-}
-
 function fmtNum(v: unknown): string {
   if (typeof v !== "number") return "—";
   return v.toLocaleString();
+}
+
+function BrandSignals({ insights }: { insights: NonNullable<ReturnType<typeof extractBrandDnaInsights>> }) {
+  return (
+    <div className="mt-3 space-y-2 rounded-xl border border-violet-100 bg-violet-50/40 p-3 text-xs text-slate-700">
+      <div className="flex items-center gap-3">
+        {insights.logoUrl ? (
+          <img src={insights.logoUrl} alt="Brand logo" className="h-10 w-10 rounded-lg border border-white bg-white object-contain p-1" />
+        ) : null}
+        <div className="min-w-0">
+          <p className="font-medium text-slate-900">
+            {insights.pagesCount || 1} pages · {insights.fonts.length || 0} fonts · {insights.colors.length || 0} colors
+          </p>
+          {insights.instagramUsername ? (
+            <p className="truncate text-fuchsia-700">Instagram found: @{insights.instagramUsername}</p>
+          ) : null}
+        </div>
+      </div>
+      {insights.colors.length > 0 ? (
+        <div className="flex flex-wrap gap-1.5">
+          {insights.colors.slice(0, 6).map((color) => (
+            <span key={color} className="h-5 w-5 rounded-full border border-white shadow-sm" style={{ backgroundColor: color }} title={color} />
+          ))}
+        </div>
+      ) : null}
+      {insights.description ? <p className="line-clamp-3 text-slate-600">{insights.description}</p> : null}
+    </div>
+  );
 }
 
 function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {

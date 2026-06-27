@@ -21,6 +21,7 @@ import { ensureOpenedLoaded, isClicked, leadKey, markClicked, subscribeClicked, 
 import { supabase } from "@/integrations/supabase/client";
 import { computeAdjustedScore } from "@/lib/score-adjust";
 import { Link } from "@tanstack/react-router";
+import { extractBrandDnaInsights, extractInstagramFromPayload } from "@/lib/brand-dna";
 
 export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean }) {
   const key = leadKey(lead);
@@ -55,7 +56,18 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
   const [igInput, setIgInput] = useState("");
 
   // Brand DNA analysis
-  type BrandAnalysis = { score: number; label: string; summary?: string; screenshotUrl?: string };
+  type BrandAnalysis = {
+    score: number;
+    label: string;
+    summary?: string;
+    screenshotUrl?: string;
+    logoUrl?: string;
+    colors?: string[];
+    fonts?: string[];
+    pagesCount?: number;
+    instagramUrl?: string;
+    instagramUsername?: string;
+  };
   const [brand, setBrand] = useState<BrandAnalysis | null>(null);
   const [brandLoading, setBrandLoading] = useState(false);
   const leadIdForAnalysis = typeof lead.id === "string" ? lead.id : undefined;
@@ -91,21 +103,29 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
             verified: data.instagram_verified ?? undefined,
           });
         }
-        if (data.brand_dna_score != null) {
+        const brandInsights = extractBrandDnaInsights(data.brand_dna_raw);
+        if (brandInsights || data.brand_dna_score != null) {
           setBrand({
-            score: data.brand_dna_score,
-            label: data.brand_dna_label || "",
-            summary: data.brand_dna_summary ?? undefined,
-            screenshotUrl: data.brand_dna_screenshot_url ?? undefined,
+            score: brandInsights?.score ?? data.brand_dna_score,
+            label: brandInsights?.label ?? data.brand_dna_label ?? "",
+            summary: brandInsights?.summary ?? data.brand_dna_summary ?? undefined,
+            screenshotUrl: brandInsights?.screenshotUrl ?? data.brand_dna_screenshot_url ?? undefined,
+            logoUrl: brandInsights?.logoUrl,
+            colors: brandInsights?.colors,
+            fonts: brandInsights?.fonts,
+            pagesCount: brandInsights?.pagesCount,
+            instagramUrl: brandInsights?.instagramUrl,
+            instagramUsername: brandInsights?.instagramUsername,
           });
         }
         // Auto-detect IG handle across all Apify payloads (Google Maps raw,
         // Brand DNA socialLinks, website screenshot meta). Recursive scan is
         // more reliable than guessing keys per actor.
         const found =
-          findIgDeep(data.brand_dna_raw) ||
-          findIgDeep(data.raw) ||
-          findIgDeep(data.website_raw);
+          brandInsights?.instagramUrl ||
+          extractInstagramFromPayload(data.brand_dna_raw)?.url ||
+          extractInstagramFromPayload(data.raw)?.url ||
+          extractInstagramFromPayload(data.website_raw)?.url;
         if (found) setIgHandle(found);
       });
     return () => {
@@ -178,7 +198,19 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
-      setBrand({ score: json.score, label: json.label, summary: json.summary, screenshotUrl: json.screenshotUrl });
+      setBrand({
+        score: json.score,
+        label: json.label,
+        summary: json.summary,
+        screenshotUrl: json.screenshotUrl,
+        logoUrl: json.insights?.logoUrl,
+        colors: json.insights?.colors,
+        fonts: json.insights?.fonts,
+        pagesCount: json.insights?.pagesCount,
+        instagramUrl: json.insights?.instagramUrl,
+        instagramUsername: json.insights?.instagramUsername,
+      });
+      if (json.insights?.instagramUrl) setIgHandle(json.insights.instagramUrl);
       toast.success(`Brand ${json.score}/10 · ${json.label}`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Brand analysis failed");
@@ -344,6 +376,9 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
                   {brand.summary}
                 </span>
               )}
+              {brand.logoUrl ? (
+                <img src={brand.logoUrl} alt="Brand logo" className="h-5 w-5 rounded object-contain" />
+              ) : null}
               <button
                 type="button"
                 onClick={analyzeBrand}
@@ -361,7 +396,7 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
               className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50/40 px-3 py-1.5 text-xs font-medium text-violet-700 transition hover:bg-violet-50 disabled:opacity-50"
             >
               {brandLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Palette className="h-3 w-3" />}
-              {brandLoading ? "Analyzing brand…" : "Analyze Brand DNA (AI)"}
+              {brandLoading ? "Analyzing brand…" : "Analyze Brand DNA"}
             </button>
           )}
         </div>
@@ -490,7 +525,9 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
             className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-fuchsia-200 bg-fuchsia-50/40 px-3 py-1.5 text-xs font-medium text-fuchsia-700 transition hover:bg-fuchsia-50 disabled:opacity-50"
           >
             {igLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Instagram className="h-3 w-3" />}
-            {igLoading ? "Analyzing Instagram…" : "Analyze Instagram (AI)"}
+            {igLoading
+              ? "Analyzing Instagram…"
+              : `Analyze Instagram${brand?.instagramUsername ? ` @${brand.instagramUsername}` : ""}`}
           </button>
         ) : (
           <div className="flex items-center gap-2">
@@ -572,27 +609,4 @@ function Row({ icon, children }: { icon: React.ReactNode; children: React.ReactN
       <span className="min-w-0 flex-1 truncate">{children}</span>
     </div>
   );
-}
-
-// Recursively scan any Apify payload and return the first instagram.com URL.
-function findIgDeep(raw: unknown, depth = 0): string | null {
-  if (raw == null || depth > 6) return null;
-  if (typeof raw === "string") {
-    const m = raw.match(/https?:\/\/(?:www\.)?instagram\.com\/[A-Za-z0-9_.\-/?=&%]+/i);
-    return m ? m[0].replace(/[).,]+$/, "") : null;
-  }
-  if (Array.isArray(raw)) {
-    for (const v of raw) {
-      const f = findIgDeep(v, depth + 1);
-      if (f) return f;
-    }
-    return null;
-  }
-  if (typeof raw === "object") {
-    for (const v of Object.values(raw as Record<string, unknown>)) {
-      const f = findIgDeep(v, depth + 1);
-      if (f) return f;
-    }
-  }
-  return null;
 }
