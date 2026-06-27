@@ -28,6 +28,54 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
     setClicked(isClicked(key));
     return subscribeClicked(() => setClicked(isClicked(key)));
   }, [key]);
+
+  // Website modernity analysis (AI-scored from a live screenshot)
+  type WebsiteAnalysis = { score: number; label: string; reason?: string; screenshotUrl?: string };
+  const [analysis, setAnalysis] = useState<WebsiteAnalysis | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const leadIdForAnalysis = typeof lead.id === "string" ? lead.id : undefined;
+  useEffect(() => {
+    if (!leadIdForAnalysis) return;
+    let cancelled = false;
+    void supabase
+      .from("leads")
+      .select("website_modern_score, website_label, website_analysis, website_screenshot_url")
+      .eq("id", leadIdForAnalysis)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled || !data || data.website_modern_score == null) return;
+        setAnalysis({
+          score: data.website_modern_score,
+          label: data.website_label || "",
+          reason: data.website_analysis ?? undefined,
+          screenshotUrl: data.website_screenshot_url ?? undefined,
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [leadIdForAnalysis]);
+
+  const analyzeWebsite = async () => {
+    if (!leadIdForAnalysis || !lead.website || analyzing) return;
+    setAnalyzing(true);
+    try {
+      const res = await fetch("/api/public/website/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadId: leadIdForAnalysis, url: lead.website }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      setAnalysis({ score: json.score, label: json.label, reason: json.reason, screenshotUrl: json.screenshotUrl });
+      toast.success(`Scored ${json.score}/10 · ${json.label}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Analysis failed");
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
   const tier = (lead.leadTier || "").toLowerCase();
   const tierBadge =
     tier === "hot"
