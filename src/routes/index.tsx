@@ -175,7 +175,6 @@ function DashboardPage() {
   );
 }
 
-
 function StatCard({
   icon,
   label,
