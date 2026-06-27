@@ -285,14 +285,14 @@ function BackfillAutomationCard() {
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
 
-  const run = async (mode: "new" | "retry-failed" | "force-all") => {
+  const run = async (mode: "pending" | "retry-failed" | "force-all") => {
     setRunning(true);
     setProgress({ done: 0, total: 0 });
     try {
       const res = await triggerAutoEnrichBacklog({
         minScore: 0,
         concurrency: 2,
-        includeFailed: mode === "retry-failed",
+        includeFailed: mode === "pending" || mode === "retry-failed",
         onlyFailed: mode === "retry-failed",
         force: mode === "force-all",
         onProgress: (done, total) => setProgress({ done, total }),
@@ -300,7 +300,7 @@ function BackfillAutomationCard() {
       if (res.total === 0) toast.info("No qualified leads need enrichment — all caught up.");
       else if (res.triggered === 0)
         toast.warning(
-          `All ${res.total} skipped by the safety gate. Use "Retry failed" for errored leads or "Force all" to re-run completed leads.`,
+          `All ${res.total} skipped by the safety gate. Use "Force all" if you want to re-run completed or currently running leads too.`,
         );
       else
         toast.success(
@@ -325,8 +325,8 @@ function BackfillAutomationCard() {
           </h3>
           <p className="mt-1 text-sm text-slate-600">
             Fires website screenshot + AI analysis (and Brand DNA + Instagram for weaker sites)
-            for every qualified lead that hasn't been auto-enriched yet. New leads trigger
-            automatically after search or import.
+            for every qualified lead that is pending or failed. New leads trigger automatically
+            after search or import.
           </p>
           {progress && running ? (
             <p className="mt-2 text-xs font-medium text-amber-700">
@@ -334,20 +334,19 @@ function BackfillAutomationCard() {
             </p>
           ) : null}
           <p className="mt-2 text-xs text-slate-500">
-            Current state in DB: many leads have already been processed. "Retry failed" re-runs
-            ones that errored last time (bad screenshots, missing IG, etc.). "Force all" re-runs
-            every qualified lead from scratch.
+            "Run pending" includes failed attempts too, so it actually sends them to Apify again.
+            "Force all" also re-runs completed leads from scratch.
           </p>
         </div>
         <div className="flex flex-col gap-2">
           <button
             type="button"
-            onClick={() => run("new")}
+            onClick={() => run("pending")}
             disabled={running}
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-slate-800 disabled:opacity-50"
           >
             {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
-            {running ? "Running…" : "Backfill new"}
+            {running ? "Running…" : "Run pending"}
           </button>
           <button
             type="button"
@@ -355,7 +354,7 @@ function BackfillAutomationCard() {
             disabled={running}
             className="inline-flex items-center justify-center gap-2 rounded-xl border border-amber-300 bg-white px-4 py-2 text-xs font-semibold text-amber-700 shadow-sm hover:bg-amber-50 disabled:opacity-50"
           >
-            Retry failed
+            Retry failed only
           </button>
           <button
             type="button"
