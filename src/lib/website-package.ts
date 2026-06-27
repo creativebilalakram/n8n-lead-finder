@@ -6,7 +6,7 @@
 // stale packages and offer a rebuild.
 import { extractBrandDnaInsights, extractInstagramFromPayload } from "./brand-dna";
 
-export const WDP_VERSION = 6;
+export const WDP_VERSION = 7;
 
 export type WebsiteDataPackage = {
   version: number;
@@ -22,6 +22,16 @@ export type WebsiteDataPackage = {
     services: string[];
     serviceDetails: Array<{ name: string; description?: string }>;
     attributes: string[];
+    attributesMap?: {
+      blackOwned?: boolean;
+      womenOwned?: boolean;
+      veteranOwned?: boolean;
+      familyOwned?: boolean;
+      lgbtqFriendly?: boolean;
+      wheelchairAccessible?: boolean;
+      freeParking?: boolean;
+      onsiteServices?: boolean;
+    };
     priceRange?: string;
     languages: string[];
     claimed?: boolean;
@@ -76,6 +86,20 @@ export type WebsiteDataPackage = {
     sampleHighlights: string[];
   };
   updates: Array<{ text: string; date?: string; image?: string }>;
+  recentUpdates: Array<{ text: string; date?: string; image?: string }>;
+  trustSignals: {
+    averageRating?: number;
+    totalReviews?: number;
+    blackOwned?: boolean;
+    womenOwned?: boolean;
+    veteranOwned?: boolean;
+    familyOwned?: boolean;
+    lgbtqFriendly?: boolean;
+    wheelchairAccessible?: boolean;
+    freeParking?: boolean;
+    paymentMethods: string[];
+    reviewTags: Array<{ title: string; count: number }>;
+  };
   recentActivity?: {
     lastUpdateDate?: string;
     lastReviewDate?: string;
@@ -1051,6 +1075,43 @@ export function buildWebsitePackage(
       })()
     : undefined;
 
+  const hasAttr = (...patterns: RegExp[]) => {
+    const haystack = [
+      ...attributes,
+      ...amenityGroups.fromTheBusiness,
+      ...amenityGroups.highlights,
+      ...amenityGroups.accessibility,
+      ...amenityGroups.parking,
+      ...amenityGroups.serviceOptions,
+    ].join(" | ").toLowerCase();
+    return patterns.some((re) => re.test(haystack));
+  };
+  const attributesMap = {
+    blackOwned: hasAttr(/black[- ]owned/) || undefined,
+    womenOwned: hasAttr(/wom[ae]n[- ]owned/) || undefined,
+    veteranOwned: hasAttr(/veteran[- ]owned/) || undefined,
+    familyOwned: hasAttr(/family[- ]owned|family[- ]run/) || undefined,
+    lgbtqFriendly: hasAttr(/lgbtq/) || undefined,
+    wheelchairAccessible: hasAttr(/wheelchair[- ]accessible|wheelchair accessible (entrance|parking|seating|restroom)/) || undefined,
+    freeParking: hasAttr(/free parking|free street parking|free parking lot/) || undefined,
+    onsiteServices: hasAttr(/onsite services|on-site services/) || undefined,
+  };
+  const trustSignals: WebsiteDataPackage["trustSignals"] = {
+    averageRating: reviewStats.averageRating,
+    totalReviews: reviewStats.total,
+    blackOwned: attributesMap.blackOwned,
+    womenOwned: attributesMap.womenOwned,
+    veteranOwned: attributesMap.veteranOwned,
+    familyOwned: attributesMap.familyOwned,
+    lgbtqFriendly: attributesMap.lgbtqFriendly,
+    wheelchairAccessible: attributesMap.wheelchairAccessible,
+    freeParking: attributesMap.freeParking,
+    paymentMethods: amenityGroups.payments,
+    reviewTags: reviewsTags,
+  };
+
+  // Insertion order matters: JSON.stringify preserves it. Keep the most
+  // important / outreach-relevant blocks first so the raw JSON is readable.
   const pkg: WebsiteDataPackage = {
     version: WDP_VERSION,
     business: {
@@ -1070,25 +1131,13 @@ export function buildWebsitePackage(
       services,
       serviceDetails: buildServiceDetails(services),
       attributes,
+      attributesMap,
       priceRange: s(pick(raw, "price", "priceRange")),
       languages,
       claimed,
       yearEstablished,
       permanentlyClosed: b(pick(raw, "permanentlyClosed")),
       serviceArea: uniq(arr(pick(raw, "serviceArea")).map((l) => (typeof l === "string" ? l : ""))),
-    },
-    contact: {
-      phone: s(pick(raw, "phone", "phoneUnformatted")),
-      emails: uniq([
-        ...(brand?.emails ?? []),
-        ...arr(pick(raw, "emails")).map((e) => (typeof e === "string" ? e : "")),
-      ]).slice(0, 5),
-      address: location,
-      hours,
-      socials,
-      bookingLinks: links.booking,
-      menuLinks: links.menu,
-      reservationLinks: links.reservation,
     },
     brand: {
       logoUrl: brand?.logoUrl,
@@ -1105,10 +1154,25 @@ export function buildWebsitePackage(
       websiteScreenshot: enrichment?.websiteScreenshot ?? brand?.screenshotUrl ?? undefined,
       galleryByCategory,
     },
+    contact: {
+      phone: s(pick(raw, "phone", "phoneUnformatted")),
+      emails: uniq([
+        ...(brand?.emails ?? []),
+        ...arr(pick(raw, "emails")).map((e) => (typeof e === "string" ? e : "")),
+      ]).slice(0, 5),
+      address: location,
+      hours,
+      socials,
+      bookingLinks: links.booking,
+      menuLinks: links.menu,
+      reservationLinks: links.reservation,
+    },
+    trustSignals,
     reviews,
     reviewsTags,
     ownerResponses,
     reviewStats,
+    recentUpdates: updates,
     updates,
     recentActivity,
     amenities: amenityGroups,
