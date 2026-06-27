@@ -9,11 +9,14 @@ import {
   SlidersHorizontal,
   Loader2,
   AlertCircle,
+  Zap,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Lead } from "@/lib/lead-types";
 import { isClicked, leadKey, useClickedSync } from "@/lib/clicked-leads";
 import { leadIdentityKey } from "@/lib/lead-identity";
+import { triggerAutoEnrichBacklog } from "@/lib/auto-enrich";
+import { toast } from "sonner";
 import {
   DEFAULT_FILTERS,
   type FilterSettings,
