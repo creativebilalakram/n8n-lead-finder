@@ -53,6 +53,21 @@ async function rebuildPackage(leadId: string) {
 
 // ---------- Website ----------
 export async function runWebsiteAnalysis(leadId: string, url: string): Promise<RunResult> {
+  // Top-level try/catch so we always return a structured fail() — never
+  // throw "fetch failed" up to the orchestrator, which would otherwise
+  // surface as a meaningless error string.
+  try {
+    return await runWebsiteAnalysisInner(leadId, url);
+  } catch (e) {
+    const err = e as { message?: string; name?: string; cause?: { message?: string } };
+    const detail = err?.cause?.message
+      ? `${err.name ?? "Error"}: ${err.cause.message}`
+      : err?.message || String(e);
+    return fail(502, `Website analysis crashed: ${detail}`);
+  }
+}
+
+async function runWebsiteAnalysisInner(leadId: string, url: string): Promise<RunResult> {
   const apifyToken = process.env.APIFY_TOKEN;
   const lovableKey = process.env.LOVABLE_API_KEY;
   if (!apifyToken) return fail(500, "APIFY_TOKEN not configured");
@@ -72,7 +87,9 @@ export async function runWebsiteAnalysis(leadId: string, url: string): Promise<R
       waitUntil: "load",
       waitUntilNetworkIdleAfterScroll: false,
     },
-    { token: apifyToken, maxWaitMs: 180_000, pollIntervalMs: 3_000 },
+    // Wider poll interval = fewer subrequests = less chance of hitting
+    // Worker subrequest budget mid-orchestration.
+    { token: apifyToken, maxWaitMs: 240_000, pollIntervalMs: 8_000 },
   );
   if (!run.ok) return fail(502, run.error);
   const items = run.items;
@@ -89,15 +106,17 @@ export async function runWebsiteAnalysis(leadId: string, url: string): Promise<R
   let score = 0;
   let label = "UNKNOWN";
   let reason = "";
-  for (let attempt = 0; attempt < 2; attempt++) {
+  // Up to 3 attempts with longer backoff — AI Gateway intermittently
+  // returns 5xx / drops the connection on image inputs.
+  for (let attempt = 0; attempt < 3; attempt++) {
     let aiRes: Response;
     try {
       aiRes = await fetchWithRetry("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Lovable-API-Key": lovableKey },
-        timeoutMs: 60_000,
-        retries: 1,
-        backoffMs: 1500,
+        timeoutMs: 90_000,
+        retries: 2,
+        backoffMs: 2_000,
         body: JSON.stringify({
           model: "google/gemini-3-flash-preview",
           response_format: { type: "json_object" },
@@ -114,14 +133,18 @@ export async function runWebsiteAnalysis(leadId: string, url: string): Promise<R
         }),
       });
     } catch (err) {
-      if (attempt === 1) return fail(502, `AI fetch failed: ${err instanceof Error ? err.message : "fetch failed"}`);
+      if (attempt === 2) return fail(502, `AI fetch failed: ${err instanceof Error ? err.message : "fetch failed"}`);
+      await new Promise((r) => setTimeout(r, 2_000 * (attempt + 1)));
       continue;
     }
     if (!aiRes.ok) {
-      if (attempt === 1) return fail(502, `AI scoring failed: ${aiRes.status}`);
+      if (attempt === 2) return fail(502, `AI scoring failed: ${aiRes.status}`);
+      await new Promise((r) => setTimeout(r, 2_000 * (attempt + 1)));
       continue;
     }
-    const aiJson = (await aiRes.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    const aiJson = (await aiRes.json().catch(() => ({}))) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
     const raw = aiJson.choices?.[0]?.message?.content ?? "";
     const parsed = extractJson<{ score?: number; label?: string; reason?: string }>(raw);
     if (parsed && Number(parsed.score)) {
@@ -152,6 +175,14 @@ export async function runWebsiteAnalysis(leadId: string, url: string): Promise<R
 
 // ---------- Brand DNA ----------
 export async function runBrandAnalysis(leadId: string, url: string): Promise<RunResult> {
+  try {
+    return await runBrandAnalysisInner(leadId, url);
+  } catch (e) {
+    const err = e as { message?: string; cause?: { message?: string } };
+    return fail(502, `Brand analysis crashed: ${err?.cause?.message || err?.message || String(e)}`);
+  }
+}
+async function runBrandAnalysisInner(leadId: string, url: string): Promise<RunResult> {
   const apifyToken = process.env.APIFY_TOKEN;
   if (!apifyToken) return fail(500, "APIFY_TOKEN not configured");
   if (!leadId || !url) return fail(400, "leadId and url required");
@@ -179,7 +210,7 @@ export async function runBrandAnalysis(leadId: string, url: string): Promise<Run
           useRenderingFallback: true,
           useTranslation: false,
     },
-    { token: apifyToken, maxWaitMs: 240_000, pollIntervalMs: 4_000 },
+    { token: apifyToken, maxWaitMs: 300_000, pollIntervalMs: 10_000 },
   );
   if (!run.ok) return fail(502, run.error);
   const item = run.items?.[0];
@@ -242,7 +273,7 @@ async function scrapeCandidate(apifyToken: string, target: InstagramTarget): Pro
   const run = await runApifyActorAsync<Record<string, unknown>>(
     "apify~instagram-profile-scraper",
     { includeAboutSection: false, usernames: [target.username] },
-    { token: apifyToken, maxWaitMs: 150_000, pollIntervalMs: 3_000 },
+    { token: apifyToken, maxWaitMs: 180_000, pollIntervalMs: 8_000 },
   );
   if (!run.ok) return null;
   const items = run.items;
@@ -251,6 +282,18 @@ async function scrapeCandidate(apifyToken: string, target: InstagramTarget): Pro
 }
 
 export async function runInstagramAnalysis(
+  leadId: string,
+  hint?: { url?: string; username?: string },
+): Promise<RunResult> {
+  try {
+    return await runInstagramAnalysisInner(leadId, hint);
+  } catch (e) {
+    const err = e as { message?: string; cause?: { message?: string } };
+    return fail(502, `Instagram analysis crashed: ${err?.cause?.message || err?.message || String(e)}`);
+  }
+}
+
+async function runInstagramAnalysisInner(
   leadId: string,
   hint?: { url?: string; username?: string },
 ): Promise<RunResult> {
