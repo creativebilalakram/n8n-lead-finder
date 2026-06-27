@@ -1538,7 +1538,7 @@ export function buildWebsiteBrief(pkg: WebsiteDataPackage): Record<string, unkno
       : undefined,
   };
 
-  return stripEmpty(brief);
+  return (stripEmpty(brief) as Record<string, unknown>) ?? {};
 }
 
 /** Remove undefined/null and empty arrays/objects from the brief for clean output. */
