@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { buildLovablePromptUrl, type WebsiteDataPackage } from "@/lib/website-package";
 import {
   ensureOpenedLoaded,
   isClicked,
