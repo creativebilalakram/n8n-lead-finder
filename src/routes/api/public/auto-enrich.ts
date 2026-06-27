@@ -221,6 +221,18 @@ export const Route = createFileRoute("/api/public/auto-enrich")({
           });
         }
 
+        const firstError = steps.find((step) => step.status === "error");
+        if (firstError) {
+          const message = `${firstError.step}: ${firstError.detail || "failed"}`;
+          await patchLead(supabaseUrl, serviceKey, leadId, {
+            auto_enrich_status: "error",
+            auto_enrich_finished_at: new Date().toISOString(),
+            auto_enrich_error: message,
+            auto_enrich_steps: steps,
+          });
+          return Response.json({ leadId, status: "error", error: message, steps });
+        }
+
         await patchLead(supabaseUrl, serviceKey, leadId, {
           auto_enrich_status: "done",
           auto_enrich_finished_at: new Date().toISOString(),
