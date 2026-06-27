@@ -6,7 +6,7 @@
 // stale packages and offer a rebuild.
 import { extractBrandDnaInsights, extractInstagramFromPayload } from "./brand-dna";
 
-export const WDP_VERSION = 5;
+export const WDP_VERSION = 6;
 
 export type WebsiteDataPackage = {
   version: number;
