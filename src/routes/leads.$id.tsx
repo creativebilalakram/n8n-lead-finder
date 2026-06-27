@@ -459,7 +459,7 @@ function LeadDetailPage() {
         </pre>
       </details>
 
-      {(lead.instagram_raw || lead.brand_dna_raw) && (
+      {lead.instagram_raw || lead.brand_dna_raw ? (
         <details className="rounded-2xl border border-slate-200 bg-white/70 p-5 backdrop-blur-xl">
           <summary className="cursor-pointer text-sm font-semibold text-slate-700">
             <ImageIcon className="mr-1.5 inline h-4 w-4 text-slate-500" />
@@ -482,7 +482,7 @@ function LeadDetailPage() {
             </div>
           ) : null}
         </details>
-      )}
+      ) : null}
     </div>
   );
 }
