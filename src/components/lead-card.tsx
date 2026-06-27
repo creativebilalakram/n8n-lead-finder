@@ -573,3 +573,26 @@ function Row({ icon, children }: { icon: React.ReactNode; children: React.ReactN
     </div>
   );
 }
+
+// Recursively scan any Apify payload and return the first instagram.com URL.
+function findIgDeep(raw: unknown, depth = 0): string | null {
+  if (raw == null || depth > 6) return null;
+  if (typeof raw === "string") {
+    const m = raw.match(/https?:\/\/(?:www\.)?instagram\.com\/[A-Za-z0-9_.\-/?=&%]+/i);
+    return m ? m[0].replace(/[).,]+$/, "") : null;
+  }
+  if (Array.isArray(raw)) {
+    for (const v of raw) {
+      const f = findIgDeep(v, depth + 1);
+      if (f) return f;
+    }
+    return null;
+  }
+  if (typeof raw === "object") {
+    for (const v of Object.values(raw as Record<string, unknown>)) {
+      const f = findIgDeep(v, depth + 1);
+      if (f) return f;
+    }
+  }
+  return null;
+}
