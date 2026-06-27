@@ -314,6 +314,52 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
         )}
       </div>
 
+      {lead.website && (
+        <div className="mt-3">
+          {brand ? (
+            <div className="flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50/60 px-3 py-2">
+              <Palette className="h-3.5 w-3.5 text-violet-600" />
+              <span
+                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                  brand.score <= 3
+                    ? "bg-rose-100 text-rose-700"
+                    : brand.score <= 5
+                      ? "bg-amber-100 text-amber-700"
+                      : brand.score <= 7
+                        ? "bg-sky-100 text-sky-700"
+                        : "bg-emerald-100 text-emerald-700"
+                }`}
+              >
+                {brand.label} · {brand.score}/10
+              </span>
+              {brand.summary && (
+                <span className="truncate text-[11px] text-slate-600" title={brand.summary}>
+                  {brand.summary}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={analyzeBrand}
+                disabled={brandLoading}
+                className="ml-auto text-[10px] font-medium text-violet-600 hover:underline disabled:opacity-50"
+              >
+                {brandLoading ? "…" : "Re-analyze"}
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={analyzeBrand}
+              disabled={brandLoading || !leadIdForAnalysis}
+              className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50/40 px-3 py-1.5 text-xs font-medium text-violet-700 transition hover:bg-violet-50 disabled:opacity-50"
+            >
+              {brandLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Palette className="h-3 w-3" />}
+              {brandLoading ? "Analyzing brand…" : "Analyze Brand DNA (AI)"}
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="space-y-2 text-sm text-slate-600">
         {lead.address && (
           <Row icon={<MapPin className="h-4 w-4 text-slate-400" />}>{lead.address}</Row>
