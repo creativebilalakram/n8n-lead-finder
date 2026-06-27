@@ -116,6 +116,7 @@ export const Route = createFileRoute("/api/public/website/analyze")({
               website_label: label,
               website_analysis: reason,
               website_analyzed_at: new Date().toISOString(),
+              website_raw: item,
             }),
           });
         }
