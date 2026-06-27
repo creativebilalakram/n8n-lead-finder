@@ -106,7 +106,7 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
         const brandInsights = extractBrandDnaInsights(data.brand_dna_raw);
         if (brandInsights || data.brand_dna_score != null) {
           setBrand({
-            score: brandInsights?.score ?? data.brand_dna_score,
+            score: brandInsights?.score ?? Number(data.brand_dna_score ?? 0),
             label: brandInsights?.label ?? data.brand_dna_label ?? "",
             summary: brandInsights?.summary ?? data.brand_dna_summary ?? undefined,
             screenshotUrl: brandInsights?.screenshotUrl ?? data.brand_dna_screenshot_url ?? undefined,
