@@ -228,7 +228,10 @@ export function extractInstagramCandidatesFromPayload(raw: unknown, depth = 0): 
   if (raw == null || depth > 10) return [];
 
   if (typeof raw === "string") {
-    const matches = raw.match(/(?:https?:\/\/)?(?:www\.)?instagram\.com\/[A-Za-z0-9._/?#=&%-]+|@[A-Za-z0-9._]{1,30}/gi) ?? [];
+    // In arbitrary text, only trust explicit instagram.com URLs. Bare @handles
+    // are accepted only from Instagram-specific fields below; otherwise emails
+    // like info@brand.com can be misread as handles.
+    const matches = raw.match(/(?:https?:\/\/)?(?:www\.)?instagram\.com\/[A-Za-z0-9._/?#=&%-]+/gi) ?? [];
     return matches.map((value) => extractInstagramTarget(value)).filter((value): value is InstagramTarget => Boolean(value));
   }
 
