@@ -1,6 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Flame,
@@ -98,19 +97,19 @@ function DashboardPage() {
           <StatCard
             icon={<TrendingUp className="h-5 w-5" />}
             label="Qualified Leads"
-            value={totalLeads}
+            value={liveStats.qualified}
             tint="from-emerald-500 to-teal-500"
           />
           <StatCard
             icon={<Flame className="h-5 w-5" />}
             label="Hot Leads"
-            value={hotCount}
+            value={liveStats.hot}
             tint="from-rose-500 to-orange-500"
           />
           <StatCard
             icon={<Filter className="h-5 w-5" />}
             label="Filtered Out"
-            value={totalFiltered}
+            value={liveStats.filtered}
             tint="from-slate-500 to-slate-700"
           />
         </div>
