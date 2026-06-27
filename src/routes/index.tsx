@@ -132,9 +132,7 @@ function DashboardPage() {
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-fuchsia-500 text-white shadow-lg shadow-indigo-200">
                 <Search className="h-6 w-6" />
               </div>
-              <h3 className="mt-4 text-lg font-semibold text-slate-900">
-                No searches yet
-              </h3>
+              <h3 className="mt-4 text-lg font-semibold text-slate-900">No searches yet</h3>
               <p className="mt-1 text-sm text-slate-500">
                 Run your first search to populate your dashboard.
               </p>
@@ -163,9 +161,7 @@ function DashboardPage() {
                       {new Date(r.createdAt).toLocaleString()} ·{" "}
                       <span className="font-medium text-emerald-600">{r.qualifiedCount} kept</span>{" "}
                       ·{" "}
-                      <span className="font-medium text-slate-500">
-                        {r.filteredCount} filtered
-                      </span>
+                      <span className="font-medium text-slate-500">{r.filteredCount} filtered</span>
                     </div>
                   </div>
                   <ArrowRight className="h-4 w-4 shrink-0 text-slate-400 transition group-hover:translate-x-1 group-hover:text-indigo-600" />
@@ -178,6 +174,7 @@ function DashboardPage() {
     </div>
   );
 }
+
 
 function StatCard({
   icon,

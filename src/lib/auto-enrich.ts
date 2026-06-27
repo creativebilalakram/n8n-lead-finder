@@ -102,8 +102,6 @@ export async function triggerAutoEnrichBacklog(
       opts.onProgress?.(triggered, total);
     }
   }
-  await Promise.all(
-    Array.from({ length: Math.min(concurrency, queue.length || 1) }, worker),
-  );
+  await Promise.all(Array.from({ length: Math.min(concurrency, queue.length || 1) }, worker));
   return { triggered, total };
 }

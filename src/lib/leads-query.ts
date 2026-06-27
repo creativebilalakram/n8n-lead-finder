@@ -58,9 +58,7 @@ export async function fetchCompactLeads(searchRunId?: string): Promise<Lead[]> {
   let from = 0;
   const out: Lead[] = [];
   while (true) {
-    let query = supabase
-      .from("leads")
-      .select(COMPACT_LEADS_SELECT);
+    let query = supabase.from("leads").select(COMPACT_LEADS_SELECT);
     if (searchRunId) query = query.eq("search_run_id", searchRunId);
 
     const { data, error } = await query

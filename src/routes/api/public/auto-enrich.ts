@@ -155,7 +155,12 @@ export const Route = createFileRoute("/api/public/auto-enrich")({
             auto_enrich_error: websiteFailure || "Website analysis failed",
             auto_enrich_steps: steps,
           });
-          return Response.json({ leadId, status: "error", error: websiteFailure || "Website analysis failed", steps });
+          return Response.json({
+            leadId,
+            status: "error",
+            error: websiteFailure || "Website analysis failed",
+            steps,
+          });
         }
 
         // 5) Conditional deep enrichment when site looks weak (< 7)
@@ -239,7 +244,13 @@ export const Route = createFileRoute("/api/public/auto-enrich")({
           auto_enrich_steps: steps,
         });
 
-        return Response.json({ leadId, status: "done", websiteScore, deepEnriched: needsDeep, steps });
+        return Response.json({
+          leadId,
+          status: "done",
+          websiteScore,
+          deepEnriched: needsDeep,
+          steps,
+        });
       },
     },
   },
