@@ -37,7 +37,16 @@ function leadToRow(lead: Lead, searchRunId: string, apifyRunId: string | null) {
   // Website Builder view has something to show without an enrichment round-trip.
   let websitePackage: Json | null = null;
   try {
-    websitePackage = buildWebsitePackage(rawSource as Record<string, unknown>) as unknown as Json;
+    websitePackage = buildWebsitePackage(rawSource as Record<string, unknown>, {
+      leadIntel: {
+        score: pickNum(lead.leadScore) ?? null,
+        tier: pickStr(lead.leadTier) ?? null,
+        redFlags: lead.redFlags,
+        rejectionReasons: lead.rejectionReasons,
+        passed: Boolean(lead.passed),
+        ownerUpdateAgeDays: ownerUpdateAgeDays ?? null,
+      },
+    }) as unknown as Json;
   } catch {
     websitePackage = null;
   }
