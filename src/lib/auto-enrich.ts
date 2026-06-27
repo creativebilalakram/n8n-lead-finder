@@ -121,6 +121,7 @@ export async function triggerAutoEnrichBacklog(
   let i = 0;
   let triggered = 0;
   let skipped = 0;
+  let failed = 0;
   async function worker() {
     while (i < queue.length) {
       const idx = i++;
@@ -131,15 +132,16 @@ export async function triggerAutoEnrichBacklog(
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ leadId, force, retryFailed: includeFailed || onlyFailed }),
         });
-        const data = (await res.json().catch(() => ({}))) as { skipped?: string };
-        if (data?.skipped) skipped++;
+        const data = (await res.json().catch(() => ({}))) as { skipped?: string; error?: string };
+        if (!res.ok || data?.error) failed++;
+        else if (data?.skipped) skipped++;
         else triggered++;
       } catch {
-        /* swallow */
+        failed++;
       }
-      opts.onProgress?.(triggered + skipped, total);
+      opts.onProgress?.(triggered + skipped + failed, total);
     }
   }
   await Promise.all(Array.from({ length: Math.min(concurrency, queue.length || 1) }, worker));
-  return { triggered, skipped, total };
+  return { triggered, skipped, failed, total };
 }

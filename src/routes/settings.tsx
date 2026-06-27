@@ -300,11 +300,13 @@ function BackfillAutomationCard() {
       if (res.total === 0) toast.info("No qualified leads need enrichment — all caught up.");
       else if (res.triggered === 0)
         toast.warning(
-          `All ${res.total} skipped by the safety gate. Use "Force all" if you want to re-run completed or currently running leads too.`,
+          res.failed
+            ? `${res.failed} automation requests failed before reaching Apify. Try again, or use Force all if they are stuck.`
+            : `All ${res.total} skipped by the safety gate. Use "Force all" if you want to re-run completed or currently running leads too.`,
         );
       else
         toast.success(
-          `Fired ${res.triggered} of ${res.total} leads to Apify.${res.skipped ? ` Skipped ${res.skipped} (already processed or failed).` : ""}`,
+          `Fired ${res.triggered} of ${res.total} leads to Apify.${res.skipped ? ` Skipped ${res.skipped}.` : ""}${res.failed ? ` Failed ${res.failed}.` : ""}`,
         );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Backfill failed");
