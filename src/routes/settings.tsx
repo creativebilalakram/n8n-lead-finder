@@ -280,6 +280,62 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
 
 // ---------- Analytics ----------
 
+function BackfillAutomationCard() {
+  const [running, setRunning] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+
+  const run = async () => {
+    setRunning(true);
+    setProgress({ done: 0, total: 0 });
+    try {
+      const res = await triggerAutoEnrichBacklog({
+        concurrency: 2,
+        onProgress: (done, total) => setProgress({ done, total }),
+      });
+      if (res.total === 0) toast.info("No qualified leads need enrichment — all caught up.");
+      else toast.success(`Triggered automation for ${res.triggered}/${res.total} qualified leads.`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Backfill failed");
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <div className="mt-6 rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-6 shadow-sm">
+      <div className="flex items-start gap-4">
+        <div className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-amber-200">
+          <Zap className="h-5 w-5 text-amber-600" />
+        </div>
+        <div className="flex-1">
+          <h3 className="text-base font-semibold text-slate-900">
+            Run automation on existing qualified leads
+          </h3>
+          <p className="mt-1 text-sm text-slate-600">
+            Fires website screenshot + AI analysis (and Brand DNA + Instagram for weaker sites)
+            for every qualified lead that hasn't been auto-enriched yet. New leads trigger
+            automatically after search or import.
+          </p>
+          {progress && running ? (
+            <p className="mt-2 text-xs font-medium text-amber-700">
+              Queuing… {progress.done}/{progress.total}
+            </p>
+          ) : null}
+        </div>
+        <button
+          type="button"
+          onClick={run}
+          disabled={running}
+          className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-slate-800 disabled:opacity-50"
+        >
+          {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+          {running ? "Running…" : "Backfill now"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 async function fetchAllLeadsLite(): Promise<Lead[]> {
   const PAGE = 1000;
   let from = 0;
