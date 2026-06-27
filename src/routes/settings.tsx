@@ -292,14 +292,15 @@ function BackfillAutomationCard() {
       const res = await triggerAutoEnrichBacklog({
         minScore: 0,
         concurrency: 2,
-        includeFailed: mode !== "new",
+        includeFailed: mode === "retry-failed",
+        onlyFailed: mode === "retry-failed",
         force: mode === "force-all",
         onProgress: (done, total) => setProgress({ done, total }),
       });
       if (res.total === 0) toast.info("No qualified leads need enrichment — all caught up.");
       else if (res.triggered === 0)
         toast.warning(
-          `All ${res.total} skipped (already processed or previously failed). Use "Retry failed" or "Force all" to actually run them.`,
+          `All ${res.total} skipped by the safety gate. Use "Retry failed" for errored leads or "Force all" to re-run completed leads.`,
         );
       else
         toast.success(

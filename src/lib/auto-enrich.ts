@@ -1,5 +1,8 @@
 import { loadFilterSettings } from "./filter-settings";
+import { applyFiltersToLead } from "./filter-settings";
+import { leadIdentityKey } from "./lead-identity";
 import { fetchCompactLeads, getLiveLeadSets } from "./leads-query";
+import type { Lead } from "./lead-types";
 
 // Client-side trigger: finds the qualified "Hot" leads (lead_score >= 85)
 // in a freshly saved search run and fires the background auto-enrich
@@ -58,6 +61,21 @@ function isFailedStatus(status: string | null): boolean {
   return status === "error" || status === "failed";
 }
 
+function autoStatus(lead: Lead): string | null {
+  return ((lead as Record<string, unknown>).autoEnrichStatus as string | null) ?? null;
+}
+
+function leadTime(lead: Lead): number {
+  const raw = (lead as Record<string, unknown>).createdAtIso;
+  return typeof raw === "string" ? new Date(raw).getTime() || 0 : 0;
+}
+
+function preferQueueLead(candidate: Lead, existing: Lead): boolean {
+  const scoreDiff = (candidate.leadScore ?? 0) - (existing.leadScore ?? 0);
+  if (scoreDiff !== 0) return scoreDiff > 0;
+  return leadTime(candidate) > leadTime(existing);
+}
+
 // Backfill trigger: finds every currently qualified lead across ALL runs that
 // hasn't been auto-enriched yet. Failed leads are skipped by default so the
 // system doesn't burn credits retrying known-bad sites/handles.
@@ -66,6 +84,7 @@ export async function triggerAutoEnrichBacklog(
     minScore?: number;
     concurrency?: number;
     includeFailed?: boolean;
+    onlyFailed?: boolean;
     force?: boolean;
     onProgress?: (done: number, total: number) => void;
   } = {},
@@ -73,21 +92,31 @@ export async function triggerAutoEnrichBacklog(
   const minScore = opts.minScore ?? 85;
   const concurrency = opts.concurrency ?? 2;
   const includeFailed = opts.includeFailed ?? false;
+  const onlyFailed = opts.onlyFailed ?? false;
   const force = opts.force ?? false;
 
   const [settings, rawLeads] = await Promise.all([loadFilterSettings(), fetchCompactLeads()]);
-  const { qualified } = getLiveLeadSets(rawLeads, settings);
-  const queue = qualified
+  const qualified = rawLeads
+    .map((lead) => applyFiltersToLead(lead, settings))
+    .filter((lead) => lead.passed);
+
+  const queueMap = new Map<string, Lead>();
+  for (const lead of qualified
     .filter((l) => (l.leadScore ?? 0) >= minScore)
     .filter((l) => {
-      const s = ((l as Record<string, unknown>).autoEnrichStatus as string | null) ?? null;
-      if (!s) return true;
+      const s = autoStatus(l);
       if (force) return true;
+      if (onlyFailed) return isFailedStatus(s);
+      if (!s) return true;
       if (includeFailed && isFailedStatus(s)) return true;
       return false;
-    })
-    .map((l) => l.id as string)
-    .filter(Boolean);
+    })) {
+    const key = leadIdentityKey(lead);
+    const existing = queueMap.get(key);
+    if (!existing || preferQueueLead(lead, existing)) queueMap.set(key, lead);
+  }
+
+  const queue = [...queueMap.values()].map((l) => l.id as string).filter(Boolean);
 
   const total = queue.length;
   let i = 0;
@@ -101,7 +130,7 @@ export async function triggerAutoEnrichBacklog(
         const res = await fetch("/api/public/auto-enrich", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ leadId, force }),
+          body: JSON.stringify({ leadId, force, retryFailed: includeFailed || onlyFailed }),
         });
         const data = (await res.json().catch(() => ({}))) as { skipped?: string };
         if (data?.skipped) skipped++;

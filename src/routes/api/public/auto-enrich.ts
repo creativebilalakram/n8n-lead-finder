@@ -49,13 +49,13 @@ export const Route = createFileRoute("/api/public/auto-enrich")({
           return Response.json({ error: "Supabase not configured" }, { status: 500 });
         }
 
-        let body: { leadId?: string; force?: boolean } = {};
+        let body: { leadId?: string; force?: boolean; retryFailed?: boolean } = {};
         try {
           body = await request.json();
         } catch {
           return Response.json({ error: "Invalid JSON" }, { status: 400 });
         }
-        const { leadId, force } = body;
+        const { leadId, force, retryFailed } = body;
         if (!leadId) return Response.json({ error: "leadId required" }, { status: 400 });
 
         // 1) Load lead
@@ -75,7 +75,7 @@ export const Route = createFileRoute("/api/public/auto-enrich")({
           if (status === "running") {
             return Response.json({ leadId, skipped: "already_running" });
           }
-          if (status === "error" || status === "failed") {
+          if ((status === "error" || status === "failed") && !retryFailed) {
             return Response.json({ leadId, skipped: "previously_failed" });
           }
           if (status === "done" && finishedAt) {
