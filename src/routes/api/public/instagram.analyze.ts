@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { extractInstagramFromPayload, extractInstagramTarget } from "@/lib/brand-dna";
 
-// Scrape a lead's Instagram profile via Apify, then ask Lovable AI to score it.
-// Persists structured profile + AI verdict to the leads row.
+// Scrape a lead's Instagram profile via Apify, then score it deterministically.
+// Persists structured profile + verdict to the leads row.
 export const Route = createFileRoute("/api/public/instagram/analyze")({
   server: {
     handlers: {
@@ -14,15 +15,36 @@ export const Route = createFileRoute("/api/public/instagram/analyze")({
         const { leadId } = body;
         if (!leadId) return Response.json({ error: "leadId required" }, { status: 400 });
 
-        // Normalize to a full instagram profile URL the actor accepts.
-        const handleFromInput = (() => {
-          const raw = (body.url || body.username || "").trim();
-          if (!raw) return null;
-          if (/^https?:\/\//i.test(raw)) return raw.replace(/\/+$/, "");
-          const u = raw.replace(/^@/, "");
-          return `https://instagram.com/${u}`;
-        })();
-        if (!handleFromInput) return Response.json({ error: "Instagram url or username required" }, { status: 400 });
+        const supabaseUrl = process.env.SUPABASE_URL;
+        const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        let target = extractInstagramTarget(body.url || body.username || "");
+
+        // If the card did not pass a handle, recover it from stored Google Maps,
+        // Website, or Brand DNA raw payloads. Brand DNA commonly stores it as
+        // { platform: "instagram", handle, url } inside pages/socialProfiles.
+        if (!target && supabaseUrl && serviceKey) {
+          const dbRes = await fetch(
+            `${supabaseUrl}/rest/v1/leads?id=eq.${leadId}&select=instagram_url,instagram_username,brand_dna_raw,raw,website_raw`,
+            {
+              headers: {
+                apikey: serviceKey,
+                Authorization: `Bearer ${serviceKey}`,
+              },
+            },
+          );
+          const rows = dbRes.ok ? ((await dbRes.json()) as Array<Record<string, unknown>>) : [];
+          const row = rows[0];
+          if (row) {
+            target =
+              extractInstagramTarget(row.instagram_url) ||
+              extractInstagramTarget(row.instagram_username) ||
+              extractInstagramFromPayload(row.brand_dna_raw) ||
+              extractInstagramFromPayload(row.raw) ||
+              extractInstagramFromPayload(row.website_raw);
+          }
+        }
+
+        if (!target) return Response.json({ error: "Instagram profile not found in lead or Brand DNA data" }, { status: 400 });
 
         // 1) Apify instagram-profile-scraper (sync)
         const apifyRes = await fetch(
@@ -32,7 +54,7 @@ export const Route = createFileRoute("/api/public/instagram/analyze")({
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               includeAboutSection: false,
-              usernames: [handleFromInput],
+              usernames: [target.username],
             }),
           },
         );
@@ -56,7 +78,7 @@ export const Route = createFileRoute("/api/public/instagram/analyze")({
           verified: Boolean(item.verified),
           isBusinessAccount: Boolean(item.isBusinessAccount),
           profilePicUrl: (item.profilePicUrl as string) ?? (item.profilePicUrlHD as string) ?? null,
-          url: (item.url as string) ?? handleFromInput,
+          url: (item.url as string) ?? target.url,
         };
 
         // 2) Deterministic presence scoring (no AI)
@@ -78,8 +100,6 @@ export const Route = createFileRoute("/api/public/instagram/analyze")({
         const reason = `${f.toLocaleString()} followers · ${p} posts${profile.verified ? " · verified" : ""}`;
 
         // 3) Persist
-        const supabaseUrl = process.env.SUPABASE_URL;
-        const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
         if (supabaseUrl && serviceKey) {
           await fetch(`${supabaseUrl}/rest/v1/leads?id=eq.${leadId}`, {
             method: "PATCH",
