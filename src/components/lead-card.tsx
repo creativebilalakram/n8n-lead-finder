@@ -8,6 +8,8 @@ import {
   ExternalLink,
   AlertTriangle,
   Check,
+  Camera,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
