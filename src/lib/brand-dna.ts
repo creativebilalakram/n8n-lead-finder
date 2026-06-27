@@ -92,11 +92,31 @@ function collectStringValues(value: unknown): string[] {
   return [];
 }
 
+function collectDeepStrings(value: unknown, depth = 0): string[] {
+  if (value == null || depth > 8) return [];
+  if (typeof value === "string") return [value];
+  if (typeof value === "number" || typeof value === "boolean") return [String(value)];
+  if (Array.isArray(value)) return value.flatMap((item) => collectDeepStrings(item, depth + 1));
+  if (isRecord(value)) return Object.values(value).flatMap((item) => collectDeepStrings(item, depth + 1));
+  return [];
+}
+
+function normalizeCssColor(value: string): string | null {
+  const trimmed = value.trim();
+  const hex = trimmed.match(/#[0-9a-f]{3,8}\b/i)?.[0];
+  if (hex) return hex;
+  const fn = trimmed.match(/\b(?:rgb|rgba|hsl|hsla)\([^)]{5,80}\)/i)?.[0];
+  if (fn) return fn;
+  return null;
+}
+
 function extractHexColors(values: unknown[]): string[] {
   return uniq(
     values
-      .flatMap(collectStringValues)
-      .flatMap((value) => value.match(/#[0-9a-f]{3,8}\b/gi) ?? []),
+      .flatMap(collectDeepStrings)
+      .flatMap((value) => value.match(/#[0-9a-f]{3,8}\b|\b(?:rgb|rgba|hsl|hsla)\([^)]{5,80}\)/gi) ?? [])
+      .map((value) => normalizeCssColor(value))
+      .filter((value): value is string => Boolean(value)),
   ).slice(0, 8);
 }
 
@@ -180,18 +200,25 @@ export function extractBrandDnaInsights(raw: unknown): BrandDnaInsights | null {
 
   const fonts = uniq([
     ...collectStringValues(getPath(fingerprint, ["fonts", "values"])),
+    ...collectDeepStrings(getPath(brandKit, ["style", "fonts"])),
     ...collectStringValues(brandKit.fonts),
     ...collectStringValues(root.fonts),
   ]).slice(0, 6);
 
   const colors = extractHexColors([
     getPath(fingerprint, ["palette", "values"]),
+    getPath(brandKit, ["style", "colors"]),
+    getPath(brandKit, ["style", "colorSemantics"]),
+    getPath(brandKit, ["style", "cssVariables"]),
+    getPath(brandKit, ["signals", "metaColors"]),
     brandKit.palette,
     root.palette,
     root.colors,
   ]);
 
   const logoUrl = firstString(
+    getPath(brandKit, ["style", "logo", "url"]),
+    getPath(brandKit, ["style", "logo", "candidates", "0"]),
     getPath(fingerprint, ["logo", "value"]),
     getPath(brandKit, ["logo", "value"]),
     brandKit.logoUrl,
@@ -204,6 +231,9 @@ export function extractBrandDnaInsights(raw: unknown): BrandDnaInsights | null {
   const description = firstString(
     root.description,
     brandKit.description,
+    brandKit.positioning,
+    getPath(brandKit, ["signals", "socialMeta", "ogDescription"]),
+    getPath(brandKit, ["signals", "socialMeta", "twitterDescription"]),
     firstPage.metaDescription,
     markdownValue(brandSummary, "Positioning"),
   );
@@ -211,7 +241,13 @@ export function extractBrandDnaInsights(raw: unknown): BrandDnaInsights | null {
   const audience = markdownValue(brandSummary, "Audience");
   const attributes = markdownList(brandSummary, "Attributes");
   const instagram = extractInstagramFromPayload(raw);
-  const screenshotUrl = firstString(root.screenshotUrl, root.screenshot, brandKit.screenshotUrl);
+  const screenshotUrl = firstString(
+    root.screenshotUrl,
+    root.screenshot,
+    brandKit.screenshotUrl,
+    getPath(brandKit, ["signals", "socialMeta", "ogImage"]),
+    getPath(brandKit, ["signals", "socialMeta", "twitterImage"]),
+  );
 
   const hasLogo = Boolean(logoUrl);
   const hasDescription = Boolean(description && description.length > 35);
