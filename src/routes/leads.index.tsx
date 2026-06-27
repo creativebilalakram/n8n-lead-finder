@@ -10,7 +10,7 @@ import { leadIdentityKey } from "@/lib/lead-identity";
 import { applyFiltersToLead, useFilterSettings } from "@/lib/filter-settings";
 import { Link } from "@tanstack/react-router";
 
-export const Route = createFileRoute("/leads")({
+export const Route = createFileRoute("/leads/")({
   head: () => ({ meta: [{ title: "All Leads — LeadForge" }] }),
   component: AllLeadsPage,
 });
