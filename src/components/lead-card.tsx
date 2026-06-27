@@ -241,6 +241,10 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
   const detectedIgUsername = brand?.instagramUsername || extractInstagramTarget(igHandle || "")?.username;
 
   const openLovable = async () => {
+    // Open a placeholder tab synchronously inside the user gesture.
+    // Browsers block window.open / programmatic clicks called after an
+    // `await`, which is why the button appeared to do nothing.
+    const placeholder = window.open("about:blank", "_blank", "noopener");
     void markClicked(key).catch(() => {
       toast.error("Couldn't save opened status");
     });
@@ -273,27 +277,21 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
       // ignore — fall through to legacy fallback below
     }
     if (!url) {
+      placeholder?.close();
       toast.error("Website package unavailable — rebuild it from the Website page first.");
       return;
     }
-    // Open in a background tab (like Ctrl/Cmd+Click) so the user stays in this app.
-    const a = document.createElement("a");
-    a.href = url;
-    a.target = "_blank";
-    a.rel = "noopener noreferrer";
-    a.style.display = "none";
-    document.body.appendChild(a);
-    const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
-    a.dispatchEvent(
-      new MouseEvent("click", {
-        bubbles: true,
-        cancelable: true,
-        view: window,
-        ctrlKey: !isMac,
-        metaKey: isMac,
-      }),
-    );
-    a.remove();
+    if (placeholder) {
+      placeholder.location.href = url;
+    } else {
+      // Popup blocker swallowed the synchronous open — fall back to a
+      // foreground navigation in a new tab via an anchor click.
+      const a = document.createElement("a");
+      a.href = url;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.click();
+    }
   };
 
   return (
