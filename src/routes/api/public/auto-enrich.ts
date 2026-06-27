@@ -92,6 +92,11 @@ export const Route = createFileRoute("/api/public/auto-enrich")({
 
         // 3) Mark running
         const steps: StepLog[] = [];
+        // Helper: persist current steps after every push so partial progress
+        // is visible in the UI even if the Worker dies mid-orchestration.
+        const persistSteps = async () => {
+          await patchLead(supabaseUrl, serviceKey, leadId, { auto_enrich_steps: steps });
+        };
         await patchLead(supabaseUrl, serviceKey, leadId, {
           auto_enrich_status: "running",
           auto_enrich_started_at: new Date().toISOString(),
@@ -146,7 +151,12 @@ export const Route = createFileRoute("/api/public/auto-enrich")({
             });
           }
         } catch (e) {
-          websiteFailure = e instanceof Error ? e.message : String(e);
+          // Surface the actual exception (cause/name) instead of just "fetch failed".
+          const err = e as { message?: string; name?: string; cause?: { message?: string } };
+          websiteFailure =
+            err?.cause?.message
+              ? `${err.name ?? "Error"}: ${err.cause.message}`
+              : err?.message || String(e);
           steps.push({
             step: "website.analyze",
             status: "error",
@@ -154,6 +164,7 @@ export const Route = createFileRoute("/api/public/auto-enrich")({
             at: new Date().toISOString(),
           });
         }
+        await persistSteps();
 
         if (websiteScore === null) {
           await patchLead(supabaseUrl, serviceKey, leadId, {
@@ -192,6 +203,7 @@ export const Route = createFileRoute("/api/public/auto-enrich")({
                   at: new Date().toISOString(),
                 });
               }
+              await persistSteps();
             })(),
             // Instagram
             (async () => {
@@ -211,6 +223,7 @@ export const Route = createFileRoute("/api/public/auto-enrich")({
                   at: new Date().toISOString(),
                 });
               }
+              await persistSteps();
             })(),
           ];
           await Promise.all(tasks);
@@ -221,6 +234,7 @@ export const Route = createFileRoute("/api/public/auto-enrich")({
             detail: `website score ${websiteScore ?? "?"} >= 7, brand+ig not needed`,
             at: new Date().toISOString(),
           });
+          await persistSteps();
         }
 
         const firstError = steps.find((step) => step.status === "error");
