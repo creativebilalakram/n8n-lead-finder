@@ -19,6 +19,7 @@ import { Route as HistoryIdRouteImport } from './routes/history.$id'
 import { Route as ApiPublicWebsiteAnalyzeRouteImport } from './routes/api/public/website.analyze'
 import { Route as ApiPublicLeadsStatusRouteImport } from './routes/api/public/leads.status'
 import { Route as ApiPublicLeadsStartRouteImport } from './routes/api/public/leads.start'
+import { Route as ApiPublicInstagramAnalyzeRouteImport } from './routes/api/public/instagram.analyze'
 import { Route as ApiPublicApifyRunsRouteImport } from './routes/api/public/apify.runs'
 import { Route as ApiPublicApifyImportRouteImport } from './routes/api/public/apify.import'
 
@@ -72,6 +73,12 @@ const ApiPublicLeadsStartRoute = ApiPublicLeadsStartRouteImport.update({
   path: '/api/public/leads/start',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicInstagramAnalyzeRoute =
+  ApiPublicInstagramAnalyzeRouteImport.update({
+    id: '/api/public/instagram/analyze',
+    path: '/api/public/instagram/analyze',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicApifyRunsRoute = ApiPublicApifyRunsRouteImport.update({
   id: '/api/public/apify/runs',
   path: '/api/public/apify/runs',
@@ -93,6 +100,7 @@ export interface FileRoutesByFullPath {
   '/history/': typeof HistoryIndexRoute
   '/api/public/apify/import': typeof ApiPublicApifyImportRoute
   '/api/public/apify/runs': typeof ApiPublicApifyRunsRoute
+  '/api/public/instagram/analyze': typeof ApiPublicInstagramAnalyzeRoute
   '/api/public/leads/start': typeof ApiPublicLeadsStartRoute
   '/api/public/leads/status': typeof ApiPublicLeadsStatusRoute
   '/api/public/website/analyze': typeof ApiPublicWebsiteAnalyzeRoute
@@ -107,6 +115,7 @@ export interface FileRoutesByTo {
   '/history': typeof HistoryIndexRoute
   '/api/public/apify/import': typeof ApiPublicApifyImportRoute
   '/api/public/apify/runs': typeof ApiPublicApifyRunsRoute
+  '/api/public/instagram/analyze': typeof ApiPublicInstagramAnalyzeRoute
   '/api/public/leads/start': typeof ApiPublicLeadsStartRoute
   '/api/public/leads/status': typeof ApiPublicLeadsStatusRoute
   '/api/public/website/analyze': typeof ApiPublicWebsiteAnalyzeRoute
@@ -122,6 +131,7 @@ export interface FileRoutesById {
   '/history/': typeof HistoryIndexRoute
   '/api/public/apify/import': typeof ApiPublicApifyImportRoute
   '/api/public/apify/runs': typeof ApiPublicApifyRunsRoute
+  '/api/public/instagram/analyze': typeof ApiPublicInstagramAnalyzeRoute
   '/api/public/leads/start': typeof ApiPublicLeadsStartRoute
   '/api/public/leads/status': typeof ApiPublicLeadsStatusRoute
   '/api/public/website/analyze': typeof ApiPublicWebsiteAnalyzeRoute
@@ -138,6 +148,7 @@ export interface FileRouteTypes {
     | '/history/'
     | '/api/public/apify/import'
     | '/api/public/apify/runs'
+    | '/api/public/instagram/analyze'
     | '/api/public/leads/start'
     | '/api/public/leads/status'
     | '/api/public/website/analyze'
@@ -152,6 +163,7 @@ export interface FileRouteTypes {
     | '/history'
     | '/api/public/apify/import'
     | '/api/public/apify/runs'
+    | '/api/public/instagram/analyze'
     | '/api/public/leads/start'
     | '/api/public/leads/status'
     | '/api/public/website/analyze'
@@ -166,6 +178,7 @@ export interface FileRouteTypes {
     | '/history/'
     | '/api/public/apify/import'
     | '/api/public/apify/runs'
+    | '/api/public/instagram/analyze'
     | '/api/public/leads/start'
     | '/api/public/leads/status'
     | '/api/public/website/analyze'
@@ -181,6 +194,7 @@ export interface RootRouteChildren {
   HistoryIndexRoute: typeof HistoryIndexRoute
   ApiPublicApifyImportRoute: typeof ApiPublicApifyImportRoute
   ApiPublicApifyRunsRoute: typeof ApiPublicApifyRunsRoute
+  ApiPublicInstagramAnalyzeRoute: typeof ApiPublicInstagramAnalyzeRoute
   ApiPublicLeadsStartRoute: typeof ApiPublicLeadsStartRoute
   ApiPublicLeadsStatusRoute: typeof ApiPublicLeadsStatusRoute
   ApiPublicWebsiteAnalyzeRoute: typeof ApiPublicWebsiteAnalyzeRoute
@@ -258,6 +272,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicLeadsStartRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/instagram/analyze': {
+      id: '/api/public/instagram/analyze'
+      path: '/api/public/instagram/analyze'
+      fullPath: '/api/public/instagram/analyze'
+      preLoaderRoute: typeof ApiPublicInstagramAnalyzeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/apify/runs': {
       id: '/api/public/apify/runs'
       path: '/api/public/apify/runs'
@@ -285,6 +306,7 @@ const rootRouteChildren: RootRouteChildren = {
   HistoryIndexRoute: HistoryIndexRoute,
   ApiPublicApifyImportRoute: ApiPublicApifyImportRoute,
   ApiPublicApifyRunsRoute: ApiPublicApifyRunsRoute,
+  ApiPublicInstagramAnalyzeRoute: ApiPublicInstagramAnalyzeRoute,
   ApiPublicLeadsStartRoute: ApiPublicLeadsStartRoute,
   ApiPublicLeadsStatusRoute: ApiPublicLeadsStatusRoute,
   ApiPublicWebsiteAnalyzeRoute: ApiPublicWebsiteAnalyzeRoute,
