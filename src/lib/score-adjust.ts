@@ -1,14 +1,13 @@
 // Boost a lead's score based on website modernity.
 // Outdated sites = bigger opportunity = higher score bonus.
-// Mapping (websiteScore -> bonus): 1->+27, 2->+24, 3->+21, 4->+18, 5->+15,
-// 6->+9, 7->+6, 8->+3, 9->+1, 10->0.
+// Mapping: 1→+30, 2→+25, 3→+20, 4→+16, 5→+12, 6→+8, 7→+5, 8→+2, 9→+1, 10→0.
+const BONUS_TABLE: Record<number, number> = {
+  1: 30, 2: 25, 3: 20, 4: 16, 5: 12, 6: 8, 7: 5, 8: 2, 9: 1, 10: 0,
+};
 export function websiteScoreBonus(websiteScore: number | null | undefined): number {
   if (typeof websiteScore !== "number" || !Number.isFinite(websiteScore)) return 0;
   const s = Math.max(1, Math.min(10, Math.round(websiteScore)));
-  if (s >= 10) return 0;
-  if (s >= 6) return (10 - s) * 3; // 9->3, 8->6, 7->9, 6->12 ... wait
-  // outdated tier (1-5): bigger jumps
-  return 15 + (6 - s) * 3; // 5->15, 4->18, 3->21, 2->24, 1->27
+  return BONUS_TABLE[s] ?? 0;
 }
 
 export function adjustedTier(score: number): string {
