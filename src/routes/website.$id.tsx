@@ -206,7 +206,21 @@ function WebsiteBuilderPage() {
             <KeyValue k="Price" v={pkg.business.priceRange} />
             <KeyValue k="Claimed" v={pkg.business.claimed === true ? "Yes" : pkg.business.claimed === false ? "No" : undefined} />
             <Pills label="Categories" items={pkg.business.categories ?? []} />
-            <Pills label="Services" items={pkg.business.services ?? []} />
+            {pkg.business.serviceDetails && pkg.business.serviceDetails.length > 0 ? (
+              <div className="mt-3">
+                <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Services</div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {pkg.business.serviceDetails.map((sd) => (
+                    <div key={sd.name} className="rounded-lg border border-slate-200 bg-white/60 p-2.5">
+                      <div className="text-[13px] font-semibold text-slate-800">{sd.name}</div>
+                      {sd.description && <div className="mt-0.5 text-[12px] leading-snug text-slate-600">{sd.description}</div>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <Pills label="Services" items={pkg.business.services ?? []} />
+            )}
             <Pills label="Value props" items={pkg.business.valueProps ?? []} accent="emerald" />
             <Pills label="Tagline candidates" items={pkg.business.taglineCandidates ?? []} />
             <Pills label="Languages" items={pkg.business.languages ?? []} />
