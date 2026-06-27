@@ -43,6 +43,21 @@ export type Database = {
           email: string | null
           emails: Json | null
           id: string
+          instagram_analysis: string | null
+          instagram_analyzed_at: string | null
+          instagram_bio: string | null
+          instagram_followers: number | null
+          instagram_following: number | null
+          instagram_full_name: string | null
+          instagram_is_business: boolean | null
+          instagram_label: string | null
+          instagram_posts_count: number | null
+          instagram_profile_pic_url: string | null
+          instagram_raw: Json | null
+          instagram_score: number | null
+          instagram_url: string | null
+          instagram_username: string | null
+          instagram_verified: boolean | null
           lead_score: number | null
           lead_tier: string | null
           lovable_url: string | null
@@ -76,6 +91,21 @@ export type Database = {
           email?: string | null
           emails?: Json | null
           id?: string
+          instagram_analysis?: string | null
+          instagram_analyzed_at?: string | null
+          instagram_bio?: string | null
+          instagram_followers?: number | null
+          instagram_following?: number | null
+          instagram_full_name?: string | null
+          instagram_is_business?: boolean | null
+          instagram_label?: string | null
+          instagram_posts_count?: number | null
+          instagram_profile_pic_url?: string | null
+          instagram_raw?: Json | null
+          instagram_score?: number | null
+          instagram_url?: string | null
+          instagram_username?: string | null
+          instagram_verified?: boolean | null
           lead_score?: number | null
           lead_tier?: string | null
           lovable_url?: string | null
@@ -109,6 +139,21 @@ export type Database = {
           email?: string | null
           emails?: Json | null
           id?: string
+          instagram_analysis?: string | null
+          instagram_analyzed_at?: string | null
+          instagram_bio?: string | null
+          instagram_followers?: number | null
+          instagram_following?: number | null
+          instagram_full_name?: string | null
+          instagram_is_business?: boolean | null
+          instagram_label?: string | null
+          instagram_posts_count?: number | null
+          instagram_profile_pic_url?: string | null
+          instagram_raw?: Json | null
+          instagram_score?: number | null
+          instagram_url?: string | null
+          instagram_username?: string | null
+          instagram_verified?: boolean | null
           lead_score?: number | null
           lead_tier?: string | null
           lovable_url?: string | null
