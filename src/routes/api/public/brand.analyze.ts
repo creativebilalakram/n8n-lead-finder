@@ -7,9 +7,7 @@ export const Route = createFileRoute("/api/public/brand/analyze")({
     handlers: {
       POST: async ({ request }) => {
         const apifyToken = process.env.APIFY_TOKEN;
-        const lovableKey = process.env.LOVABLE_API_KEY;
         if (!apifyToken) return Response.json({ error: "APIFY_TOKEN not configured" }, { status: 500 });
-        if (!lovableKey) return Response.json({ error: "LOVABLE_API_KEY not configured" }, { status: 500 });
 
         let body: { leadId?: string; url?: string } = {};
         try { body = await request.json(); } catch { return Response.json({ error: "Invalid JSON" }, { status: 400 }); }
@@ -58,48 +56,33 @@ export const Route = createFileRoute("/api/public/brand/analyze")({
           (item.screenshot as string | undefined) ||
           null;
 
-        // Trim the payload for the AI prompt — brand-dna output can be huge.
-        const slim = JSON.stringify(item).slice(0, 12000);
-
-        // 2) AI summarize & score brand strength
-        const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Lovable-API-Key": lovableKey,
-          },
-          body: JSON.stringify({
-            model: "google/gemini-3-flash-preview",
-            messages: [
-              {
-                role: "system",
-                content:
-                  "You are a brand strategist. Given Brand DNA scrape output (positioning, tone, palette, typography, messaging, content pages) for a local business website, score overall brand strength 1-10 (10 = distinctive, premium, cohesive brand; 1 = generic, weak, inconsistent). Label: 1-3 'WEAK', 4-5 'GENERIC', 6-7 'SOLID', 8-10 'STRONG'. Respond ONLY as compact JSON: {\"score\":<int 1-10>,\"label\":\"WEAK|GENERIC|SOLID|STRONG\",\"summary\":\"<one tight sentence describing the brand's personality + biggest gap>\"}",
-              },
-              { role: "user", content: `Brand DNA payload (truncated):\n${slim}` },
-            ],
-          }),
-        });
-        if (!aiRes.ok) {
-          const t = await aiRes.text();
-          return Response.json({ error: `AI scoring failed: ${aiRes.status}`, detail: t.slice(0, 400) }, { status: 502 });
-        }
-        const aiJson = (await aiRes.json()) as { choices?: Array<{ message?: { content?: string } }> };
-        const raw = aiJson.choices?.[0]?.message?.content ?? "";
-        let score = 0;
-        let label = "UNKNOWN";
-        let summary = "";
-        try {
-          const m = raw.match(/\{[\s\S]*\}/);
-          if (m) {
-            const parsed = JSON.parse(m[0]) as { score?: number; label?: string; summary?: string };
-            score = Math.max(1, Math.min(10, Math.round(Number(parsed.score) || 0)));
-            label = (parsed.label || "").toUpperCase() ||
-              (score <= 3 ? "WEAK" : score <= 5 ? "GENERIC" : score <= 7 ? "SOLID" : "STRONG");
-            summary = parsed.summary || "";
-          }
-        } catch { /* ignore */ }
-        if (!score) return Response.json({ error: "AI returned no parseable score", raw }, { status: 502 });
+        // 2) Deterministic brand strength scoring (no AI)
+        const palette = Array.isArray((item as { palette?: unknown[] }).palette)
+          ? ((item as { palette: unknown[] }).palette).length
+          : 0;
+        const fonts = Array.isArray((item as { fonts?: unknown[] }).fonts)
+          ? ((item as { fonts: unknown[] }).fonts).length
+          : 0;
+        const pages = Array.isArray((item as { pages?: unknown[] }).pages)
+          ? ((item as { pages: unknown[] }).pages).length
+          : 0;
+        const hasLogo = Boolean(
+          (item as { logo?: unknown }).logo ||
+            (item as { logoUrl?: unknown }).logoUrl,
+        );
+        const hasDescription = Boolean(
+          (item as { description?: string }).description &&
+            String((item as { description: string }).description).length > 40,
+        );
+        let score = 1;
+        if (hasLogo) score += 2;
+        if (hasDescription) score += 1;
+        if (palette >= 3) score += 2; else if (palette >= 1) score += 1;
+        if (fonts >= 2) score += 2; else if (fonts >= 1) score += 1;
+        if (pages >= 8) score += 2; else if (pages >= 3) score += 1;
+        score = Math.max(1, Math.min(10, score));
+        const label = score <= 3 ? "WEAK" : score <= 5 ? "GENERIC" : score <= 7 ? "SOLID" : "STRONG";
+        const summary = `${pages} pages · ${palette}-color palette · ${fonts} font${fonts === 1 ? "" : "s"}${hasLogo ? " · logo" : " · no logo"}${hasDescription ? "" : " · missing description"}`;
 
         // 3) Persist
         const supabaseUrl = process.env.SUPABASE_URL;
