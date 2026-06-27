@@ -6,7 +6,7 @@
 // stale packages and offer a rebuild.
 import { extractBrandDnaInsights, extractInstagramFromPayload } from "./brand-dna";
 
-export const WDP_VERSION = 4;
+export const WDP_VERSION = 5;
 
 export type WebsiteDataPackage = {
   version: number;
@@ -67,6 +67,8 @@ export type WebsiteDataPackage = {
     galleryByCategory: Array<{ category: string; count: number; sample?: string }>;
   };
   reviews: Array<{ author?: string; rating?: number; text: string; date?: string }>;
+  reviewsTags: Array<{ title: string; count: number }>;
+  ownerResponses: Array<{ reviewExcerpt: string; response: string; date?: string }>;
   reviewStats: {
     averageRating?: number;
     total?: number;
@@ -107,6 +109,14 @@ export type WebsiteDataPackage = {
     screenshotUrl?: string;
   };
   seo: { metaTitle?: string; metaDescription?: string; keywords: string[] };
+  leadIntelligence?: {
+    score?: number;
+    tier?: string;
+    redFlags: string[];
+    rejectionReasons: string[];
+    passed?: boolean;
+    ownerUpdateAgeDays?: number;
+  };
   instagram?: {
     handle?: string;
     url?: string;
@@ -612,17 +622,11 @@ function extractValueProps(raw: AnyRow, brandTaglines: string[]): { tagline?: st
   if (candidates.length === 0) candidates.push(...brandTaglines);
 
   const valueProps: string[] = [];
-  for (const block of arr(pick(raw, "additionalInfo"))) {
-    const r = rec(block);
-    if (!r) continue;
-    for (const [k, v] of Object.entries(r)) {
-      if (/highlights|from the business|popular for/i.test(k)) {
-        for (const item of arr(v)) {
-          const ir = rec(item);
-          if (!ir) continue;
-          for (const [name, on] of Object.entries(ir)) if (on === true) valueProps.push(name);
-        }
-      }
+  // Pulls from BOTH array and object shapes of `additionalInfo` (the silent
+  // bug that previously left valueProps empty for most leads).
+  for (const block of normalizeAdditionalInfo(raw)) {
+    if (/highlights|from the business|popular for|service options/i.test(block.group)) {
+      for (const it of block.items) if (it.on) valueProps.push(it.label);
     }
   }
   return {
@@ -776,6 +780,41 @@ function extractReviews(raw: AnyRow): WebsiteDataPackage["reviews"] {
   return cleaned;
 }
 
+/** Aggregated review keywords (e.g. "kind doctor", "gentle care"). */
+function extractReviewsTags(raw: AnyRow): Array<{ title: string; count: number }> {
+  const out: Array<{ title: string; count: number }> = [];
+  for (const item of arr(pick(raw, "reviewsTags"))) {
+    const r = rec(item);
+    if (!r) continue;
+    const title = s(r.title) ?? s(r.name);
+    if (!title) continue;
+    out.push({ title, count: n(r.count) ?? 0 });
+  }
+  return out.sort((a, b) => b.count - a.count).slice(0, 15);
+}
+
+/** Owner replies on reviews — huge personalization signal for outreach. */
+function extractOwnerResponses(raw: AnyRow): Array<{ reviewExcerpt: string; response: string; date?: string }> {
+  const out: Array<{ reviewExcerpt: string; response: string; date?: string }> = [];
+  for (const item of arr(pick(raw, "reviews"))) {
+    const r = rec(item);
+    if (!r) continue;
+    const response =
+      s(r.responseFromOwnerText) ??
+      s(r.responseFromOwner) ??
+      s(rec(r.responseFromOwner)?.text);
+    if (!response) continue;
+    const reviewText = s(r.text) ?? s(r.reviewText) ?? "";
+    out.push({
+      reviewExcerpt: reviewText.slice(0, 140),
+      response: response.slice(0, 400),
+      date: s(r.responseFromOwnerDate) ?? s(r.publishedAtDate),
+    });
+    if (out.length >= 8) break;
+  }
+  return out;
+}
+
 function extractUpdates(raw: AnyRow): WebsiteDataPackage["updates"] {
   const posts = arr(pick(raw, "updatesFromCustomers", "ownerUpdates", "posts"));
   const out: WebsiteDataPackage["updates"] = [];
@@ -800,6 +839,14 @@ export function buildWebsitePackage(
     websiteScore?: number | null;
     websiteLabel?: string | null;
     websiteAnalysis?: string | null;
+    leadIntel?: {
+      score?: number | null;
+      tier?: string | null;
+      redFlags?: unknown;
+      rejectionReasons?: unknown;
+      passed?: boolean | null;
+      ownerUpdateAgeDays?: number | null;
+    } | null;
   },
   overrides?: Partial<WebsiteDataPackage> | null,
 ): WebsiteDataPackage {
@@ -814,6 +861,8 @@ export function buildWebsitePackage(
   const ig = extractInstagramFromPayload(enrichment?.instagramRaw) ?? extractInstagramFromPayload(raw);
 
   const reviews = extractReviews(raw);
+  const reviewsTags = extractReviewsTags(raw);
+  const ownerResponses = extractOwnerResponses(raw);
   const updates = extractUpdates(raw);
   const amenityGroups = extractAmenityGroups(raw);
   const links = extractBookingLinks(raw);
@@ -913,6 +962,8 @@ export function buildWebsitePackage(
       galleryByCategory,
     },
     reviews,
+    reviewsTags,
+    ownerResponses,
     reviewStats,
     updates,
     recentActivity,
@@ -922,6 +973,16 @@ export function buildWebsitePackage(
     competitors: extractCompetitors(raw),
     websiteAnalysis,
     seo,
+    leadIntelligence: enrichment?.leadIntel
+      ? {
+          score: enrichment.leadIntel.score ?? undefined,
+          tier: enrichment.leadIntel.tier ?? undefined,
+          redFlags: uniq(arr(enrichment.leadIntel.redFlags).map((v) => (typeof v === "string" ? v : ""))),
+          rejectionReasons: uniq(arr(enrichment.leadIntel.rejectionReasons).map((v) => (typeof v === "string" ? v : ""))),
+          passed: enrichment.leadIntel.passed ?? undefined,
+          ownerUpdateAgeDays: enrichment.leadIntel.ownerUpdateAgeDays ?? undefined,
+        }
+      : undefined,
     instagram: ig
       ? {
           handle: ig.username,

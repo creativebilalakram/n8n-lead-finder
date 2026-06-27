@@ -285,7 +285,71 @@ function WebsiteBuilderPage() {
                 ))}
               </div>
             )}
+            {(pkg.reviewsTags?.length ?? 0) > 0 && (
+              <div className="mt-3">
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">What customers mention</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {pkg.reviewsTags.slice(0, 15).map((t) => (
+                    <span key={t.title} className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800 border border-amber-200">
+                      {t.title}{t.count ? ` · ${t.count}` : ""}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </Section>
+
+          {/* Owner replies — strong personalization signal */}
+          {(pkg.ownerResponses?.length ?? 0) > 0 && (
+            <Section icon={<TrendingUp className="h-4 w-4 text-indigo-600" />} title="Owner replies on reviews">
+              <div className="space-y-2">
+                {pkg.ownerResponses.slice(0, 5).map((r, i) => (
+                  <div key={i} className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs">
+                    {r.reviewExcerpt && <p className="italic text-slate-500">"{r.reviewExcerpt}…"</p>}
+                    <p className="mt-1 text-slate-800"><span className="font-semibold text-indigo-700">Owner:</span> {r.response}</p>
+                  </div>
+                ))}
+              </div>
+            </Section>
+          )}
+
+          {/* Lead intelligence — outreach context */}
+          {pkg.leadIntelligence && (
+            <Section icon={<Activity className="h-4 w-4 text-rose-600" />} title="Lead intelligence">
+              <div className="flex flex-wrap items-center gap-2">
+                {typeof pkg.leadIntelligence.score === "number" && (
+                  <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-700">Score {pkg.leadIntelligence.score}</span>
+                )}
+                {pkg.leadIntelligence.tier && (
+                  <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[11px] font-bold text-white">{pkg.leadIntelligence.tier}</span>
+                )}
+                {pkg.leadIntelligence.passed != null && (
+                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${pkg.leadIntelligence.passed ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
+                    {pkg.leadIntelligence.passed ? "Qualified" : "Filtered out"}
+                  </span>
+                )}
+                {typeof pkg.leadIntelligence.ownerUpdateAgeDays === "number" && (
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-700">Last owner update: {pkg.leadIntelligence.ownerUpdateAgeDays}d ago</span>
+                )}
+              </div>
+              {(pkg.leadIntelligence.redFlags?.length ?? 0) > 0 && (
+                <div className="mt-2">
+                  <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-rose-600">Red flags</p>
+                  <ul className="list-disc pl-4 text-xs text-rose-700">
+                    {pkg.leadIntelligence.redFlags.map((f, i) => <li key={i}>{f}</li>)}
+                  </ul>
+                </div>
+              )}
+              {(pkg.leadIntelligence.rejectionReasons?.length ?? 0) > 0 && (
+                <div className="mt-2">
+                  <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Rejection reasons</p>
+                  <ul className="list-disc pl-4 text-xs text-slate-700">
+                    {pkg.leadIntelligence.rejectionReasons.map((f, i) => <li key={i}>{f}</li>)}
+                  </ul>
+                </div>
+              )}
+            </Section>
+          )}
 
           {/* Recent activity */}
           {pkg.recentActivity && (

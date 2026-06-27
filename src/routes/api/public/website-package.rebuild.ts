@@ -27,7 +27,7 @@ export const Route = createFileRoute("/api/public/website-package/rebuild")({
         };
 
         const getRes = await fetch(
-          `${supabaseUrl}/rest/v1/leads?id=eq.${body.leadId}&select=raw,brand_dna_raw,instagram_raw,website_screenshot_url,website_modern_score,website_label,website_analysis,website_package_overrides`,
+          `${supabaseUrl}/rest/v1/leads?id=eq.${body.leadId}&select=raw,brand_dna_raw,instagram_raw,website_screenshot_url,website_modern_score,website_label,website_analysis,website_package_overrides,lead_score,lead_tier,red_flags,rejection_reasons,passed,owner_update_age_days`,
           { headers },
         );
         if (!getRes.ok) {
@@ -44,6 +44,14 @@ export const Route = createFileRoute("/api/public/website-package/rebuild")({
           websiteScore: (lead.website_modern_score as number | null) ?? null,
           websiteLabel: (lead.website_label as string | null) ?? null,
           websiteAnalysis: (lead.website_analysis as string | null) ?? null,
+          leadIntel: {
+            score: (lead.lead_score as number | null) ?? null,
+            tier: (lead.lead_tier as string | null) ?? null,
+            redFlags: lead.red_flags,
+            rejectionReasons: lead.rejection_reasons,
+            passed: (lead.passed as boolean | null) ?? null,
+            ownerUpdateAgeDays: (lead.owner_update_age_days as number | null) ?? null,
+          },
         });
         const overrides = lead.website_package_overrides as Record<string, unknown> | null;
         const pkg = overrides ? mergeOverrides(base, overrides as never) : base;
