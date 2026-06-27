@@ -1,123 +1,190 @@
-# Lead Generation App — Plan
 
-A clean single-page app that posts search params to your n8n webhook, displays returned leads as premium cards, and gives each lead a one-click **Open in Lovable** button.
+## Goal
 
-## Pages / Routes
+Stop dumping every Apify field into the same surface. Keep the **Lead Detail** view as the unfiltered intelligence hub for outreach, and add a new **Website Builder** view that only consumes a small, hand-curated, high-signal payload — the **Website Data Package (WDP)**.
 
-Single route `/` (replace placeholder `src/routes/index.tsx`). No auth, no backend, no Lovable Cloud — pure frontend + webhook.
+---
 
-## UI
+## 1. Data flow (new shape)
 
-**Layout**: centered max-w-6xl, soft gradient background, glassmorphism cards, premium typography (Space Grotesk + Inter).
-
-**1. Search Form (top, glass card)**
-- Search Keywords — tag input (type, press Enter to add chip). Pre-seeded with example chips.
-- Country Code — short text (default `us`)
-- Max Places per Search — number (default 10)
-- Min Reviews / Max Reviews — number pair (defaults 20 / 150)
-- Min Rating / Max Rating — number pair, step 0.1 (defaults 4.2 / 4.8)
-- Active Owner Days — number (default 60)
-- Big primary "Search Leads" button with loading spinner + disabled state
-- Secondary "Clear Results" button (only when results exist)
-- Toast errors via existing sonner
-
-**2. Results Header**
-- "Found N leads" + tier breakdown chips (Hot / Warm / Mild counts)
-
-**3. Lead Cards Grid** (responsive 1/2/3 cols)
-Each card shows:
-- Business name + category
-- Tier badge (Hot=red, Warm=orange, Mild=yellow) + numeric leadScore
-- Address (with map pin icon)
-- Rating ⭐ + reviews count
-- Phone / Email rows (when present, click-to-call/mail)
-- Website link (when present)
-- Red flags as small muted pills (e.g. `no_email`, `low_reviews`)
-- Big **Open in Lovable** CTA button (gradient) → opens `lovableUrl` in new tab (`target="_blank"`, `rel="noopener"`)
-
-## Data Flow
-
-1. User fills form → click Search Leads
-2. POST to `https://creativebilalakram2.app.n8n.cloud/webhook/3aacc2c2-521b-4406-af35-4784f02ab2cd` with JSON body matching form fields
-3. Show loading skeleton cards
-4. On response: parse array, store in React state + `localStorage` under `lead-gen-results`
-5. On mount: hydrate from localStorage so refresh keeps results
-6. Clear Results wipes both
-
-**Webhook request payload (sent from form):**
-```json
-{
-  "searchStringsArray": ["Cosmetic Dentist in Frisco, Texas", "..."],
-  "countryCode": "us",
-  "maxCrawledPlacesPerSearch": 10,
-  "reviewsMin": 20,
-  "reviewsMax": 150,
-  "ratingMin": 4.2,
-  "ratingMax": 4.8,
-  "activeOwnerDays": 60
-}
+```text
+Apify Actors (GBP, Brand DNA, Instagram, …future)
+        │
+        ▼
+  raw_* columns on `leads`   ◄── unchanged, source of truth
+        │
+        ▼
+  buildWebsitePackage(lead)  ◄── pure function, deterministic
+        │
+        ▼
+  website_package (jsonb)    ◄── cached, versioned, regen-able
+        │
+        ├──► Lead Detail view  (shows raw + package side-by-side)
+        └──► Website Builder view  (shows ONLY package)
+                    │
+                    ▼
+             Website generation flow (LLM/template) gets WDP, never raw
 ```
 
-## Required n8n Workflow Changes (you must apply in n8n)
+Key principle: **raw stays raw, package is derived**. We never mutate raw, and we can re-run `buildWebsitePackage` any time the rules change without re-scraping.
 
-Your current workflow has two issues that the frontend alone cannot fix:
+---
 
-**A. Hardcoded values in "Start Apify Scraping Job1" → make them expressions**
-Replace `jsonBody` static values with `{{ $json.X }}` references coming from the Webhook node:
-- `searchStringsArray` → `={{ $('Webhook').item.json.body.searchStringsArray }}`
-- `countryCode` → `={{ $('Webhook').item.json.body.countryCode }}`
-- `maxCrawledPlacesPerSearch` → `={{ $('Webhook').item.json.body.maxCrawledPlacesPerSearch }}`
+## 2. Database changes
 
-**B. Hardcoded CONFIG in "Code in JavaScript" → read from webhook body**
-At the top of the JS code, replace the static CONFIG block with:
-```js
-const body = $('Webhook').first().json.body || {};
-const CONFIG = {
-  reviewsMin: body.reviewsMin ?? 20,
-  reviewsMax: body.reviewsMax ?? 150,
-  ratingMin: body.ratingMin ?? 4.2,
-  ratingMax: body.ratingMax ?? 4.8,
-  activeOwnerDays: body.activeOwnerDays ?? 60,
-  scoreThreshold: 70,
-  topOnly: false
+Add to `leads`:
+
+- `website_package jsonb` — the cleaned WDP
+- `website_package_version int` — bump when rules change so we can detect stale packages
+- `website_package_built_at timestamptz`
+
+No new tables needed yet. When we add a 4th/5th source (Yelp, Facebook, etc.) we just add another `raw_*` column and extend the builder — the rest of the app doesn't change.
+
+---
+
+## 3. The Website Data Package (WDP) schema
+
+A single, stable, documented shape. This is the contract the website generator depends on.
+
+```ts
+type WebsiteDataPackage = {
+  version: 1;
+  business: {
+    name: string;
+    owner?: string;           // doctor / founder name
+    tagline?: string;         // from Brand DNA hero candidates
+    description?: string;     // short, <300 chars
+    categories: string[];
+    services: string[];
+    attributes: string[];     // women-owned, accessibility, etc.
+  };
+  contact: {
+    phone?: string;
+    emails: string[];
+    address?: { full: string; city?: string; state?: string; country?: string };
+    hours?: Array<{ day: string; open: string; close: string }>;
+    socials: { instagram?: string; facebook?: string; tiktok?: string; youtube?: string; linkedin?: string };
+  };
+  brand: {
+    logoUrl?: string;
+    colors: string[];         // max 6, deduped, hex
+    tone?: string;            // one-liner extracted from Brand DNA
+  };
+  media: {
+    heroImage?: string;
+    gallery: string[];        // max ~12, owner-uploaded prioritized
+  };
+  reviews: Array<{ author: string; rating: number; text: string; date?: string }>; // max 6, filtered
+  updates: Array<{ text: string; date?: string; image?: string }>;                   // max 5 latest owner posts
+  instagram?: {
+    handle: string;
+    followers?: number;
+    bio?: string;
+    verified?: boolean;
+  };
 };
 ```
 
-**C. "Code in JavaScript1" currently strips lead data and returns only `lovableUrl`.**
-Change it to keep the lead fields the UI needs:
-```js
-return $input.all().map(item => {
-  const j = item.json;
-  const prompt = "Create a premium, modern, and highly trustworthy website by using the same flow in your instructions for\n\n" + JSON.stringify(j, null, 2);
-  return {
-    json: {
-      title: j.title,
-      categoryName: j.categoryName,
-      address: j.address,
-      phone: j.phone,
-      emails: j.emails,
-      website: j.website,
-      totalScore: j.totalScore,
-      reviewsCount: j.reviewsCount,
-      leadScore: j.leadScore,
-      leadTier: j.leadTier,
-      redFlags: j.redFlags,
-      lovableUrl: "https://lovable.dev/?autosubmit=true#prompt=" + encodeURIComponent(prompt)
-    }
-  };
-});
+### Filtering rules (codified in builder)
+
+**Reviews kept** when: `rating >= 4`, `text.length between 80 and 400`, not duplicated, prefer ones mentioning service/staff names. Take top 6.
+
+**Gallery kept** when: source is `Owner` first, then `Customer`; dedupe by URL; skip menu/price-list images; cap 12.
+
+**Updates kept**: sort by date desc, take 5.
+
+**Colors**: only valid hex, dedupe case-insensitive, drop near-white/near-black duplicates, cap 6.
+
+**Explicitly dropped (never enter WDP):**
+- GBP: `peopleAlsoSearch`, `webResults`, `questionsAndAnswers`, `popularTimes`, `placeId`, `kgmid`, `fid`, `cid`, search metadata, `leadScore`, `rejectionReasons`, `redFlags`
+- Brand DNA: `cssVariables`, `campaignInsights`, `trendHistory`, `readabilityScores`, marketing templates, `assetFingerprint` internals, page-by-page dumps
+- Instagram: post arrays, hashtags, engagement math, follower lists
+
+---
+
+## 4. Lead Detail view (unchanged purpose, lightly reorganized)
+
+Stays the **outreach cockpit**. Shows everything:
+
+- Existing sections (Contact, Website analysis, Brand signals, Instagram)
+- **New tab** at top: `Raw Data` (GBP / Brand DNA / Instagram subtabs) with collapsible JSON viewers
+- **New badge**: "WDP ready ✓" or "WDP missing — Rebuild" button
+
+Nothing is hidden here. This is for humans doing outreach.
+
+---
+
+## 5. Website Builder view (new route)
+
+Route: `src/routes/leads.$id.website.tsx` (or a tab inside the lead detail page).
+
+Layout:
+
+```text
+┌─ Header: Business name + "Generate Website" CTA ─────────────┐
+│  Package version: v1 · built 2m ago · [Rebuild package]      │
+├──────────────────────────────────────────────────────────────┤
+│  ◐ Brand          ◐ Content         ◐ Media        ◐ Social │
+│  logo, colors,    name, tagline,    hero + gallery  IG, FB   │
+│  tone preview     services, hours   thumbnails      handles  │
+├──────────────────────────────────────────────────────────────┤
+│  Reviews (6)              Owner Updates (5)                  │
+│  ─ editable cards ─       ─ editable cards ─                 │
+├──────────────────────────────────────────────────────────────┤
+│  [Preview JSON]   [Copy WDP]   [Send to Website Generator →] │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-The frontend will be defensive — it renders whatever fields are present, so partial updates still work, but **C** is required for cards to show anything beyond the Lovable button.
+Rules for this view:
+- **Reads only `website_package`**, never `raw`.
+- Every section is editable; edits patch `website_package` (raw stays untouched).
+- "Rebuild from raw" button regenerates the package from current rules (warns if unsaved edits).
+- "Send to generator" passes the WDP JSON to the website-building flow — that flow no longer touches raw or queries Apify.
 
-## Tech Notes
-- TanStack Start route `src/routes/index.tsx`
-- TanStack Query mutation for the webhook POST (no loader — public webhook, user-triggered)
-- shadcn `Card`, `Input`, `Button`, `Badge`, `Skeleton`, `sonner`
-- All styling via Tailwind + design tokens in `src/styles.css` (add gradient + glass utility classes)
-- No new packages required
+---
 
-## Out of Scope
-- User-configurable webhook URL field (you said you'll later swap it; for now hardcoded constant in one file, easy to change)
-- Pagination / filtering of results
-- Persisting form values across refresh (only results persist)
+## 6. Builder implementation
+
+New file `src/lib/website-package.ts`:
+
+```ts
+export const WDP_VERSION = 1;
+export function buildWebsitePackage(lead: LeadRow): WebsiteDataPackage { … }
+```
+
+Pure, no I/O. Unit-testable. Called from:
+
+1. `apify.import.ts` — after a row is upserted, build + store WDP.
+2. `brand.analyze.ts`, `instagram.analyze.ts`, `website.analyze.ts` — after each enrichment, rebuild WDP.
+3. A `/api/public/leads/rebuild-package` route for bulk rebuilds when rules change.
+
+---
+
+## 7. Scalability for future sources
+
+Adding Yelp/Facebook later means:
+
+1. New `raw_yelp` column + analyzer route.
+2. Extend `buildWebsitePackage` to merge that source into the existing WDP fields (e.g. more reviews, more photos) using the same filter rules.
+3. WDP shape stays stable → website generator code doesn't change.
+
+---
+
+## 8. Implementation order
+
+1. Add `website_package*` columns (migration).
+2. Build `src/lib/website-package.ts` + types + filter rules.
+3. Hook builder into all 4 analyzer routes + a manual rebuild endpoint.
+4. Backfill existing leads (one-time rebuild).
+5. Add Website Builder route/tab consuming only WDP.
+6. Add "Raw Data" tab + WDP status badge to Lead Detail.
+7. Point existing website generation flow at WDP instead of raw.
+
+---
+
+## Technical notes
+
+- WDP is stored as `jsonb` so we can query into it later (e.g. "leads with >=4 reviews in package").
+- `website_package_version` lets the UI show a "stale" badge when `WDP_VERSION` constant is bumped.
+- Editable edits in the Builder view are saved into the same column — to keep "rebuild" safe we'll add `website_package_overrides jsonb` so rebuilding only refreshes auto-derived fields and re-applies overrides on top.
+- No new auth surface; this is internal tooling, existing `/api/public/*` pattern is reused.
