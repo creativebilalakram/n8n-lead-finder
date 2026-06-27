@@ -22,6 +22,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { computeAdjustedScore } from "@/lib/score-adjust";
 import { Link } from "@tanstack/react-router";
 import { extractBrandDnaInsights, extractInstagramFromPayload, extractInstagramTarget } from "@/lib/brand-dna";
+import { buildLovablePromptUrl, type WebsiteDataPackage } from "@/lib/website-package";
 
 export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean }) {
   const key = leadKey(lead);
@@ -239,42 +240,41 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
   const email = lead.emails?.[0] || (typeof lead.email === "string" ? lead.email : undefined);
   const detectedIgUsername = brand?.instagramUsername || extractInstagramTarget(igHandle || "")?.username;
 
-  const buildPromptUrl = (payload: unknown) => {
-    const prompt =
-      "Create a premium, modern, and highly trustworthy website by using the same flow in your instructions for\n\n" +
-      JSON.stringify(payload, null, 2);
-    return "https://lovable.dev/?autosubmit=true#prompt=" + encodeURIComponent(prompt);
-  };
-
   const openLovable = async () => {
     void markClicked(key).catch(() => {
       toast.error("Couldn't save opened status");
     });
-    let url = lead.lovableUrl;
+    let url: string | undefined;
     const leadId = typeof lead.id === "string" ? lead.id : undefined;
     try {
-      if (!url && leadId) {
-        const { data, error } = await supabase
+      if (leadId) {
+        // Always send the structured Website Data Package (brief shape)
+        // — never the raw GBP dump. Rebuild on-the-fly if missing.
+        const { data } = await supabase
           .from("leads")
-          .select("raw, lovable_url")
+          .select("website_package")
           .eq("id", leadId)
           .maybeSingle();
-        if (!error && data) {
-          if (data.lovable_url) url = data.lovable_url;
-          else if (data.raw) url = buildPromptUrl(data.raw);
+        let pkg = (data?.website_package ?? null) as WebsiteDataPackage | null;
+        if (!pkg) {
+          const res = await fetch("/api/public/website-package/rebuild", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ leadId }),
+          });
+          if (res.ok) {
+            const json = (await res.json()) as { package?: WebsiteDataPackage };
+            pkg = json.package ?? null;
+          }
         }
+        if (pkg) url = buildLovablePromptUrl(pkg);
       }
     } catch {
-      // ignore — fall through to compact fallback
+      // ignore — fall through to legacy fallback below
     }
     if (!url) {
-      // Legacy rows without `raw`. Build from every field we have on the lead.
-      const fallback: Record<string, unknown> = { ...lead };
-      delete (fallback as Record<string, unknown>).lovableUrl;
-      url = buildPromptUrl(fallback);
-      toast.message("Using compact payload", {
-        description: "Re-import this Apify run to include the full original business data.",
-      });
+      toast.error("Website package unavailable — rebuild it from the Website page first.");
+      return;
     }
     // Open in a background tab (like Ctrl/Cmd+Click) so the user stays in this app.
     const a = document.createElement("a");
