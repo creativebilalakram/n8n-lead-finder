@@ -1,4 +1,3 @@
-import { supabase } from "@/integrations/supabase/client";
 import { loadFilterSettings } from "./filter-settings";
 import { fetchCompactLeads, getLiveLeadSets } from "./leads-query";
 
