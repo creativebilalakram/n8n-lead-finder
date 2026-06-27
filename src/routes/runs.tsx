@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Activity, Download, RefreshCw, CheckCircle2, XCircle, Clock, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { saveSearchRun, listImportedApifyRunIds } from "@/lib/leads-db";
+import { triggerAutoEnrichForRun } from "@/lib/auto-enrich";
 import type { Lead } from "@/lib/lead-types";
 
 export const Route = createFileRoute("/runs")({
@@ -106,7 +107,7 @@ function RunsPage() {
       const leads = (json.leads ?? []) as Lead[];
       const filteredOut = (json.filteredOut ?? []) as Lead[];
 
-      await saveSearchRun({
+      const runId = await saveSearchRun({
         apifyRunId: run.id,
         source: "import",
         params: {
@@ -127,6 +128,8 @@ function RunsPage() {
       });
       await refreshImported();
       toast.success(`Imported ${leads.length} qualified leads (${filteredOut.length} filtered)`);
+      // Fire-and-forget background enrichment for qualified leads
+      triggerAutoEnrichForRun(runId).catch(() => {});
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Import failed");
     } finally {
