@@ -32,6 +32,7 @@ import {
 } from "@/lib/clicked-leads";
 import { computeAdjustedScore } from "@/lib/score-adjust";
 import { extractBrandDnaInsights, extractInstagramFromPayload } from "@/lib/brand-dna";
+import { triggerAutoEnrichLead } from "@/lib/auto-enrich";
 
 export const Route = createFileRoute("/leads/$id")({
   head: () => ({ meta: [{ title: "Lead detail — LeadForge" }] }),
@@ -66,6 +67,7 @@ function LeadDetailPage() {
   }, [id]);
 
   const [analyzing, setAnalyzing] = useState<null | "website" | "instagram" | "brand">(null);
+  const [reRunning, setReRunning] = useState(false);
 
   const websiteScore = (lead?.website_modern_score as number | null) ?? null;
   const brandScore = (lead?.brand_dna_score as number | null) ?? null;
@@ -311,6 +313,25 @@ function LeadDetailPage() {
           </Link>
         </div>
       </div>
+
+      {/* Automation status */}
+      <AutomationPanel
+        lead={lead}
+        reRunning={reRunning}
+        onReRun={async () => {
+          setReRunning(true);
+          try {
+            await triggerAutoEnrichLead(id, true);
+            toast.success("Automation re-run started");
+            // Give the orchestrator a beat, then refresh.
+            setTimeout(() => { void refetch(); }, 1500);
+          } catch (e) {
+            toast.error(e instanceof Error ? e.message : "Re-run failed");
+          } finally {
+            setReRunning(false);
+          }
+        }}
+      />
 
       {/* Actor panels */}
       <div className="grid gap-5 lg:grid-cols-3">
@@ -647,6 +668,86 @@ function MiniStat({ label, value }: { label: string; value: string }) {
     <div className="rounded-lg border border-slate-200 bg-white/70 px-2 py-1.5">
       <div className="text-[9px] uppercase tracking-wide text-slate-500">{label}</div>
       <div className="text-sm font-semibold text-slate-900">{value}</div>
+    </div>
+  );
+}
+
+type AutoStep = { step: string; status: "ok" | "error" | "skipped"; detail?: string; at: string };
+
+function AutomationPanel({
+  lead,
+  reRunning,
+  onReRun,
+}: {
+  lead: Record<string, unknown>;
+  reRunning: boolean;
+  onReRun: () => void;
+}) {
+  const status = (lead.auto_enrich_status as string | null) ?? null;
+  const startedAt = lead.auto_enrich_started_at as string | null;
+  const finishedAt = lead.auto_enrich_finished_at as string | null;
+  const steps = (lead.auto_enrich_steps as AutoStep[] | null) ?? [];
+  const err = lead.auto_enrich_error as string | null;
+
+  const badge =
+    status === "running"
+      ? "bg-amber-100 text-amber-700 ring-amber-200"
+      : status === "done"
+        ? "bg-emerald-100 text-emerald-700 ring-emerald-200"
+        : status === "error"
+          ? "bg-rose-100 text-rose-700 ring-rose-200"
+          : "bg-slate-100 text-slate-600 ring-slate-200";
+
+  return (
+    <div className="rounded-2xl border border-white/70 bg-white/80 p-5 shadow-sm backdrop-blur-xl">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-indigo-500" />
+          <h2 className="text-sm font-semibold text-slate-900">Background Automation</h2>
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ring-1 ${badge}`}>
+            {status ?? "idle"}
+          </span>
+        </div>
+        <button
+          onClick={onReRun}
+          disabled={reRunning}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+        >
+          {reRunning ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+          Re-run
+        </button>
+      </div>
+      <p className="mt-1.5 text-[11px] text-slate-500">
+        Auto: website screenshot → modernity score. If score &lt; 7, also runs Brand DNA + Instagram.
+      </p>
+      {(startedAt || finishedAt) && (
+        <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] text-slate-500">
+          {startedAt && <div>Started: {new Date(startedAt).toLocaleString()}</div>}
+          {finishedAt && <div>Finished: {new Date(finishedAt).toLocaleString()}</div>}
+        </div>
+      )}
+      {err && <p className="mt-2 text-xs text-rose-600">{err}</p>}
+      {steps.length > 0 && (
+        <ul className="mt-3 space-y-1.5">
+          {steps.map((s, i) => (
+            <li key={i} className="flex items-start gap-2 text-xs">
+              <span
+                className={`mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold ${
+                  s.status === "ok"
+                    ? "bg-emerald-100 text-emerald-700"
+                    : s.status === "error"
+                      ? "bg-rose-100 text-rose-700"
+                      : "bg-slate-200 text-slate-600"
+                }`}
+              >
+                {s.status === "ok" ? "✓" : s.status === "error" ? "!" : "–"}
+              </span>
+              <span className="font-mono text-slate-700">{s.step}</span>
+              {s.detail && <span className="truncate text-slate-500">— {s.detail}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

@@ -36,6 +36,11 @@ export type Database = {
         Row: {
           address: string | null
           apify_run_id: string | null
+          auto_enrich_error: string | null
+          auto_enrich_finished_at: string | null
+          auto_enrich_started_at: string | null
+          auto_enrich_status: string | null
+          auto_enrich_steps: Json | null
           brand_dna_analyzed_at: string | null
           brand_dna_label: string | null
           brand_dna_raw: Json | null
@@ -95,6 +100,11 @@ export type Database = {
         Insert: {
           address?: string | null
           apify_run_id?: string | null
+          auto_enrich_error?: string | null
+          auto_enrich_finished_at?: string | null
+          auto_enrich_started_at?: string | null
+          auto_enrich_status?: string | null
+          auto_enrich_steps?: Json | null
           brand_dna_analyzed_at?: string | null
           brand_dna_label?: string | null
           brand_dna_raw?: Json | null
@@ -154,6 +164,11 @@ export type Database = {
         Update: {
           address?: string | null
           apify_run_id?: string | null
+          auto_enrich_error?: string | null
+          auto_enrich_finished_at?: string | null
+          auto_enrich_started_at?: string | null
+          auto_enrich_status?: string | null
+          auto_enrich_steps?: Json | null
           brand_dna_analyzed_at?: string | null
           brand_dna_label?: string | null
           brand_dna_raw?: Json | null
