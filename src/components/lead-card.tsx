@@ -250,44 +250,42 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
     });
     let url: string | undefined;
     const leadId = typeof lead.id === "string" ? lead.id : undefined;
+    const progress = toast.loading(
+      "Preparing complete brief — running any missing enrichment (website, brand, Instagram)…",
+    );
     try {
       if (leadId) {
-        // Always send the structured Website Data Package (brief shape)
-        // — never the raw GBP dump. Rebuild on-the-fly if missing.
-        const { data } = await supabase
-          .from("leads")
-          .select("website_package")
-          .eq("id", leadId)
-          .maybeSingle();
-        let pkg = (data?.website_package ?? null) as WebsiteDataPackage | null;
-        if (!pkg) {
-          // Retry once on transient 5xx (Supabase PATCH can flake on
-          // large jsonb payloads).
-          for (let attempt = 0; attempt < 2 && !pkg; attempt++) {
-            const res = await fetch("/api/public/website-package/rebuild", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ leadId }),
-            });
-            if (res.ok) {
-              const json = (await res.json()) as { package?: WebsiteDataPackage };
-              pkg = json.package ?? null;
-              break;
-            }
-            if (res.status < 500) break;
-            await new Promise((r) => setTimeout(r, 400));
+        // Always rebuild with ensureEnriched=true so the brief contains
+        // every available section (website screenshot + AI score, Brand
+        // DNA, Instagram). The endpoint skips analyses that already ran,
+        // so this is cheap on already-enriched leads.
+        let pkg: WebsiteDataPackage | null = null;
+        for (let attempt = 0; attempt < 2 && !pkg; attempt++) {
+          const res = await fetch("/api/public/website-package/rebuild", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ leadId, ensureEnriched: true }),
+          });
+          if (res.ok) {
+            const json = (await res.json()) as { package?: WebsiteDataPackage };
+            pkg = json.package ?? null;
+            break;
           }
+          if (res.status < 500) break;
+          await new Promise((r) => setTimeout(r, 600));
         }
         if (pkg) url = buildLovablePromptUrl(pkg);
       }
     } catch {
       // ignore — fall through to legacy fallback below
     }
+    toast.dismiss(progress);
     if (!url) {
       placeholder?.close();
       toast.error("Website package unavailable — rebuild it from the Website page first.");
       return;
     }
+    toast.success("Brief ready — opening Lovable");
     if (placeholder) {
       placeholder.location.href = url;
     } else {
