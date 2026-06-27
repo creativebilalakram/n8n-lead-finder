@@ -6,7 +6,7 @@
 // stale packages and offer a rebuild.
 import { extractBrandDnaInsights, extractInstagramFromPayload } from "./brand-dna";
 
-export const WDP_VERSION = 2;
+export const WDP_VERSION = 3;
 
 export type WebsiteDataPackage = {
   version: number;
@@ -178,7 +178,7 @@ function extractServices(raw: AnyRow): string[] {
     const r = rec(block);
     if (!r) continue;
     for (const [k, v] of Object.entries(r)) {
-      if (/service options|offerings|highlights|popular for/i.test(k)) {
+      if (/service options|offerings|highlights|popular for|services/i.test(k)) {
         for (const item of arr(v)) {
           const ir = rec(item);
           if (!ir) continue;
@@ -197,18 +197,43 @@ function extractServices(raw: AnyRow): string[] {
       if (name) out.push(name);
     }
   }
-  // Mine the description for common service keywords (dental/medical/beauty)
-  const desc = `${s(pick(raw, "description")) ?? ""} ${s(pick(raw, "subTitle")) ?? ""}`.toLowerCase();
-  const SERVICE_KEYWORDS = [
-    "implants", "invisalign", "veneers", "whitening", "crowns", "bridges", "root canal",
-    "orthodontics", "braces", "cosmetic dentistry", "pediatric", "sleep apnea", "tmj",
-    "botox", "fillers", "lip filler", "laser hair removal", "microneedling", "facials",
-    "chemical peel", "coolsculpting", "prp", "hydrafacial", "massage", "manicure", "pedicure",
-    "hair color", "balayage", "extensions", "haircut", "lash extensions", "brow lamination",
-    "waxing", "ipl", "skincare", "consultation", "checkup", "cleaning", "extraction",
+  // Mine multiple text surfaces for service keywords
+  const textSources = [
+    s(pick(raw, "description")),
+    s(pick(raw, "subTitle")),
+    s(pick(raw, "title")),
+    s(pick(raw, "categoryName")),
+    ...arr(pick(raw, "categories")).map((c) => (typeof c === "string" ? c : "")),
+    ...arr(pick(raw, "questionsAndAnswers")).map((q) => s(rec(q)?.question) ?? ""),
+    ...arr(pick(raw, "reviews")).slice(0, 20).map((r) => s(rec(r)?.text) ?? ""),
   ];
-  for (const kw of SERVICE_KEYWORDS) if (desc.includes(kw)) out.push(kw.replace(/\b\w/g, (c) => c.toUpperCase()));
-  return uniq(out).slice(0, 20);
+  const haystack = textSources.filter(Boolean).join(" \n ").toLowerCase();
+  const SERVICE_KEYWORDS = [
+    // Dental
+    "dental implants", "implants", "invisalign", "veneers", "teeth whitening", "whitening",
+    "crowns", "bridges", "dentures", "root canal", "orthodontics", "braces", "clear aligners",
+    "cosmetic dentistry", "pediatric dentistry", "family dentistry", "general dentistry",
+    "sleep apnea", "tmj treatment", "tmj", "wisdom teeth", "extractions", "extraction",
+    "periodontics", "endodontics", "oral surgery", "sedation dentistry", "emergency dentistry",
+    "smile makeover", "bonding", "inlays", "onlays", "fluoride treatment", "deep cleaning",
+    "gum disease", "preventive care", "dental cleaning", "checkup", "x-rays",
+    // MedSpa / cosmetic
+    "botox", "dysport", "fillers", "dermal fillers", "lip filler", "laser hair removal",
+    "microneedling", "facials", "hydrafacial", "chemical peel", "coolsculpting", "prp",
+    "ipl", "skincare", "skin tightening", "morpheus8", "kybella", "sculptra",
+    // Beauty / hair
+    "haircut", "hair color", "balayage", "highlights", "extensions", "blowout", "keratin",
+    "lash extensions", "lash lift", "brow lamination", "waxing", "threading", "makeup",
+    "manicure", "pedicure", "gel nails", "acrylics",
+    // Wellness
+    "massage", "deep tissue", "swedish massage", "acupuncture", "chiropractic", "physical therapy",
+    "consultation",
+  ];
+  for (const kw of SERVICE_KEYWORDS) {
+    const re = new RegExp(`\\b${kw.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&")}\\b`, "i");
+    if (re.test(haystack)) out.push(kw.replace(/\b\w/g, (c) => c.toUpperCase()));
+  }
+  return uniq(out).slice(0, 25);
 }
 
 /** Pull grouped amenity-style attributes from GBP's `additionalInfo`. */
@@ -254,9 +279,38 @@ function extractAttributes(raw: AnyRow): string[] {
   const groups = extractAmenityGroups(raw);
   const trust = [
     ...groups.fromTheBusiness,
-    ...groups.accessibility.filter((v) => /entrance|parking|restroom|seating/i.test(v)),
+    ...groups.highlights.filter((v) => /owned|operated|veteran|family|lgbtq|friendly/i.test(v)),
+    ...groups.accessibility,
+    ...groups.payments,
   ];
-  return uniq(trust).slice(0, 15);
+  // Mine description for self-described trust phrases
+  const desc = `${s(pick(raw, "description")) ?? ""}`;
+  const PHRASES = [
+    "women-owned", "woman-owned", "black-owned", "veteran-owned", "family-owned",
+    "family owned", "lgbtq+ friendly", "minority-owned", "locally owned", "award-winning",
+    "board-certified", "board certified", "licensed", "insured", "asian-owned", "latina-owned",
+  ];
+  for (const p of PHRASES) {
+    if (new RegExp(p.replace(/[-+]/g, "\\$&"), "i").test(desc)) {
+      trust.push(p.replace(/\b\w/g, (c) => c.toUpperCase()));
+    }
+  }
+  return uniq(trust).slice(0, 20);
+}
+
+/** Extract doctor / practitioner names from text: "Dr. Jane Smith", "Jane Smith, DDS". */
+function extractOwnerFromText(...texts: Array<string | undefined>): string | undefined {
+  const hay = texts.filter(Boolean).join(" \n ");
+  if (!hay) return undefined;
+  const patterns = [
+    /\bDr\.?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z'\-]+){1,2})\b/,
+    /\b([A-Z][a-z]+\s+[A-Z][a-z'\-]+),?\s+(?:DDS|DMD|MD|DO|PhD|DC|RN|NP|PA|DVM|OD)\b/,
+  ];
+  for (const re of patterns) {
+    const m = hay.match(re);
+    if (m) return `Dr. ${m[1]}`.replace(/^Dr\.\s+Dr\.\s+/, "Dr. ");
+  }
+  return undefined;
 }
 
 function extractHours(raw: AnyRow): Array<{ day: string; hours: string }> {
@@ -388,15 +442,25 @@ function extractLocation(raw: AnyRow) {
 }
 
 function extractValueProps(raw: AnyRow, brandTaglines: string[]): { tagline?: string; candidates: string[]; valueProps: string[] } {
-  const candidates: string[] = [...brandTaglines];
+  // Filter throwaway openings that aren't real taglines
+  const isJunkOpening = (t: string) =>
+    /^(welcome to|thank you|located (?:in|at)|come (?:in|visit)|call (?:us|today)|find us|our (?:office|practice|team) is)/i.test(t.trim()) ||
+    /^(at\s+[A-Z][\w\s&.,'-]+,\s*we)/i.test(t.trim());
+
+  const candidates: string[] = brandTaglines.filter((t) => !isJunkOpening(t));
   const desc = s(pick(raw, "description"));
   if (desc) {
-    // First sentence often = value prop
     const sentences = desc.split(/(?<=[.!?])\s+/).map((x) => x.trim()).filter(Boolean);
-    for (const sent of sentences.slice(0, 3)) {
+    // Skip junk openings, prefer punchy 25-140 char sentences
+    for (const sent of sentences) {
+      if (isJunkOpening(sent)) continue;
       if (sent.length >= 25 && sent.length <= 140) candidates.push(sent);
+      if (candidates.length >= 8) break;
     }
   }
+  // Brand DNA junk fallback if nothing else
+  if (candidates.length === 0) candidates.push(...brandTaglines);
+
   const valueProps: string[] = [];
   for (const block of arr(pick(raw, "additionalInfo"))) {
     const r = rec(block);
@@ -644,7 +708,12 @@ export function buildWebsitePackage(
     version: WDP_VERSION,
     business: {
       name: s(pick(raw, "title", "name")),
-      owner: s(pick(raw, "ownerName")),
+      owner: s(pick(raw, "ownerName")) ?? extractOwnerFromText(
+        s(pick(raw, "title")),
+        s(pick(raw, "description")),
+        brand?.description,
+        ...reviews.slice(0, 5).map((r) => r.text),
+      ),
       tagline: valueProps.tagline,
       taglineCandidates: valueProps.candidates,
       valueProps: valueProps.valueProps,
