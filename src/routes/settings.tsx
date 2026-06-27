@@ -284,7 +284,6 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
 function BackfillAutomationCard() {
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
-  const [retryFailed, setRetryFailed] = useState(false);
 
   const run = async (mode: "new" | "retry-failed" | "force-all") => {
     setRunning(true);
