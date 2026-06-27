@@ -107,7 +107,7 @@ function RunsPage() {
       const leads = (json.leads ?? []) as Lead[];
       const filteredOut = (json.filteredOut ?? []) as Lead[];
 
-      await saveSearchRun({
+      const runId = await saveSearchRun({
         apifyRunId: run.id,
         source: "import",
         params: {
@@ -128,6 +128,8 @@ function RunsPage() {
       });
       await refreshImported();
       toast.success(`Imported ${leads.length} qualified leads (${filteredOut.length} filtered)`);
+      // Fire-and-forget background enrichment for qualified leads
+      triggerAutoEnrichForRun(runId).catch(() => {});
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Import failed");
     } finally {
