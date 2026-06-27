@@ -16,6 +16,7 @@ import { Route as LeadsRouteImport } from './routes/leads'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as HistoryIndexRouteImport } from './routes/history.index'
 import { Route as HistoryIdRouteImport } from './routes/history.$id'
+import { Route as ApiPublicWebsiteAnalyzeRouteImport } from './routes/api/public/website.analyze'
 import { Route as ApiPublicLeadsStatusRouteImport } from './routes/api/public/leads.status'
 import { Route as ApiPublicLeadsStartRouteImport } from './routes/api/public/leads.start'
 import { Route as ApiPublicApifyRunsRouteImport } from './routes/api/public/apify.runs'
@@ -56,6 +57,11 @@ const HistoryIdRoute = HistoryIdRouteImport.update({
   path: '/history/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicWebsiteAnalyzeRoute = ApiPublicWebsiteAnalyzeRouteImport.update({
+  id: '/api/public/website/analyze',
+  path: '/api/public/website/analyze',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicLeadsStatusRoute = ApiPublicLeadsStatusRouteImport.update({
   id: '/api/public/leads/status',
   path: '/api/public/leads/status',
@@ -89,6 +95,7 @@ export interface FileRoutesByFullPath {
   '/api/public/apify/runs': typeof ApiPublicApifyRunsRoute
   '/api/public/leads/start': typeof ApiPublicLeadsStartRoute
   '/api/public/leads/status': typeof ApiPublicLeadsStatusRoute
+  '/api/public/website/analyze': typeof ApiPublicWebsiteAnalyzeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -102,6 +109,7 @@ export interface FileRoutesByTo {
   '/api/public/apify/runs': typeof ApiPublicApifyRunsRoute
   '/api/public/leads/start': typeof ApiPublicLeadsStartRoute
   '/api/public/leads/status': typeof ApiPublicLeadsStatusRoute
+  '/api/public/website/analyze': typeof ApiPublicWebsiteAnalyzeRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -116,6 +124,7 @@ export interface FileRoutesById {
   '/api/public/apify/runs': typeof ApiPublicApifyRunsRoute
   '/api/public/leads/start': typeof ApiPublicLeadsStartRoute
   '/api/public/leads/status': typeof ApiPublicLeadsStatusRoute
+  '/api/public/website/analyze': typeof ApiPublicWebsiteAnalyzeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -131,6 +140,7 @@ export interface FileRouteTypes {
     | '/api/public/apify/runs'
     | '/api/public/leads/start'
     | '/api/public/leads/status'
+    | '/api/public/website/analyze'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -144,6 +154,7 @@ export interface FileRouteTypes {
     | '/api/public/apify/runs'
     | '/api/public/leads/start'
     | '/api/public/leads/status'
+    | '/api/public/website/analyze'
   id:
     | '__root__'
     | '/'
@@ -157,6 +168,7 @@ export interface FileRouteTypes {
     | '/api/public/apify/runs'
     | '/api/public/leads/start'
     | '/api/public/leads/status'
+    | '/api/public/website/analyze'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -171,6 +183,7 @@ export interface RootRouteChildren {
   ApiPublicApifyRunsRoute: typeof ApiPublicApifyRunsRoute
   ApiPublicLeadsStartRoute: typeof ApiPublicLeadsStartRoute
   ApiPublicLeadsStatusRoute: typeof ApiPublicLeadsStatusRoute
+  ApiPublicWebsiteAnalyzeRoute: typeof ApiPublicWebsiteAnalyzeRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -224,6 +237,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HistoryIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/website/analyze': {
+      id: '/api/public/website/analyze'
+      path: '/api/public/website/analyze'
+      fullPath: '/api/public/website/analyze'
+      preLoaderRoute: typeof ApiPublicWebsiteAnalyzeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/leads/status': {
       id: '/api/public/leads/status'
       path: '/api/public/leads/status'
@@ -267,6 +287,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicApifyRunsRoute: ApiPublicApifyRunsRoute,
   ApiPublicLeadsStartRoute: ApiPublicLeadsStartRoute,
   ApiPublicLeadsStatusRoute: ApiPublicLeadsStatusRoute,
+  ApiPublicWebsiteAnalyzeRoute: ApiPublicWebsiteAnalyzeRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
