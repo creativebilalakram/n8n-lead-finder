@@ -5,6 +5,7 @@
 // that were silently killing the workflow before Apify ever saw a request.
 
 import { fetchWithRetry, extractJson } from "@/lib/fetch-retry";
+import { runApifyActorAsync } from "@/lib/apify-async.server";
 import {
   extractBrandDnaInsights,
   extractInstagramCandidatesFromPayload,
@@ -61,34 +62,20 @@ export async function runWebsiteAnalysis(leadId: string, url: string): Promise<R
   let normalized = url.trim();
   if (!/^https?:\/\//i.test(normalized)) normalized = "https://" + normalized;
 
-  let apifyRes: Response;
-  try {
-    apifyRes = await fetchWithRetry(
-      `https://api.apify.com/v2/acts/apify~screenshot-url/run-sync-get-dataset-items?token=${apifyToken}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        timeoutMs: 90_000,
-        retries: 1,
-        backoffMs: 2000,
-        body: JSON.stringify({
-          delay: 0,
-          proxy: { useApifyProxy: true },
-          scrollToBottom: true,
-          urls: [{ url: normalized }],
-          waitUntil: "load",
-          waitUntilNetworkIdleAfterScroll: false,
-        }),
-      },
-    );
-  } catch (err) {
-    return fail(502, `Screenshot fetch failed: ${err instanceof Error ? err.message : "fetch failed"}`);
-  }
-  if (!apifyRes.ok) {
-    const t = await apifyRes.text().catch(() => "");
-    return fail(502, `Screenshot failed: ${apifyRes.status} ${t.slice(0, 200)}`);
-  }
-  const items = (await apifyRes.json()) as Array<Record<string, unknown>>;
+  const run = await runApifyActorAsync<Record<string, unknown>>(
+    "apify~screenshot-url",
+    {
+      delay: 0,
+      proxy: { useApifyProxy: true },
+      scrollToBottom: true,
+      urls: [{ url: normalized }],
+      waitUntil: "load",
+      waitUntilNetworkIdleAfterScroll: false,
+    },
+    { token: apifyToken, maxWaitMs: 180_000, pollIntervalMs: 3_000 },
+  );
+  if (!run.ok) return fail(502, run.error);
+  const items = run.items;
   const item = items?.[0] ?? {};
   const screenshotUrl =
     (item.screenshotUrl as string | undefined) ||
@@ -172,17 +159,9 @@ export async function runBrandAnalysis(leadId: string, url: string): Promise<Run
   let startUrl = url.trim();
   if (!/^https?:\/\//i.test(startUrl)) startUrl = "https://" + startUrl;
 
-  let apifyRes: Response;
-  try {
-    apifyRes = await fetchWithRetry(
-      `https://api.apify.com/v2/acts/solutionssmart~brand-dna/run-sync-get-dataset-items?token=${apifyToken}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        timeoutMs: 120_000,
-        retries: 1,
-        backoffMs: 2000,
-        body: JSON.stringify({
+  const run = await runApifyActorAsync<Record<string, unknown>>(
+    "solutionssmart~brand-dna",
+    {
           adaptiveConcurrency: true,
           captureScreenshot: true,
           debug: false,
@@ -199,15 +178,11 @@ export async function runBrandAnalysis(leadId: string, url: string): Promise<Run
           useProxy: true,
           useRenderingFallback: true,
           useTranslation: false,
-        }),
-      },
-    );
-  } catch (err) {
-    return fail(502, `Brand DNA fetch failed: ${err instanceof Error ? err.message : "fetch failed"}`);
-  }
-  if (!apifyRes.ok) return fail(502, `Brand DNA scrape failed: ${apifyRes.status}`);
-  const items = (await apifyRes.json()) as Array<Record<string, unknown>>;
-  const item = items?.[0];
+    },
+    { token: apifyToken, maxWaitMs: 240_000, pollIntervalMs: 4_000 },
+  );
+  if (!run.ok) return fail(502, run.error);
+  const item = run.items?.[0];
   if (!item) return fail(502, "Brand DNA returned no data");
 
   const insights = extractBrandDnaInsights(item);
@@ -264,24 +239,13 @@ function uniqTargets(values: Array<InstagramTarget | null | undefined>): Instagr
   return out;
 }
 async function scrapeCandidate(apifyToken: string, target: InstagramTarget): Promise<Record<string, unknown> | null> {
-  let apifyRes: Response;
-  try {
-    apifyRes = await fetchWithRetry(
-      `https://api.apify.com/v2/acts/apify~instagram-profile-scraper/run-sync-get-dataset-items?token=${apifyToken}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        timeoutMs: 75_000,
-        retries: 1,
-        backoffMs: 1500,
-        body: JSON.stringify({ includeAboutSection: false, usernames: [target.username] }),
-      },
-    );
-  } catch {
-    return null;
-  }
-  if (!apifyRes.ok) return null;
-  const items = (await apifyRes.json()) as Array<Record<string, unknown>>;
+  const run = await runApifyActorAsync<Record<string, unknown>>(
+    "apify~instagram-profile-scraper",
+    { includeAboutSection: false, usernames: [target.username] },
+    { token: apifyToken, maxWaitMs: 150_000, pollIntervalMs: 3_000 },
+  );
+  if (!run.ok) return null;
+  const items = run.items;
   const item = items?.find((c) => !actorSaysMissing(c)) || items?.[0];
   return item && !actorSaysMissing(item) ? item : null;
 }
