@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import type { Lead, SearchParamsSnapshot, SearchRecord } from "./lead-types";
+import { buildWebsitePackage, WDP_VERSION } from "./website-package";
 
 // ----- helpers -----
 
@@ -32,6 +33,14 @@ function leadToRow(lead: Lead, searchRunId: string, apifyRunId: string | null) {
   } catch {
     raw = null;
   }
+  // Pre-compute the Website Data Package from GBP data on first insert so the
+  // Website Builder view has something to show without an enrichment round-trip.
+  let websitePackage: Json | null = null;
+  try {
+    websitePackage = buildWebsitePackage(rawSource as Record<string, unknown>) as unknown as Json;
+  } catch {
+    websitePackage = null;
+  }
   return {
     search_run_id: searchRunId,
     apify_run_id: apifyRunId,
@@ -57,6 +66,9 @@ function leadToRow(lead: Lead, searchRunId: string, apifyRunId: string | null) {
     lovable_url: null,
     owner_update_age_days: ownerUpdateAgeDays ?? null,
     raw,
+    website_package: websitePackage,
+    website_package_version: websitePackage ? WDP_VERSION : null,
+    website_package_built_at: websitePackage ? new Date().toISOString() : null,
   };
 }
 
