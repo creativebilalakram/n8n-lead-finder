@@ -16,6 +16,14 @@ import {
   Star,
   Users,
   Wand2,
+  Activity,
+  HelpCircle,
+  Gauge,
+  Search,
+  TrendingUp,
+  CalendarClock,
+  Shield,
+  Link2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -195,16 +203,100 @@ function WebsiteBuilderPage() {
             <KeyValue k="Owner" v={pkg.business.owner} />
             <KeyValue k="Tagline" v={pkg.business.tagline} />
             <KeyValue k="Description" v={pkg.business.description} multiline />
+            <KeyValue k="Price" v={pkg.business.priceRange} />
+            <KeyValue k="Claimed" v={pkg.business.claimed === true ? "Yes" : pkg.business.claimed === false ? "No" : undefined} />
             <Pills label="Categories" items={pkg.business.categories} />
             <Pills label="Services" items={pkg.business.services} />
+            <Pills label="Value props" items={pkg.business.valueProps} accent="emerald" />
+            <Pills label="Tagline candidates" items={pkg.business.taglineCandidates} />
+            <Pills label="Languages" items={pkg.business.languages} />
+            <Pills label="Service area" items={pkg.business.serviceArea} />
             <Pills label="Attributes" items={pkg.business.attributes} accent="emerald" />
           </Section>
+
+          {/* Website Quality */}
+          {pkg.websiteAnalysis && (
+            <Section icon={<Gauge className="h-4 w-4 text-rose-600" />} title="Website quality">
+              <div className="flex flex-wrap items-start gap-4">
+                {pkg.websiteAnalysis.screenshotUrl && (
+                  <a href={pkg.websiteAnalysis.screenshotUrl} target="_blank" rel="noopener noreferrer" className="block w-48 shrink-0 overflow-hidden rounded-lg border border-slate-200">
+                    <img src={pkg.websiteAnalysis.screenshotUrl} alt="Website screenshot" className="w-full" />
+                  </a>
+                )}
+                <div className="flex-1 space-y-2">
+                  <div className="flex items-center gap-2">
+                    {typeof pkg.websiteAnalysis.score === "number" && (
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${pkg.websiteAnalysis.score < 6 ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}`}>
+                        {pkg.websiteAnalysis.score}/10
+                      </span>
+                    )}
+                    {pkg.websiteAnalysis.label && (
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700">{pkg.websiteAnalysis.label}</span>
+                    )}
+                  </div>
+                  {pkg.websiteAnalysis.summary && <p className="text-xs text-slate-700">{pkg.websiteAnalysis.summary}</p>}
+                  {pkg.websiteAnalysis.weaknesses.length > 0 && (
+                    <div>
+                      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-rose-600">Weaknesses</p>
+                      <ul className="list-disc pl-5 text-xs text-slate-700">
+                        {pkg.websiteAnalysis.weaknesses.map((w, i) => <li key={i}>{w}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                  {pkg.websiteAnalysis.strengths.length > 0 && (
+                    <div>
+                      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-600">Strengths</p>
+                      <ul className="list-disc pl-5 text-xs text-slate-700">
+                        {pkg.websiteAnalysis.strengths.map((w, i) => <li key={i}>{w}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </Section>
+          )}
+
+          {/* Social proof */}
+          <Section icon={<TrendingUp className="h-4 w-4 text-amber-600" />} title="Social proof">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Stat label="Avg rating" value={pkg.reviewStats.averageRating?.toFixed(1)} />
+              <Stat label="Total reviews" value={pkg.reviewStats.total?.toLocaleString()} />
+              <Stat label="Qualifying reviews" value={pkg.reviews.length.toString()} />
+              <Stat label="Owner updates" value={pkg.updates.length.toString()} />
+            </div>
+            {pkg.reviewStats.distribution && (
+              <div className="mt-3 flex gap-2 text-[11px]">
+                {Object.entries(pkg.reviewStats.distribution).sort((a, b) => Number(b[0]) - Number(a[0])).map(([k, v]) => (
+                  <span key={k} className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-700">{k}★ · {v}</span>
+                ))}
+              </div>
+            )}
+          </Section>
+
+          {/* Recent activity */}
+          {pkg.recentActivity && (
+            <Section icon={<Activity className="h-4 w-4 text-emerald-600" />} title="Recent activity">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${pkg.recentActivity.isActive ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
+                  {pkg.recentActivity.isActive ? "Active" : "Quiet"}
+                </span>
+                <span className="text-xs text-slate-700">{pkg.recentActivity.signal}</span>
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-600">
+                {pkg.recentActivity.lastUpdateDate && <span>Last update: {pkg.recentActivity.lastUpdateDate}</span>}
+                {pkg.recentActivity.lastReviewDate && <span>Last review: {pkg.recentActivity.lastReviewDate}</span>}
+              </div>
+            </Section>
+          )}
 
           {/* Contact */}
           <Section icon={<MapPin className="h-4 w-4" />} title="Contact">
             <KeyValue k="Phone" v={pkg.contact.phone} />
             <KeyValue k="Emails" v={pkg.contact.emails.join(", ")} />
             <KeyValue k="Address" v={pkg.contact.address?.full} />
+            <KeyValue k="Neighborhood" v={pkg.contact.address?.neighborhood} />
+            <KeyValue k="Postal code" v={pkg.contact.address?.postalCode} />
+            <KeyValue k="Coordinates" v={pkg.contact.address?.lat != null && pkg.contact.address?.lng != null ? `${pkg.contact.address.lat}, ${pkg.contact.address.lng}` : undefined} />
             {pkg.contact.hours.length > 0 && (
               <div className="mt-3">
                 <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Hours</p>
@@ -216,6 +308,16 @@ function WebsiteBuilderPage() {
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+            {(pkg.contact.bookingLinks.length + pkg.contact.menuLinks.length + pkg.contact.reservationLinks.length) > 0 && (
+              <div className="mt-3 space-y-1">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Action links</p>
+                {[...pkg.contact.bookingLinks.map((u) => ["Book", u] as const), ...pkg.contact.reservationLinks.map((u) => ["Reserve", u] as const), ...pkg.contact.menuLinks.map((u) => ["Menu", u] as const)].map(([label, url]) => (
+                  <a key={url} href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-indigo-600 hover:underline">
+                    <Link2 className="h-3 w-3" /> {label}: {url}
+                  </a>
+                ))}
               </div>
             )}
             {Object.keys(pkg.contact.socials).length > 0 && (
@@ -267,11 +369,47 @@ function WebsiteBuilderPage() {
                     </div>
                   </div>
                 )}
+                {pkg.brand.colorRoles && (
+                  <div>
+                    <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Color roles</p>
+                    <div className="flex flex-wrap gap-1.5 text-[10px]">
+                      {Object.entries(pkg.brand.colorRoles).filter(([, v]) => v).map(([k, v]) => (
+                        <span key={k} className="flex items-center gap-1 rounded-full border border-slate-200 bg-white px-1.5 py-0.5">
+                          <span className="h-3 w-3 rounded-full border" style={{ backgroundColor: v }} />
+                          <span className="font-semibold">{k}</span> {v}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <Pills label="Fonts" items={pkg.brand.fonts} />
+                <Pills label="Personality" items={pkg.brand.personality} accent="emerald" />
                 <KeyValue k="Tone" v={pkg.brand.tone} />
               </div>
             </div>
           </Section>
+
+          {/* Amenities & trust */}
+          {Object.values(pkg.amenities).some((arr) => arr.length > 0) && (
+            <Section icon={<Shield className="h-4 w-4 text-indigo-600" />} title="Amenities, accessibility & trust">
+              <div className="grid gap-3 sm:grid-cols-2">
+                {(Object.entries(pkg.amenities) as Array<[keyof typeof pkg.amenities, string[]]>)
+                  .filter(([, v]) => v.length > 0)
+                  .map(([key, items]) => (
+                    <Pills key={key} label={key.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase())} items={items} />
+                  ))}
+              </div>
+            </Section>
+          )}
+
+          {/* SEO meta */}
+          {(pkg.seo.metaTitle || pkg.seo.metaDescription || pkg.seo.keywords.length > 0) && (
+            <Section icon={<Search className="h-4 w-4 text-slate-600" />} title="SEO signals">
+              <KeyValue k="Meta title" v={pkg.seo.metaTitle} />
+              <KeyValue k="Meta desc" v={pkg.seo.metaDescription} multiline />
+              <Pills label="Keywords" items={pkg.seo.keywords} />
+            </Section>
+          )}
 
           {/* Media */}
           <Section icon={<ImageIcon className="h-4 w-4" />} title={`Media (${pkg.media.gallery.length})`}>
@@ -294,6 +432,15 @@ function WebsiteBuilderPage() {
                       </span>
                     )}
                   </a>
+                ))}
+              </div>
+            )}
+            {pkg.media.galleryByCategory.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-1.5 text-[11px]">
+                {pkg.media.galleryByCategory.map((c) => (
+                  <span key={c.category} className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-700">
+                    {c.category} · {c.count}
+                  </span>
                 ))}
               </div>
             )}
@@ -322,6 +469,34 @@ function WebsiteBuilderPage() {
             )}
           </Section>
 
+          {/* FAQ */}
+          {pkg.faq.length > 0 && (
+            <Section icon={<HelpCircle className="h-4 w-4 text-sky-600" />} title={`FAQ (${pkg.faq.length})`}>
+              <div className="space-y-2">
+                {pkg.faq.map((q, i) => (
+                  <div key={i} className="rounded-xl border border-slate-200 bg-white/60 p-3">
+                    <p className="text-xs font-semibold text-slate-800">Q: {q.question}</p>
+                    {q.answer && <p className="mt-1 text-xs text-slate-600">A: {q.answer}</p>}
+                  </div>
+                ))}
+              </div>
+            </Section>
+          )}
+
+          {/* Popular times */}
+          {pkg.popularTimes && (
+            <Section icon={<CalendarClock className="h-4 w-4 text-amber-600" />} title="Popular times">
+              <p className="text-xs text-slate-700">{pkg.popularTimes.summary}</p>
+            </Section>
+          )}
+
+          {/* Competitors */}
+          {pkg.competitors.length > 0 && (
+            <Section icon={<Users className="h-4 w-4 text-slate-600" />} title="People also search (positioning)">
+              <Pills label="Competitors" items={pkg.competitors} />
+            </Section>
+          )}
+
           {/* Updates */}
           {pkg.updates.length > 0 && (
             <Section icon={<Globe className="h-4 w-4" />} title={`Owner updates (${pkg.updates.length})`}>
@@ -340,8 +515,12 @@ function WebsiteBuilderPage() {
           {pkg.instagram && (
             <Section icon={<Instagram className="h-4 w-4 text-fuchsia-600" />} title="Instagram">
               <KeyValue k="Handle" v={pkg.instagram.handle ? `@${pkg.instagram.handle}` : undefined} />
+              <KeyValue k="Full name" v={pkg.instagram.fullName} />
               <KeyValue k="Followers" v={pkg.instagram.followers?.toLocaleString()} />
+              <KeyValue k="Following" v={pkg.instagram.following?.toLocaleString()} />
+              <KeyValue k="Posts" v={pkg.instagram.postsCount?.toLocaleString()} />
               <KeyValue k="Verified" v={pkg.instagram.verified ? "Yes" : undefined} />
+              <KeyValue k="Business" v={pkg.instagram.isBusiness ? "Yes" : undefined} />
               <KeyValue k="Bio" v={pkg.instagram.bio} multiline />
             </Section>
           )}
@@ -399,6 +578,15 @@ function Pills({ label, items, accent }: { label: string; items: string[]; accen
           </span>
         ))}
       </div>
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value?: string }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white/60 p-3 text-center">
+      <div className="text-lg font-bold text-slate-900">{value ?? "—"}</div>
+      <div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div>
     </div>
   );
 }
