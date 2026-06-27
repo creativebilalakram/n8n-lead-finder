@@ -8,6 +8,8 @@ import {
   ExternalLink,
   AlertTriangle,
   Check,
+  Camera,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +28,54 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
     setClicked(isClicked(key));
     return subscribeClicked(() => setClicked(isClicked(key)));
   }, [key]);
+
+  // Website modernity analysis (AI-scored from a live screenshot)
+  type WebsiteAnalysis = { score: number; label: string; reason?: string; screenshotUrl?: string };
+  const [analysis, setAnalysis] = useState<WebsiteAnalysis | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const leadIdForAnalysis = typeof lead.id === "string" ? lead.id : undefined;
+  useEffect(() => {
+    if (!leadIdForAnalysis) return;
+    let cancelled = false;
+    void supabase
+      .from("leads")
+      .select("website_modern_score, website_label, website_analysis, website_screenshot_url")
+      .eq("id", leadIdForAnalysis)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled || !data || data.website_modern_score == null) return;
+        setAnalysis({
+          score: data.website_modern_score,
+          label: data.website_label || "",
+          reason: data.website_analysis ?? undefined,
+          screenshotUrl: data.website_screenshot_url ?? undefined,
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [leadIdForAnalysis]);
+
+  const analyzeWebsite = async () => {
+    if (!leadIdForAnalysis || !lead.website || analyzing) return;
+    setAnalyzing(true);
+    try {
+      const res = await fetch("/api/public/website/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadId: leadIdForAnalysis, url: lead.website }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      setAnalysis({ score: json.score, label: json.label, reason: json.reason, screenshotUrl: json.screenshotUrl });
+      toast.success(`Scored ${json.score}/10 · ${json.label}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Analysis failed");
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
   const tier = (lead.leadTier || "").toLowerCase();
   const tierBadge =
     tier === "hot"
@@ -180,6 +230,49 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
           </Row>
         )}
       </div>
+
+      {lead.website && (
+        <div className="mt-3">
+          {analysis ? (
+            <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white/60 px-3 py-2">
+              <span
+                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                  analysis.score < 6
+                    ? "bg-rose-100 text-rose-700"
+                    : analysis.score < 8
+                      ? "bg-amber-100 text-amber-700"
+                      : "bg-emerald-100 text-emerald-700"
+                }`}
+              >
+                {analysis.label || (analysis.score < 6 ? "OUTDATED" : "MODERN")} · {analysis.score}/10
+              </span>
+              {analysis.reason && (
+                <span className="truncate text-[11px] text-slate-500" title={analysis.reason}>
+                  {analysis.reason}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={analyzeWebsite}
+                disabled={analyzing}
+                className="ml-auto text-[10px] font-medium text-indigo-600 hover:underline disabled:opacity-50"
+              >
+                {analyzing ? "…" : "Re-analyze"}
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={analyzeWebsite}
+              disabled={analyzing || !leadIdForAnalysis}
+              className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white/70 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-white disabled:opacity-50"
+            >
+              {analyzing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Camera className="h-3 w-3" />}
+              {analyzing ? "Analyzing website…" : "Analyze website (AI)"}
+            </button>
+          )}
+        </div>
+      )}
 
       {muted && lead.rejectionReasons && lead.rejectionReasons.length > 0 && (
         <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2">

@@ -60,6 +60,11 @@ export type Database = {
           search_run_id: string
           title: string | null
           website: string | null
+          website_analysis: string | null
+          website_analyzed_at: string | null
+          website_label: string | null
+          website_modern_score: number | null
+          website_screenshot_url: string | null
         }
         Insert: {
           address?: string | null
@@ -88,6 +93,11 @@ export type Database = {
           search_run_id: string
           title?: string | null
           website?: string | null
+          website_analysis?: string | null
+          website_analyzed_at?: string | null
+          website_label?: string | null
+          website_modern_score?: number | null
+          website_screenshot_url?: string | null
         }
         Update: {
           address?: string | null
@@ -116,6 +126,11 @@ export type Database = {
           search_run_id?: string
           title?: string | null
           website?: string | null
+          website_analysis?: string | null
+          website_analyzed_at?: string | null
+          website_label?: string | null
+          website_modern_score?: number | null
+          website_screenshot_url?: string | null
         }
         Relationships: [
           {
