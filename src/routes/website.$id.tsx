@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { isPackageStale, type WebsiteDataPackage } from "@/lib/website-package";
+import { isPackageStale, stringifyWebsitePackage, type WebsiteDataPackage } from "@/lib/website-package";
 
 export const Route = createFileRoute("/website/$id")({
   head: () => ({ meta: [{ title: "Website Builder — LeadForge" }] }),
@@ -84,7 +84,7 @@ function WebsiteBuilderPage() {
   const copyJson = async () => {
     if (!pkg) return;
     try {
-      await navigator.clipboard.writeText(JSON.stringify(pkg, null, 2));
+      await navigator.clipboard.writeText(stringifyWebsitePackage(pkg));
       toast.success("Copied WDP JSON");
     } catch {
       toast.error("Copy failed");
@@ -96,7 +96,7 @@ function WebsiteBuilderPage() {
     const prompt =
       "Build a premium, modern, conversion-focused website for this business using ONLY the structured data below. Use the brand colors, logo, fonts, hero image, services, reviews, hours and contact info as the source of truth.\n\n" +
       "WEBSITE_DATA_PACKAGE:\n" +
-      JSON.stringify(pkg, null, 2);
+      stringifyWebsitePackage(pkg);
     const url = "https://lovable.dev/?autosubmit=true#prompt=" + encodeURIComponent(prompt);
     const a = document.createElement("a");
     a.href = url;
@@ -610,7 +610,7 @@ function WebsiteBuilderPage() {
               Preview Website Data Package (JSON)
             </summary>
             <pre className="mt-3 max-h-[500px] overflow-auto rounded-lg bg-slate-900 p-4 text-[11px] leading-relaxed text-slate-100">
-              {JSON.stringify(pkg, null, 2)}
+              {stringifyWebsitePackage(pkg)}
             </pre>
           </details>
         </>
