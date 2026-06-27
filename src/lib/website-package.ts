@@ -786,6 +786,41 @@ function extractReviews(raw: AnyRow): WebsiteDataPackage["reviews"] {
   return cleaned;
 }
 
+/** Aggregated review keywords (e.g. "kind doctor", "gentle care"). */
+function extractReviewsTags(raw: AnyRow): Array<{ title: string; count: number }> {
+  const out: Array<{ title: string; count: number }> = [];
+  for (const item of arr(pick(raw, "reviewsTags"))) {
+    const r = rec(item);
+    if (!r) continue;
+    const title = s(r.title) ?? s(r.name);
+    if (!title) continue;
+    out.push({ title, count: n(r.count) ?? 0 });
+  }
+  return out.sort((a, b) => b.count - a.count).slice(0, 15);
+}
+
+/** Owner replies on reviews — huge personalization signal for outreach. */
+function extractOwnerResponses(raw: AnyRow): Array<{ reviewExcerpt: string; response: string; date?: string }> {
+  const out: Array<{ reviewExcerpt: string; response: string; date?: string }> = [];
+  for (const item of arr(pick(raw, "reviews"))) {
+    const r = rec(item);
+    if (!r) continue;
+    const response =
+      s(r.responseFromOwnerText) ??
+      s(r.responseFromOwner) ??
+      s(rec(r.responseFromOwner)?.text);
+    if (!response) continue;
+    const reviewText = s(r.text) ?? s(r.reviewText) ?? "";
+    out.push({
+      reviewExcerpt: reviewText.slice(0, 140),
+      response: response.slice(0, 400),
+      date: s(r.responseFromOwnerDate) ?? s(r.publishedAtDate),
+    });
+    if (out.length >= 8) break;
+  }
+  return out;
+}
+
 function extractUpdates(raw: AnyRow): WebsiteDataPackage["updates"] {
   const posts = arr(pick(raw, "updatesFromCustomers", "ownerUpdates", "posts"));
   const out: WebsiteDataPackage["updates"] = [];
