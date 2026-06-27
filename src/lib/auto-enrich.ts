@@ -1,5 +1,4 @@
-import { loadFilterSettings } from "./filter-settings";
-import { applyFiltersToLead } from "./filter-settings";
+import { applyFiltersToLead, loadFilterSettings } from "./filter-settings";
 import { leadIdentityKey } from "./lead-identity";
 import { fetchCompactLeads, getLiveLeadSets } from "./leads-query";
 import type { Lead } from "./lead-types";
