@@ -273,7 +273,7 @@ async function scrapeCandidate(apifyToken: string, target: InstagramTarget): Pro
   const run = await runApifyActorAsync<Record<string, unknown>>(
     "apify~instagram-profile-scraper",
     { includeAboutSection: false, usernames: [target.username] },
-    { token: apifyToken, maxWaitMs: 150_000, pollIntervalMs: 3_000 },
+    { token: apifyToken, maxWaitMs: 180_000, pollIntervalMs: 8_000 },
   );
   if (!run.ok) return null;
   const items = run.items;
@@ -282,6 +282,18 @@ async function scrapeCandidate(apifyToken: string, target: InstagramTarget): Pro
 }
 
 export async function runInstagramAnalysis(
+  leadId: string,
+  hint?: { url?: string; username?: string },
+): Promise<RunResult> {
+  try {
+    return await runInstagramAnalysisInner(leadId, hint);
+  } catch (e) {
+    const err = e as { message?: string; cause?: { message?: string } };
+    return fail(502, `Instagram analysis crashed: ${err?.cause?.message || err?.message || String(e)}`);
+  }
+}
+
+async function runInstagramAnalysisInner(
   leadId: string,
   hint?: { url?: string; username?: string },
 ): Promise<RunResult> {
