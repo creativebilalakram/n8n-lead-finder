@@ -65,7 +65,7 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
     void supabase
       .from("leads")
       .select(
-        "website_modern_score, website_label, website_analysis, website_screenshot_url, instagram_score, instagram_label, instagram_analysis, instagram_username, instagram_url, instagram_followers, instagram_posts_count, instagram_verified, brand_dna_score, brand_dna_label, brand_dna_summary, brand_dna_screenshot_url, raw",
+        "website_modern_score, website_label, website_analysis, website_screenshot_url, instagram_score, instagram_label, instagram_analysis, instagram_username, instagram_url, instagram_followers, instagram_posts_count, instagram_verified, brand_dna_score, brand_dna_label, brand_dna_summary, brand_dna_screenshot_url, brand_dna_raw, website_raw, raw",
       )
       .eq("id", leadIdForAnalysis)
       .maybeSingle()
@@ -99,18 +99,14 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
             screenshotUrl: data.brand_dna_screenshot_url ?? undefined,
           });
         }
-        // Try to auto-detect an instagram handle from the raw Apify payload.
-        const rawObj = (data.raw ?? null) as Record<string, unknown> | null;
-        if (rawObj) {
-          const candidates: unknown[] = [];
-          const igs = rawObj.instagrams;
-          if (Array.isArray(igs)) candidates.push(...igs);
-          if (typeof rawObj.instagram === "string") candidates.push(rawObj.instagram);
-          const profiles = rawObj.profiles as Record<string, unknown> | undefined;
-          if (profiles && typeof profiles.instagram === "string") candidates.push(profiles.instagram);
-          const found = candidates.find((c) => typeof c === "string" && /instagram\.com/i.test(c as string));
-          if (typeof found === "string") setIgHandle(found);
-        }
+        // Auto-detect IG handle across all Apify payloads (Google Maps raw,
+        // Brand DNA socialLinks, website screenshot meta). Recursive scan is
+        // more reliable than guessing keys per actor.
+        const found =
+          findIgDeep(data.brand_dna_raw) ||
+          findIgDeep(data.raw) ||
+          findIgDeep(data.website_raw);
+        if (found) setIgHandle(found);
       });
     return () => {
       cancelled = true;
@@ -576,4 +572,27 @@ function Row({ icon, children }: { icon: React.ReactNode; children: React.ReactN
       <span className="min-w-0 flex-1 truncate">{children}</span>
     </div>
   );
+}
+
+// Recursively scan any Apify payload and return the first instagram.com URL.
+function findIgDeep(raw: unknown, depth = 0): string | null {
+  if (raw == null || depth > 6) return null;
+  if (typeof raw === "string") {
+    const m = raw.match(/https?:\/\/(?:www\.)?instagram\.com\/[A-Za-z0-9_.\-/?=&%]+/i);
+    return m ? m[0].replace(/[).,]+$/, "") : null;
+  }
+  if (Array.isArray(raw)) {
+    for (const v of raw) {
+      const f = findIgDeep(v, depth + 1);
+      if (f) return f;
+    }
+    return null;
+  }
+  if (typeof raw === "object") {
+    for (const v of Object.values(raw as Record<string, unknown>)) {
+      const f = findIgDeep(v, depth + 1);
+      if (f) return f;
+    }
+  }
+  return null;
 }

@@ -165,7 +165,9 @@ function LeadDetailPage() {
   const igHandle =
     (lead.instagram_username as string | null) ||
     (lead.instagram_url as string | null) ||
-    extractIgFromRaw(lead.raw);
+    extractIgDeep(lead.brand_dna_raw) ||
+    extractIgDeep(lead.raw) ||
+    extractIgDeep(lead.website_raw);
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 px-6 py-8">
@@ -504,6 +506,31 @@ function extractIgFromRaw(raw: unknown): string | null {
     if (typeof f === "string") return f;
   }
   if (typeof r.instagram === "string") return r.instagram;
+  return null;
+}
+
+// Recursively walk any Apify payload and find the first instagram.com URL.
+// Brand DNA actor nests social links under variable keys (socialLinks, links,
+// contacts, etc.), so a structural scan is more reliable than hardcoding keys.
+function extractIgDeep(raw: unknown, depth = 0): string | null {
+  if (raw == null || depth > 6) return null;
+  if (typeof raw === "string") {
+    const m = raw.match(/https?:\/\/(?:www\.)?instagram\.com\/[A-Za-z0-9_.\-/?=&%]+/i);
+    return m ? m[0].replace(/[).,]+$/, "") : null;
+  }
+  if (Array.isArray(raw)) {
+    for (const v of raw) {
+      const f = extractIgDeep(v, depth + 1);
+      if (f) return f;
+    }
+    return null;
+  }
+  if (typeof raw === "object") {
+    for (const v of Object.values(raw as Record<string, unknown>)) {
+      const f = extractIgDeep(v, depth + 1);
+      if (f) return f;
+    }
+  }
   return null;
 }
 
