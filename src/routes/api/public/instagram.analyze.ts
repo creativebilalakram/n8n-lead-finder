@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { fetchWithRetry } from "@/lib/fetch-retry";
 import { extractInstagramCandidatesFromPayload, extractInstagramFromPayload, extractInstagramTarget, type InstagramTarget } from "@/lib/brand-dna";
 
 function parseCount(value: unknown): number | null {
@@ -118,14 +119,22 @@ async function findInstagramViaGoogle(row: Record<string, unknown> | undefined):
 }
 
 async function scrapeInstagramCandidate(apifyToken: string, target: InstagramTarget): Promise<Record<string, unknown> | null> {
-  const apifyRes = await fetch(
-    `https://api.apify.com/v2/acts/apify~instagram-profile-scraper/run-sync-get-dataset-items?token=${apifyToken}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ includeAboutSection: false, usernames: [target.username] }),
-    },
-  );
+  let apifyRes: Response;
+  try {
+    apifyRes = await fetchWithRetry(
+      `https://api.apify.com/v2/acts/apify~instagram-profile-scraper/run-sync-get-dataset-items?token=${apifyToken}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        timeoutMs: 75_000,
+        retries: 1,
+        backoffMs: 1500,
+        body: JSON.stringify({ includeAboutSection: false, usernames: [target.username] }),
+      },
+    );
+  } catch {
+    return null;
+  }
   if (!apifyRes.ok) return null;
   const items = (await apifyRes.json()) as Array<Record<string, unknown>>;
   let item = items?.find((candidate) => !actorSaysMissing(candidate)) || items?.[0];
