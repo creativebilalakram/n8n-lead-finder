@@ -92,23 +92,26 @@ export async function triggerAutoEnrichBacklog(
   const total = queue.length;
   let i = 0;
   let triggered = 0;
+  let skipped = 0;
   async function worker() {
     while (i < queue.length) {
       const idx = i++;
       const leadId = queue[idx];
       try {
-        await fetch("/api/public/auto-enrich", {
+        const res = await fetch("/api/public/auto-enrich", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ leadId, force }),
         });
-        triggered++;
+        const data = (await res.json().catch(() => ({}))) as { skipped?: string };
+        if (data?.skipped) skipped++;
+        else triggered++;
       } catch {
         /* swallow */
       }
-      opts.onProgress?.(triggered, total);
+      opts.onProgress?.(triggered + skipped, total);
     }
   }
   await Promise.all(Array.from({ length: Math.min(concurrency, queue.length || 1) }, worker));
-  return { triggered, total };
+  return { triggered, skipped, total };
 }
