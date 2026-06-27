@@ -136,7 +136,7 @@ export function extractInstagramFromPayload(raw: unknown, depth = 0): InstagramT
 
   if (typeof raw === "string") {
     const url = raw.match(/(?:https?:\/\/)?(?:www\.)?instagram\.com\/[A-Za-z0-9._/?#=&%-]+/i)?.[0];
-    return extractInstagramTarget(url ?? raw);
+    return url ? extractInstagramTarget(url) : null;
   }
 
   if (Array.isArray(raw)) {
