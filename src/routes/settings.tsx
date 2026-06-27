@@ -284,14 +284,17 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
 function BackfillAutomationCard() {
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [retryFailed, setRetryFailed] = useState(false);
 
-  const run = async () => {
+  const run = async (mode: "new" | "retry-failed" | "force-all") => {
     setRunning(true);
     setProgress({ done: 0, total: 0 });
     try {
       const res = await triggerAutoEnrichBacklog({
         minScore: 0,
         concurrency: 2,
+        includeFailed: mode !== "new",
+        force: mode === "force-all",
         onProgress: (done, total) => setProgress({ done, total }),
       });
       if (res.total === 0) toast.info("No qualified leads need enrichment — all caught up.");
@@ -323,16 +326,39 @@ function BackfillAutomationCard() {
               Queuing… {progress.done}/{progress.total}
             </p>
           ) : null}
+          <p className="mt-2 text-xs text-slate-500">
+            Current state in DB: many leads have already been processed. "Retry failed" re-runs
+            ones that errored last time (bad screenshots, missing IG, etc.). "Force all" re-runs
+            every qualified lead from scratch.
+          </p>
         </div>
-        <button
-          type="button"
-          onClick={run}
-          disabled={running}
-          className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-slate-800 disabled:opacity-50"
-        >
-          {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
-          {running ? "Running…" : "Backfill now"}
-        </button>
+        <div className="flex flex-col gap-2">
+          <button
+            type="button"
+            onClick={() => run("new")}
+            disabled={running}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-slate-800 disabled:opacity-50"
+          >
+            {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+            {running ? "Running…" : "Backfill new"}
+          </button>
+          <button
+            type="button"
+            onClick={() => run("retry-failed")}
+            disabled={running}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-amber-300 bg-white px-4 py-2 text-xs font-semibold text-amber-700 shadow-sm hover:bg-amber-50 disabled:opacity-50"
+          >
+            Retry failed
+          </button>
+          <button
+            type="button"
+            onClick={() => run("force-all")}
+            disabled={running}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50"
+          >
+            Force all
+          </button>
+        </div>
       </div>
     </div>
   );
