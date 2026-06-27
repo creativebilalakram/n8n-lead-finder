@@ -20,6 +20,7 @@ import { useEffect, useState } from "react";
 import { ensureOpenedLoaded, isClicked, leadKey, markClicked, subscribeClicked, toggleClicked } from "@/lib/clicked-leads";
 import { supabase } from "@/integrations/supabase/client";
 import { computeAdjustedScore } from "@/lib/score-adjust";
+import { Link } from "@tanstack/react-router";
 
 export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean }) {
   const key = leadKey(lead);
@@ -294,9 +295,19 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
       )}
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="truncate text-base font-semibold text-slate-900">
-            {lead.title || "Untitled business"}
-          </h3>
+          {typeof lead.id === "string" ? (
+            <Link
+              to="/leads/$id"
+              params={{ id: lead.id }}
+              className="block truncate text-base font-semibold text-slate-900 hover:text-indigo-600 hover:underline"
+            >
+              {lead.title || "Untitled business"}
+            </Link>
+          ) : (
+            <h3 className="truncate text-base font-semibold text-slate-900">
+              {lead.title || "Untitled business"}
+            </h3>
+          )}
           {lead.categoryName && (
             <p className="mt-0.5 truncate text-xs text-slate-500">{lead.categoryName}</p>
           )}

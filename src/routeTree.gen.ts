@@ -15,6 +15,7 @@ import { Route as RunsRouteImport } from './routes/runs'
 import { Route as LeadsRouteImport } from './routes/leads'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as HistoryIndexRouteImport } from './routes/history.index'
+import { Route as LeadsIdRouteImport } from './routes/leads.$id'
 import { Route as HistoryIdRouteImport } from './routes/history.$id'
 import { Route as ApiPublicWebsiteAnalyzeRouteImport } from './routes/api/public/website.analyze'
 import { Route as ApiPublicLeadsStatusRouteImport } from './routes/api/public/leads.status'
@@ -53,6 +54,11 @@ const HistoryIndexRoute = HistoryIndexRouteImport.update({
   id: '/history/',
   path: '/history/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const LeadsIdRoute = LeadsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => LeadsRoute,
 } as any)
 const HistoryIdRoute = HistoryIdRouteImport.update({
   id: '/history/$id',
@@ -98,11 +104,12 @@ const ApiPublicApifyImportRoute = ApiPublicApifyImportRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/leads': typeof LeadsRoute
+  '/leads': typeof LeadsRouteWithChildren
   '/runs': typeof RunsRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/history/$id': typeof HistoryIdRoute
+  '/leads/$id': typeof LeadsIdRoute
   '/history/': typeof HistoryIndexRoute
   '/api/public/apify/import': typeof ApiPublicApifyImportRoute
   '/api/public/apify/runs': typeof ApiPublicApifyRunsRoute
@@ -114,11 +121,12 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/leads': typeof LeadsRoute
+  '/leads': typeof LeadsRouteWithChildren
   '/runs': typeof RunsRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/history/$id': typeof HistoryIdRoute
+  '/leads/$id': typeof LeadsIdRoute
   '/history': typeof HistoryIndexRoute
   '/api/public/apify/import': typeof ApiPublicApifyImportRoute
   '/api/public/apify/runs': typeof ApiPublicApifyRunsRoute
@@ -131,11 +139,12 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/leads': typeof LeadsRoute
+  '/leads': typeof LeadsRouteWithChildren
   '/runs': typeof RunsRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/history/$id': typeof HistoryIdRoute
+  '/leads/$id': typeof LeadsIdRoute
   '/history/': typeof HistoryIndexRoute
   '/api/public/apify/import': typeof ApiPublicApifyImportRoute
   '/api/public/apify/runs': typeof ApiPublicApifyRunsRoute
@@ -154,6 +163,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/settings'
     | '/history/$id'
+    | '/leads/$id'
     | '/history/'
     | '/api/public/apify/import'
     | '/api/public/apify/runs'
@@ -170,6 +180,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/settings'
     | '/history/$id'
+    | '/leads/$id'
     | '/history'
     | '/api/public/apify/import'
     | '/api/public/apify/runs'
@@ -186,6 +197,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/settings'
     | '/history/$id'
+    | '/leads/$id'
     | '/history/'
     | '/api/public/apify/import'
     | '/api/public/apify/runs'
@@ -198,7 +210,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  LeadsRoute: typeof LeadsRoute
+  LeadsRoute: typeof LeadsRouteWithChildren
   RunsRoute: typeof RunsRoute
   SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRoute
@@ -256,6 +268,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/history/'
       preLoaderRoute: typeof HistoryIndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/leads/$id': {
+      id: '/leads/$id'
+      path: '/$id'
+      fullPath: '/leads/$id'
+      preLoaderRoute: typeof LeadsIdRouteImport
+      parentRoute: typeof LeadsRoute
     }
     '/history/$id': {
       id: '/history/$id'
@@ -316,9 +335,19 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface LeadsRouteChildren {
+  LeadsIdRoute: typeof LeadsIdRoute
+}
+
+const LeadsRouteChildren: LeadsRouteChildren = {
+  LeadsIdRoute: LeadsIdRoute,
+}
+
+const LeadsRouteWithChildren = LeadsRoute._addFileChildren(LeadsRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  LeadsRoute: LeadsRoute,
+  LeadsRoute: LeadsRouteWithChildren,
   RunsRoute: RunsRoute,
   SearchRoute: SearchRoute,
   SettingsRoute: SettingsRoute,
