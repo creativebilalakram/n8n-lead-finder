@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Flame,
@@ -11,7 +11,8 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { listSearchRuns, migrateLegacyLocalStorage, type SearchRunSummary } from "@/lib/leads-db";
-import { supabase } from "@/integrations/supabase/client";
+import { useFilterSettings } from "@/lib/filter-settings";
+import { fetchCompactLeads, getLiveLeadSets } from "@/lib/leads-query";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -27,11 +28,17 @@ export const Route = createFileRoute("/")({
 });
 
 function DashboardPage() {
-  const [hotCount, setHotCount] = useState<number>(0);
+  const [settings] = useFilterSettings();
 
   const { data: searches = [], refetch } = useQuery<SearchRunSummary[]>({
     queryKey: ["search_runs"],
     queryFn: () => listSearchRuns(200),
+  });
+
+  const { data: rawLeads = [] } = useQuery({
+    queryKey: ["dashboard-leads-compact-v4"],
+    queryFn: () => fetchCompactLeads(),
+    retry: 1,
   });
 
   useEffect(() => {
@@ -41,19 +48,14 @@ function DashboardPage() {
     })();
   }, [refetch]);
 
-  useEffect(() => {
-    (async () => {
-      const { count } = await supabase
-        .from("leads")
-        .select("id", { count: "exact", head: true })
-        .eq("passed", true)
-        .eq("lead_tier", "Hot");
-      setHotCount(count ?? 0);
-    })();
-  }, [searches.length]);
-
-  const totalLeads = searches.reduce((s, r) => s + r.qualifiedCount, 0);
-  const totalFiltered = searches.reduce((s, r) => s + r.filteredCount, 0);
+  const liveStats = useMemo(() => {
+    const { qualified, filteredOut } = getLiveLeadSets(rawLeads, settings);
+    return {
+      qualified: qualified.length,
+      filtered: filteredOut.length,
+      hot: qualified.filter((l) => (l.leadTier || "").toLowerCase() === "hot").length,
+    };
+  }, [rawLeads, settings]);
 
   return (
     <div className="relative min-h-[calc(100vh-3rem)] overflow-hidden">
@@ -95,19 +97,19 @@ function DashboardPage() {
           <StatCard
             icon={<TrendingUp className="h-5 w-5" />}
             label="Qualified Leads"
-            value={totalLeads}
+            value={liveStats.qualified}
             tint="from-emerald-500 to-teal-500"
           />
           <StatCard
             icon={<Flame className="h-5 w-5" />}
             label="Hot Leads"
-            value={hotCount}
+            value={liveStats.hot}
             tint="from-rose-500 to-orange-500"
           />
           <StatCard
             icon={<Filter className="h-5 w-5" />}
             label="Filtered Out"
-            value={totalFiltered}
+            value={liveStats.filtered}
             tint="from-slate-500 to-slate-700"
           />
         </div>
@@ -130,9 +132,7 @@ function DashboardPage() {
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-fuchsia-500 text-white shadow-lg shadow-indigo-200">
                 <Search className="h-6 w-6" />
               </div>
-              <h3 className="mt-4 text-lg font-semibold text-slate-900">
-                No searches yet
-              </h3>
+              <h3 className="mt-4 text-lg font-semibold text-slate-900">No searches yet</h3>
               <p className="mt-1 text-sm text-slate-500">
                 Run your first search to populate your dashboard.
               </p>
@@ -161,9 +161,7 @@ function DashboardPage() {
                       {new Date(r.createdAt).toLocaleString()} ·{" "}
                       <span className="font-medium text-emerald-600">{r.qualifiedCount} kept</span>{" "}
                       ·{" "}
-                      <span className="font-medium text-slate-500">
-                        {r.filteredCount} filtered
-                      </span>
+                      <span className="font-medium text-slate-500">{r.filteredCount} filtered</span>
                     </div>
                   </div>
                   <ArrowRight className="h-4 w-4 shrink-0 text-slate-400 transition group-hover:translate-x-1 group-hover:text-indigo-600" />
