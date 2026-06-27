@@ -6,7 +6,7 @@
 // stale packages and offer a rebuild.
 import { extractBrandDnaInsights, extractInstagramFromPayload } from "./brand-dna";
 
-export const WDP_VERSION = 3;
+export const WDP_VERSION = 4;
 
 export type WebsiteDataPackage = {
   version: number;
@@ -20,6 +20,7 @@ export type WebsiteDataPackage = {
     shortDescription?: string;
     categories: string[];
     services: string[];
+    serviceDetails: Array<{ name: string; description?: string }>;
     attributes: string[];
     priceRange?: string;
     languages: string[];
@@ -171,22 +172,115 @@ function extractCategories(raw: AnyRow): string[] {
   ]).slice(0, 8);
 }
 
+/** Google Places `additionalInfo` is often an OBJECT keyed by group name
+ * (e.g. "Service options": [{...}, ...], "Highlights": [...]), but some
+ * variants ship it as an array of single-key objects. Normalize to
+ * Array<{ group, items: Array<{ label, on }>}> so downstream code is uniform.
+ * This was the silent cause of empty attributes / amenities / valueProps. */
+function normalizeAdditionalInfo(raw: AnyRow): Array<{ group: string; items: Array<{ label: string; on: boolean }> }> {
+  const out: Array<{ group: string; items: Array<{ label: string; on: boolean }> }> = [];
+  const push = (group: string, list: unknown) => {
+    const items: Array<{ label: string; on: boolean }> = [];
+    for (const item of arr(list)) {
+      const ir = rec(item);
+      if (!ir) continue;
+      for (const [label, on] of Object.entries(ir)) {
+        if (typeof on === "boolean") items.push({ label, on });
+      }
+    }
+    if (items.length) out.push({ group, items });
+  };
+  const ai = pick(raw, "additionalInfo");
+  if (Array.isArray(ai)) {
+    for (const block of ai) {
+      const r = rec(block);
+      if (!r) continue;
+      for (const [k, v] of Object.entries(r)) push(k, v);
+    }
+  } else if (isPlain(ai)) {
+    for (const [k, v] of Object.entries(ai)) push(k, v);
+  }
+  return out;
+}
+
+/** Short descriptions for commonly-detected services. Keeps website builder
+ * from rendering bare service names — gives each card a 1-line explainer. */
+const SERVICE_DESCRIPTIONS: Record<string, string> = {
+  "Dental Implants": "Permanent titanium tooth replacements that restore a natural smile and bite.",
+  "Implants": "Permanent titanium tooth replacements that restore a natural smile and bite.",
+  "Invisalign": "Clear removable aligners that straighten teeth discreetly without metal braces.",
+  "Veneers": "Custom porcelain shells that transform the front of teeth for a flawless smile.",
+  "Teeth Whitening": "Professional in-office whitening that brightens teeth several shades safely.",
+  "Whitening": "Professional in-office whitening that brightens teeth several shades safely.",
+  "Crowns": "Custom-fitted caps that restore strength, shape, and appearance of damaged teeth.",
+  "Bridges": "Fixed restorations that fill gaps from missing teeth using neighboring teeth as anchors.",
+  "Dentures": "Removable replacements for missing teeth with a natural-looking custom fit.",
+  "Root Canal": "Pain-relieving endodontic therapy that saves infected teeth from extraction.",
+  "Orthodontics": "Full-spectrum bite correction with braces or aligners for any age.",
+  "Braces": "Traditional and modern braces designed to align teeth and correct the bite.",
+  "Clear Aligners": "Discreet alternative to braces using a custom series of removable trays.",
+  "Cosmetic Dentistry": "Smile-design treatments that enhance appearance, color, shape, and alignment.",
+  "Pediatric Dentistry": "Gentle, kid-focused dental care that builds healthy lifelong habits.",
+  "Family Dentistry": "Comprehensive care for every age — from first tooth to advanced restorations.",
+  "General Dentistry": "Routine cleanings, exams, fillings, and preventive care for lasting oral health.",
+  "Sleep Apnea": "Oral-appliance therapy that opens airways for restful, snore-free sleep.",
+  "TMJ Treatment": "Targeted therapy to relieve jaw pain, clicking, and headaches caused by TMJ.",
+  "TMJ": "Targeted therapy to relieve jaw pain, clicking, and headaches caused by TMJ.",
+  "Wisdom Teeth": "Safe, comfortable removal of impacted or problematic wisdom teeth.",
+  "Extractions": "Gentle tooth removal with modern techniques for a smooth recovery.",
+  "Periodontics": "Specialized gum care to treat and prevent periodontal disease.",
+  "Endodontics": "Advanced root-canal expertise that preserves natural teeth.",
+  "Oral Surgery": "Surgical solutions for extractions, implants, and complex dental conditions.",
+  "Sedation Dentistry": "Anxiety-free dentistry with safe sedation options for relaxed visits.",
+  "Emergency Dentistry": "Same-day relief for dental pain, broken teeth, and urgent issues.",
+  "Smile Makeover": "A personalized combination of cosmetic treatments to transform your smile.",
+  "Botox": "FDA-approved injections that smooth fine lines and wrinkles for a refreshed look.",
+  "Dysport": "Fast-acting wrinkle relaxer ideal for frown lines and dynamic wrinkles.",
+  "Fillers": "Hyaluronic-acid dermal fillers that restore volume, contour, and youth.",
+  "Dermal Fillers": "Hyaluronic-acid dermal fillers that restore volume, contour, and youth.",
+  "Lip Filler": "Subtle lip enhancement that adds definition, volume, and natural shape.",
+  "Laser Hair Removal": "Long-term hair reduction with safe, fast laser technology for all skin types.",
+  "Microneedling": "Collagen-boosting treatment that smooths texture, scars, and fine lines.",
+  "Facials": "Customized facials that cleanse, hydrate, and rejuvenate every skin type.",
+  "Hydrafacial": "Signature 3-in-1 facial that cleanses, extracts, and hydrates in one session.",
+  "Chemical Peel": "Resurfacing peels that reveal smoother, brighter, more even-toned skin.",
+  "Coolsculpting": "Non-invasive fat reduction that contours stubborn areas without downtime.",
+  "Prp": "PRP therapy that uses your own platelets to regenerate skin and hair.",
+  "Ipl": "IPL photofacials that fade sun damage, redness, and pigmentation.",
+  "Morpheus8": "Radiofrequency microneedling that tightens skin and remodels deep tissue.",
+  "Kybella": "Injectable treatment that permanently dissolves stubborn under-chin fat.",
+  "Sculptra": "Collagen-stimulating injectable for gradual, natural-looking volume restoration.",
+  "Haircut": "Precision cuts tailored to your face shape, lifestyle, and personal style.",
+  "Hair Color": "Custom color services from subtle tones to bold transformations.",
+  "Balayage": "Hand-painted highlights for a sun-kissed, low-maintenance finish.",
+  "Highlights": "Dimensional highlights designed to brighten and elevate your color.",
+  "Extensions": "Premium hair extensions for length, volume, or both — installed seamlessly.",
+  "Blowout": "Smooth, voluminous blowouts that last for days.",
+  "Keratin": "Smoothing keratin treatments that tame frizz and add brilliant shine.",
+  "Lash Extensions": "Semi-permanent lash extensions for fuller, longer, lash-line perfection.",
+  "Lash Lift": "Natural-lash lift and tint that opens the eye without extensions.",
+  "Brow Lamination": "Set brows in a fuller, fluffier shape that lasts for weeks.",
+  "Waxing": "Smooth, precise waxing for face and body with minimal discomfort.",
+  "Threading": "Precision brow and facial threading for clean, defined shaping.",
+  "Makeup": "Professional makeup application for every occasion and skin tone.",
+  "Manicure": "Polished manicures using long-wear formulas and meticulous prep.",
+  "Pedicure": "Relaxing pedicures with deep care for healthy, beautiful feet.",
+  "Gel Nails": "Long-lasting gel manicures with a high-shine, chip-resistant finish.",
+  "Acrylics": "Sculpted acrylic enhancements in any length, shape, and design.",
+  "Massage": "Therapeutic massage tailored to relieve tension and restore balance.",
+  "Deep Tissue": "Focused deep-tissue work that targets chronic muscle tension.",
+  "Swedish Massage": "Classic relaxation massage that eases stress and improves circulation.",
+  "Acupuncture": "Traditional acupuncture for pain relief, stress, and whole-body wellness.",
+  "Chiropractic": "Hands-on chiropractic care that restores alignment and reduces pain.",
+  "Physical Therapy": "Personalized PT plans that rebuild strength, mobility, and confidence.",
+  "Consultation": "Complimentary consultations to map out the right plan for your goals.",
+};
+
 function extractServices(raw: AnyRow): string[] {
   const out: string[] = [];
-  const ai = arr(pick(raw, "additionalInfo"));
-  for (const block of ai) {
-    const r = rec(block);
-    if (!r) continue;
-    for (const [k, v] of Object.entries(r)) {
-      if (/service options|offerings|highlights|popular for|services/i.test(k)) {
-        for (const item of arr(v)) {
-          const ir = rec(item);
-          if (!ir) continue;
-          for (const [name, on] of Object.entries(ir)) {
-            if (on === true) out.push(name);
-          }
-        }
-      }
+  for (const block of normalizeAdditionalInfo(raw)) {
+    if (/service options|offerings|highlights|popular for|services/i.test(block.group)) {
+      for (const it of block.items) if (it.on) out.push(it.label);
     }
   }
   for (const item of arr(pick(raw, "services"))) {
@@ -236,6 +330,11 @@ function extractServices(raw: AnyRow): string[] {
   return uniq(out).slice(0, 25);
 }
 
+/** Pair detected services with short descriptions for the website builder. */
+function buildServiceDetails(services: string[]): Array<{ name: string; description?: string }> {
+  return services.map((name) => ({ name, description: SERVICE_DESCRIPTIONS[name] }));
+}
+
 /** Pull grouped amenity-style attributes from GBP's `additionalInfo`. */
 function extractAmenityGroups(raw: AnyRow) {
   const groups: Record<string, string[]> = {
@@ -255,20 +354,10 @@ function extractAmenityGroups(raw: AnyRow) {
     [/pets/i, "pets"],
     [/from the business|identifies as/i, "fromTheBusiness"],
   ];
-  for (const block of arr(pick(raw, "additionalInfo"))) {
-    const r = rec(block);
-    if (!r) continue;
-    for (const [k, v] of Object.entries(r)) {
-      const target = map.find(([re]) => re.test(k))?.[1];
-      if (!target) continue;
-      for (const item of arr(v)) {
-        const ir = rec(item);
-        if (!ir) continue;
-        for (const [name, on] of Object.entries(ir)) {
-          if (on === true) groups[target].push(name);
-        }
-      }
-    }
+  for (const block of normalizeAdditionalInfo(raw)) {
+    const target = map.find(([re]) => re.test(block.group))?.[1];
+    if (!target) continue;
+    for (const it of block.items) if (it.on) groups[target].push(it.label);
   }
   for (const k of Object.keys(groups)) groups[k] = uniq(groups[k]).slice(0, 12);
   return groups as WebsiteDataPackage["amenities"];
@@ -380,9 +469,70 @@ function extractFaq(raw: AnyRow): Array<{ question: string; answer?: string }> {
       .map((a) => s(rec(a)?.answer))
       .filter((v): v is string => Boolean(v));
     out.push({ question, answer: ans[0] });
-    if (out.length >= 6) break;
+    if (out.length >= 8) break;
   }
   return out;
+}
+
+/** Auto-generate FAQ entries from extracted services + business facts when
+ * the GBP Q&A section is empty (which is most leads). These read naturally
+ * on a website and beat showing no FAQ at all. */
+function buildFaqFallback(
+  existing: Array<{ question: string; answer?: string }>,
+  raw: AnyRow,
+  services: string[],
+  hours: Array<{ day: string; hours: string }>,
+  amenities: WebsiteDataPackage["amenities"],
+): Array<{ question: string; answer?: string }> {
+  const out = [...existing];
+  const seen = new Set(out.map((f) => f.question.toLowerCase()));
+  const add = (q: string, a?: string) => {
+    if (seen.has(q.toLowerCase())) return;
+    seen.add(q.toLowerCase());
+    out.push({ question: q, answer: a });
+  };
+  const name = s(pick(raw, "title", "name")) ?? "our practice";
+  if (services.length) {
+    add(
+      `What services does ${name} offer?`,
+      `We offer ${services.slice(0, 6).join(", ")}${services.length > 6 ? ", and more" : ""}.`,
+    );
+  }
+  if (hours.length) {
+    add("What are your hours?", hours.map((h) => `${h.day}: ${h.hours}`).join(" · "));
+  }
+  const phone = s(pick(raw, "phone", "phoneUnformatted"));
+  if (phone) add("How do I book an appointment?", `Call us at ${phone} or use the booking form on this page.`);
+  if (amenities.payments.length) add("What payment methods do you accept?", amenities.payments.join(", "));
+  if (amenities.accessibility.length) add("Is the location accessible?", amenities.accessibility.join(", "));
+  if (amenities.parking.length) add("Do you offer parking?", amenities.parking.join(", "));
+  const ins = arr(pick(raw, "additionalInfo")).length || isPlain(pick(raw, "additionalInfo"));
+  if (ins) {
+    const acceptsInsurance = JSON.stringify(raw).toLowerCase().includes("insurance");
+    if (acceptsInsurance) add("Do you accept insurance?", "Yes — please contact us with your provider details and we'll verify coverage.");
+  }
+  return out.slice(0, 10);
+}
+
+/** Build a hero-ready value proposition by combining the strongest signals. */
+function buildHeroValueProp(
+  taglineCandidates: string[],
+  services: string[],
+  attributes: string[],
+  reviewStats: WebsiteDataPackage["reviewStats"],
+): string | undefined {
+  // 1) An already-strong tagline wins
+  const strong = taglineCandidates.find((t) => /award|trusted|leading|premier|top-rated|best|board.?certified|expert/i.test(t));
+  if (strong) return strong;
+  // 2) Build one from facts
+  const parts: string[] = [];
+  if (attributes.length) parts.push(attributes.slice(0, 2).join(" · "));
+  if (services.length) parts.push(services.slice(0, 3).join(", "));
+  if (reviewStats.averageRating && reviewStats.total) {
+    parts.push(`${reviewStats.averageRating.toFixed(1)}★ from ${reviewStats.total.toLocaleString()} reviews`);
+  }
+  if (parts.length >= 2) return parts.join(" — ");
+  return taglineCandidates[0];
 }
 
 function extractCompetitors(raw: AnyRow): string[] {
@@ -674,6 +824,11 @@ export function buildWebsitePackage(
   const galleryByCategory = extractGalleryByCategory(raw);
   const seo = extractSeoFromBrand(enrichment?.brandDnaRaw);
   const colorRoles = extractColorRoles(enrichment?.brandDnaRaw);
+  const services = extractServices(raw);
+  const attributes = extractAttributes(raw);
+  const hours = extractHours(raw);
+  const heroValueProp = buildHeroValueProp(valueProps.candidates, services, attributes, reviewStats);
+  const faq = buildFaqFallback(extractFaq(raw), raw, services, hours, amenityGroups);
 
   // Website quality analysis (split summary into strengths/weaknesses heuristically)
   const wa = enrichment?.websiteAnalysis ?? undefined;
@@ -714,14 +869,15 @@ export function buildWebsitePackage(
         brand?.description,
         ...reviews.slice(0, 5).map((r) => r.text),
       ),
-      tagline: valueProps.tagline,
-      taglineCandidates: valueProps.candidates,
-      valueProps: valueProps.valueProps,
+      tagline: heroValueProp ?? valueProps.tagline,
+      taglineCandidates: uniq([heroValueProp, ...valueProps.candidates].filter((v): v is string => Boolean(v))).slice(0, 8),
+      valueProps: uniq([...valueProps.valueProps, ...attributes.slice(0, 4)]).slice(0, 10),
       description: brand?.description ?? s(pick(raw, "description")),
       shortDescription: s(pick(raw, "description"))?.split(/(?<=[.!?])\s/)[0],
       categories: extractCategories(raw),
-      services: extractServices(raw),
-      attributes: extractAttributes(raw),
+      services,
+      serviceDetails: buildServiceDetails(services),
+      attributes,
       priceRange: s(pick(raw, "price", "priceRange")),
       languages: uniq(arr(pick(raw, "languages")).map((l) => (typeof l === "string" ? l : ""))),
       claimed: b(pick(raw, "claimThisBusiness")) ?? b(pick(raw, "isClaimed")),
@@ -735,7 +891,7 @@ export function buildWebsitePackage(
         ...arr(pick(raw, "emails")).map((e) => (typeof e === "string" ? e : "")),
       ]).slice(0, 5),
       address: location,
-      hours: extractHours(raw),
+      hours,
       socials,
       bookingLinks: links.booking,
       menuLinks: links.menu,
@@ -761,7 +917,7 @@ export function buildWebsitePackage(
     updates,
     recentActivity,
     amenities: amenityGroups,
-    faq: extractFaq(raw),
+    faq,
     popularTimes: extractPopularTimes(raw),
     competitors: extractCompetitors(raw),
     websiteAnalysis,
