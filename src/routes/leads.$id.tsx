@@ -435,7 +435,7 @@ function LeadDetailPage() {
       </div>
 
       {/* Rejection reasons */}
-      {Array.isArray(lead.rejection_reasons) && (lead.rejection_reasons as unknown[]).length > 0 && (
+      {Array.isArray(lead.rejection_reasons) && (lead.rejection_reasons as unknown[]).length > 0 ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-5">
           <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-amber-800">
             <AlertTriangle className="h-4 w-4" /> Why it was filtered
@@ -446,7 +446,7 @@ function LeadDetailPage() {
             ))}
           </ul>
         </div>
-      )}
+      ) : null}
 
       {/* Raw payload */}
       <details className="rounded-2xl border border-slate-200 bg-white/70 p-5 backdrop-blur-xl">
