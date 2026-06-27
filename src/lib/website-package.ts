@@ -230,7 +230,7 @@ function extractReviews(raw: AnyRow): WebsiteDataPackage["reviews"] {
       text,
       date: s(r.publishedAtDate) ?? s(r.publishAt),
     });
-    if (cleaned.length >= 6) break;
+    if (cleaned.length >= 15) break;
   }
   return cleaned;
 }
