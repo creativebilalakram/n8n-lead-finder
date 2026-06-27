@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { fetchWithRetry } from "@/lib/fetch-retry";
 import { extractInstagramCandidatesFromPayload, extractInstagramFromPayload, extractInstagramTarget, type InstagramTarget } from "@/lib/brand-dna";
+import { runApifyActorAsync } from "@/lib/apify-async.server";
 
 function parseCount(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -119,24 +119,13 @@ async function findInstagramViaGoogle(row: Record<string, unknown> | undefined):
 }
 
 async function scrapeInstagramCandidate(apifyToken: string, target: InstagramTarget): Promise<Record<string, unknown> | null> {
-  let apifyRes: Response;
-  try {
-    apifyRes = await fetchWithRetry(
-      `https://api.apify.com/v2/acts/apify~instagram-profile-scraper/run-sync-get-dataset-items?token=${apifyToken}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        timeoutMs: 75_000,
-        retries: 1,
-        backoffMs: 1500,
-        body: JSON.stringify({ includeAboutSection: false, usernames: [target.username] }),
-      },
-    );
-  } catch {
-    return null;
-  }
-  if (!apifyRes.ok) return null;
-  const items = (await apifyRes.json()) as Array<Record<string, unknown>>;
+  const run = await runApifyActorAsync<Record<string, unknown>>(
+    "apify~instagram-profile-scraper",
+    { includeAboutSection: false, usernames: [target.username] },
+    { token: apifyToken, maxWaitMs: 180_000, pollIntervalMs: 4_000 },
+  );
+  if (!run.ok) return null;
+  const items = run.items;
   let item = items?.find((candidate) => !actorSaysMissing(candidate)) || items?.[0];
   if (actorSaysMissing(item)) item = (await fetchInstagramHtmlFallback(target.username).catch(() => null)) || item;
   return item && !actorSaysMissing(item) ? item : null;
