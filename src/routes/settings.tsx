@@ -117,7 +117,10 @@ function SettingsPage() {
       </div>
 
       {tab === "analytics" ? (
-        <AnalyticsPanel settings={settings} />
+        <>
+          <BackfillAutomationCard />
+          <AnalyticsPanel settings={settings} />
+        </>
       ) : (
       <div className="mt-6 space-y-5 rounded-3xl border border-slate-200 bg-white/70 p-6 shadow-sm backdrop-blur">
         <Pair
