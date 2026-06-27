@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { extractInstagramFromPayload, extractInstagramTarget } from "@/lib/brand-dna";
+import { extractInstagramCandidatesFromPayload, extractInstagramFromPayload, extractInstagramTarget, type InstagramTarget } from "@/lib/brand-dna";
 
 function parseCount(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -88,6 +88,51 @@ async function fetchInstagramHtmlFallback(username: string): Promise<Record<stri
   return parseInstagramHtml(html, username);
 }
 
+function uniqTargets(values: Array<InstagramTarget | null | undefined>): InstagramTarget[] {
+  const seen = new Set<string>();
+  const out: InstagramTarget[] = [];
+  for (const value of values) {
+    if (!value) continue;
+    const key = value.username.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(value);
+  }
+  return out;
+}
+
+async function findInstagramViaGoogle(row: Record<string, unknown> | undefined): Promise<InstagramTarget[]> {
+  const title = typeof row?.title === "string" ? row.title : "";
+  const website = typeof row?.website === "string" ? row.website.replace(/^https?:\/\//, "") : "";
+  if (!title && !website) return [];
+  const q = encodeURIComponent(`"${title || website}" Instagram`);
+  try {
+    const res = await fetch(`https://www.google.com/search?q=${q}`, {
+      headers: { "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122 Safari/537.36" },
+    });
+    const html = await res.text();
+    return extractInstagramCandidatesFromPayload(html).slice(0, 5);
+  } catch {
+    return [];
+  }
+}
+
+async function scrapeInstagramCandidate(apifyToken: string, target: InstagramTarget): Promise<Record<string, unknown> | null> {
+  const apifyRes = await fetch(
+    `https://api.apify.com/v2/acts/apify~instagram-profile-scraper/run-sync-get-dataset-items?token=${apifyToken}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ includeAboutSection: false, usernames: [target.username] }),
+    },
+  );
+  if (!apifyRes.ok) return null;
+  const items = (await apifyRes.json()) as Array<Record<string, unknown>>;
+  let item = items?.find((candidate) => !actorSaysMissing(candidate)) || items?.[0];
+  if (actorSaysMissing(item)) item = (await fetchInstagramHtmlFallback(target.username).catch(() => null)) || item;
+  return item && !actorSaysMissing(item) ? item : null;
+}
+
 // Scrape a lead's Instagram profile via Apify, then score it deterministically.
 // Persists structured profile + verdict to the leads row.
 export const Route = createFileRoute("/api/public/instagram/analyze")({
@@ -105,13 +150,14 @@ export const Route = createFileRoute("/api/public/instagram/analyze")({
         const supabaseUrl = process.env.SUPABASE_URL;
         const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
         let target = extractInstagramTarget(body.url || body.username || "");
+        let row: Record<string, unknown> | undefined;
 
         // If the card did not pass a handle, recover it from stored Google Maps,
         // Website, or Brand DNA raw payloads. Brand DNA commonly stores it as
         // { platform: "instagram", handle, url } inside pages/socialProfiles.
         if (!target && supabaseUrl && serviceKey) {
           const dbRes = await fetch(
-            `${supabaseUrl}/rest/v1/leads?id=eq.${leadId}&select=instagram_url,instagram_username,brand_dna_raw,raw,website_raw`,
+            `${supabaseUrl}/rest/v1/leads?id=eq.${leadId}&select=title,website,instagram_url,instagram_username,brand_dna_raw,raw,website_raw`,
             {
               headers: {
                 apikey: serviceKey,
@@ -120,7 +166,7 @@ export const Route = createFileRoute("/api/public/instagram/analyze")({
             },
           );
           const rows = dbRes.ok ? ((await dbRes.json()) as Array<Record<string, unknown>>) : [];
-          const row = rows[0];
+          row = rows[0];
           if (row) {
             target =
               extractInstagramTarget(row.instagram_url) ||
@@ -133,34 +179,25 @@ export const Route = createFileRoute("/api/public/instagram/analyze")({
 
         if (!target) return Response.json({ error: "Instagram profile not found in lead or Brand DNA data" }, { status: 400 });
 
-        // 1) Apify instagram-profile-scraper (sync)
-        const apifyRes = await fetch(
-          `https://api.apify.com/v2/acts/apify~instagram-profile-scraper/run-sync-get-dataset-items?token=${apifyToken}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              includeAboutSection: false,
-              usernames: [target.username],
-            }),
-          },
-        );
-        if (!apifyRes.ok) {
-          const t = await apifyRes.text();
-          return Response.json({ error: `Instagram scrape failed: ${apifyRes.status}`, detail: t.slice(0, 400) }, { status: 502 });
+        // Try every possible handle. Brand DNA/social links are sometimes stale
+        // (example: website links @elisummedspa, but live public IG is @elisum_medspa),
+        // so if a candidate fails, recover alternatives from the stored payloads and Google.
+        const candidates = uniqTargets([
+          target,
+          ...(row ? extractInstagramCandidatesFromPayload(row.brand_dna_raw) : []),
+          ...(row ? extractInstagramCandidatesFromPayload(row.raw) : []),
+          ...(row ? extractInstagramCandidatesFromPayload(row.website_raw) : []),
+          ...(await findInstagramViaGoogle(row)),
+        ]);
+        let item: Record<string, unknown> | null = null;
+        for (const candidate of candidates) {
+          item = await scrapeInstagramCandidate(apifyToken, candidate);
+          if (item) {
+            target = candidate;
+            break;
+          }
         }
-        const items = (await apifyRes.json()) as Array<Record<string, unknown>>;
-        let item = items?.find((candidate) => !actorSaysMissing(candidate)) || items?.[0];
-
-        // The Apify IG actor sometimes returns false "Post does not exist" for public
-        // profiles. If that happens, recover public metadata from Instagram HTML and
-        // still save a usable Instagram card instead of failing the workflow.
-        if (actorSaysMissing(item)) {
-          item = (await fetchInstagramHtmlFallback(target.username).catch(() => null)) || item;
-        }
-        if (!item || actorSaysMissing(item)) {
-          return Response.json({ error: "Profile not found by actor and public fallback failed", item }, { status: 404 });
-        }
+        if (!item) return Response.json({ error: "Profile not found after checking stored handles and public search", tried: candidates }, { status: 404 });
 
         const profile = {
           username: (item.username as string) ?? null,
