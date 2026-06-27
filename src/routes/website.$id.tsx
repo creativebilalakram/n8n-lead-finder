@@ -205,13 +205,13 @@ function WebsiteBuilderPage() {
             <KeyValue k="Description" v={pkg.business.description} multiline />
             <KeyValue k="Price" v={pkg.business.priceRange} />
             <KeyValue k="Claimed" v={pkg.business.claimed === true ? "Yes" : pkg.business.claimed === false ? "No" : undefined} />
-            <Pills label="Categories" items={pkg.business.categories} />
-            <Pills label="Services" items={pkg.business.services} />
-            <Pills label="Value props" items={pkg.business.valueProps} accent="emerald" />
-            <Pills label="Tagline candidates" items={pkg.business.taglineCandidates} />
-            <Pills label="Languages" items={pkg.business.languages} />
-            <Pills label="Service area" items={pkg.business.serviceArea} />
-            <Pills label="Attributes" items={pkg.business.attributes} accent="emerald" />
+            <Pills label="Categories" items={pkg.business.categories ?? []} />
+            <Pills label="Services" items={pkg.business.services ?? []} />
+            <Pills label="Value props" items={pkg.business.valueProps ?? []} accent="emerald" />
+            <Pills label="Tagline candidates" items={pkg.business.taglineCandidates ?? []} />
+            <Pills label="Languages" items={pkg.business.languages ?? []} />
+            <Pills label="Service area" items={pkg.business.serviceArea ?? []} />
+            <Pills label="Attributes" items={pkg.business.attributes ?? []} accent="emerald" />
           </Section>
 
           {/* Website Quality */}
@@ -235,19 +235,19 @@ function WebsiteBuilderPage() {
                     )}
                   </div>
                   {pkg.websiteAnalysis.summary && <p className="text-xs text-slate-700">{pkg.websiteAnalysis.summary}</p>}
-                  {pkg.websiteAnalysis.weaknesses.length > 0 && (
+                  {(pkg.websiteAnalysis.weaknesses?.length ?? 0) > 0 && (
                     <div>
                       <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-rose-600">Weaknesses</p>
                       <ul className="list-disc pl-5 text-xs text-slate-700">
-                        {pkg.websiteAnalysis.weaknesses.map((w, i) => <li key={i}>{w}</li>)}
+                        {pkg.websiteAnalysis.weaknesses?.map((w, i) => <li key={i}>{w}</li>)}
                       </ul>
                     </div>
                   )}
-                  {pkg.websiteAnalysis.strengths.length > 0 && (
+                  {(pkg.websiteAnalysis.strengths?.length ?? 0) > 0 && (
                     <div>
                       <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-600">Strengths</p>
                       <ul className="list-disc pl-5 text-xs text-slate-700">
-                        {pkg.websiteAnalysis.strengths.map((w, i) => <li key={i}>{w}</li>)}
+                        {pkg.websiteAnalysis.strengths?.map((w, i) => <li key={i}>{w}</li>)}
                       </ul>
                     </div>
                   )}
@@ -259,12 +259,12 @@ function WebsiteBuilderPage() {
           {/* Social proof */}
           <Section icon={<TrendingUp className="h-4 w-4 text-amber-600" />} title="Social proof">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Stat label="Avg rating" value={pkg.reviewStats.averageRating?.toFixed(1)} />
-              <Stat label="Total reviews" value={pkg.reviewStats.total?.toLocaleString()} />
-              <Stat label="Qualifying reviews" value={pkg.reviews.length.toString()} />
-              <Stat label="Owner updates" value={pkg.updates.length.toString()} />
+              <Stat label="Avg rating" value={pkg.reviewStats?.averageRating?.toFixed(1)} />
+              <Stat label="Total reviews" value={pkg.reviewStats?.total?.toLocaleString()} />
+              <Stat label="Qualifying reviews" value={(pkg.reviews?.length ?? 0).toString()} />
+              <Stat label="Owner updates" value={(pkg.updates?.length ?? 0).toString()} />
             </div>
-            {pkg.reviewStats.distribution && (
+            {pkg.reviewStats?.distribution && (
               <div className="mt-3 flex gap-2 text-[11px]">
                 {Object.entries(pkg.reviewStats.distribution).sort((a, b) => Number(b[0]) - Number(a[0])).map(([k, v]) => (
                   <span key={k} className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-700">{k}★ · {v}</span>
@@ -310,10 +310,10 @@ function WebsiteBuilderPage() {
                 </div>
               </div>
             )}
-            {(pkg.contact.bookingLinks.length + pkg.contact.menuLinks.length + pkg.contact.reservationLinks.length) > 0 && (
+            {((pkg.contact.bookingLinks?.length ?? 0) + (pkg.contact.menuLinks?.length ?? 0) + (pkg.contact.reservationLinks?.length ?? 0)) > 0 && (
               <div className="mt-3 space-y-1">
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Action links</p>
-                {[...pkg.contact.bookingLinks.map((u) => ["Book", u] as const), ...pkg.contact.reservationLinks.map((u) => ["Reserve", u] as const), ...pkg.contact.menuLinks.map((u) => ["Menu", u] as const)].map(([label, url]) => (
+                {[...(pkg.contact.bookingLinks ?? []).map((u) => ["Book", u] as const), ...(pkg.contact.reservationLinks ?? []).map((u) => ["Reserve", u] as const), ...(pkg.contact.menuLinks ?? []).map((u) => ["Menu", u] as const)].map(([label, url]) => (
                   <a key={url} href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-indigo-600 hover:underline">
                     <Link2 className="h-3 w-3" /> {label}: {url}
                   </a>
@@ -383,18 +383,18 @@ function WebsiteBuilderPage() {
                   </div>
                 )}
                 <Pills label="Fonts" items={pkg.brand.fonts} />
-                <Pills label="Personality" items={pkg.brand.personality} accent="emerald" />
+                <Pills label="Personality" items={pkg.brand.personality ?? []} accent="emerald" />
                 <KeyValue k="Tone" v={pkg.brand.tone} />
               </div>
             </div>
           </Section>
 
           {/* Amenities & trust */}
-          {Object.values(pkg.amenities).some((arr) => arr.length > 0) && (
+          {pkg.amenities && Object.values(pkg.amenities).some((arr) => Array.isArray(arr) && arr.length > 0) && (
             <Section icon={<Shield className="h-4 w-4 text-indigo-600" />} title="Amenities, accessibility & trust">
               <div className="grid gap-3 sm:grid-cols-2">
                 {(Object.entries(pkg.amenities) as Array<[keyof typeof pkg.amenities, string[]]>)
-                  .filter(([, v]) => v.length > 0)
+                  .filter(([, v]) => Array.isArray(v) && v.length > 0)
                   .map(([key, items]) => (
                     <Pills key={key} label={key.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase())} items={items} />
                   ))}
@@ -403,11 +403,11 @@ function WebsiteBuilderPage() {
           )}
 
           {/* SEO meta */}
-          {(pkg.seo.metaTitle || pkg.seo.metaDescription || pkg.seo.keywords.length > 0) && (
+          {pkg.seo && (pkg.seo.metaTitle || pkg.seo.metaDescription || (pkg.seo.keywords?.length ?? 0) > 0) && (
             <Section icon={<Search className="h-4 w-4 text-slate-600" />} title="SEO signals">
               <KeyValue k="Meta title" v={pkg.seo.metaTitle} />
               <KeyValue k="Meta desc" v={pkg.seo.metaDescription} multiline />
-              <Pills label="Keywords" items={pkg.seo.keywords} />
+              <Pills label="Keywords" items={pkg.seo.keywords ?? []} />
             </Section>
           )}
 
@@ -435,9 +435,9 @@ function WebsiteBuilderPage() {
                 ))}
               </div>
             )}
-            {pkg.media.galleryByCategory.length > 0 && (
+            {(pkg.media.galleryByCategory?.length ?? 0) > 0 && (
               <div className="mt-3 flex flex-wrap gap-1.5 text-[11px]">
-                {pkg.media.galleryByCategory.map((c) => (
+                {pkg.media.galleryByCategory?.map((c) => (
                   <span key={c.category} className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-700">
                     {c.category} · {c.count}
                   </span>
@@ -470,7 +470,7 @@ function WebsiteBuilderPage() {
           </Section>
 
           {/* FAQ */}
-          {pkg.faq.length > 0 && (
+          {(pkg.faq?.length ?? 0) > 0 && (
             <Section icon={<HelpCircle className="h-4 w-4 text-sky-600" />} title={`FAQ (${pkg.faq.length})`}>
               <div className="space-y-2">
                 {pkg.faq.map((q, i) => (
@@ -491,7 +491,7 @@ function WebsiteBuilderPage() {
           )}
 
           {/* Competitors */}
-          {pkg.competitors.length > 0 && (
+          {(pkg.competitors?.length ?? 0) > 0 && (
             <Section icon={<Users className="h-4 w-4 text-slate-600" />} title="People also search (positioning)">
               <Pills label="Competitors" items={pkg.competitors} />
             </Section>
