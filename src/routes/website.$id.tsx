@@ -68,7 +68,7 @@ function WebsiteBuilderPage() {
       const res = await fetch("/api/public/website-package/rebuild", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ leadId: id }),
+        body: JSON.stringify({ leadId: id, ensureEnriched: true }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Rebuild failed");
@@ -91,9 +91,31 @@ function WebsiteBuilderPage() {
     }
   };
 
-  const sendToGenerator = () => {
-    if (!pkg) return;
-    const url = buildLovablePromptUrl(pkg);
+  const sendToGenerator = async () => {
+    let finalPkg = pkg;
+    const progress = toast.loading(
+      "Preparing complete brief — running any missing enrichment…",
+    );
+    try {
+      const res = await fetch("/api/public/website-package/rebuild", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadId: id, ensureEnriched: true }),
+      });
+      if (res.ok) {
+        const json = (await res.json()) as { package?: typeof pkg };
+        if (json.package) finalPkg = json.package;
+      }
+    } catch {
+      // ignore — fall back to cached pkg
+    }
+    toast.dismiss(progress);
+    if (!finalPkg) {
+      toast.error("Website package unavailable — rebuild it first.");
+      return;
+    }
+    void refetch();
+    const url = buildLovablePromptUrl(finalPkg);
     const a = document.createElement("a");
     a.href = url;
     a.target = "_blank";

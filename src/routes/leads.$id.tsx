@@ -118,27 +118,30 @@ function LeadDetailPage() {
 
   const openInLovable = async () => {
     void markClicked(id).catch(() => {});
-    let pkg = (lead?.website_package ?? null) as WebsiteDataPackage | null;
-    if (!pkg) {
-      try {
-        const res = await fetch("/api/public/website-package/rebuild", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ leadId: id }),
-        });
-        if (res.ok) {
-          const json = (await res.json()) as { package?: WebsiteDataPackage };
-          pkg = json.package ?? null;
-        }
-      } catch {
-        // ignore
+    let pkg: WebsiteDataPackage | null = null;
+    const progress = toast.loading(
+      "Preparing complete brief — running any missing enrichment (website, brand, Instagram)…",
+    );
+    try {
+      const res = await fetch("/api/public/website-package/rebuild", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadId: id, ensureEnriched: true }),
+      });
+      if (res.ok) {
+        const json = (await res.json()) as { package?: WebsiteDataPackage };
+        pkg = json.package ?? null;
       }
+    } catch {
+      // ignore
     }
+    toast.dismiss(progress);
     const url = pkg ? buildLovablePromptUrl(pkg) : null;
     if (!url) {
       toast.error("Website package unavailable — rebuild it first.");
       return;
     }
+    toast.success("Brief ready — opening Lovable");
     const a = document.createElement("a");
     a.href = url;
     a.target = "_blank";
