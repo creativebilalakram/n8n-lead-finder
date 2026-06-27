@@ -60,12 +60,12 @@ export async function fetchCompactLeads(searchRunId?: string): Promise<Lead[]> {
   while (true) {
     let query = supabase
       .from("leads")
-      .select(COMPACT_LEADS_SELECT)
-      .order("created_at", { ascending: false })
-      .range(from, from + PAGE - 1);
+      .select(COMPACT_LEADS_SELECT);
     if (searchRunId) query = query.eq("search_run_id", searchRunId);
 
-    const { data, error } = await query;
+    const { data, error } = await query
+      .order("created_at", { ascending: false })
+      .range(from, from + PAGE - 1);
     if (error) throw error;
     const rows = (data ?? []) as CompactLeadRow[];
     out.push(...rows.map(rowToLead));
