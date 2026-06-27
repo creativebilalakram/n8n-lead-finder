@@ -459,12 +459,20 @@ function LeadDetailPage() {
         </pre>
       </details>
 
-      {lead.instagram_raw || lead.brand_dna_raw ? (
+      {lead.instagram_raw || lead.brand_dna_raw || lead.website_raw ? (
         <details className="rounded-2xl border border-slate-200 bg-white/70 p-5 backdrop-blur-xl">
           <summary className="cursor-pointer text-sm font-semibold text-slate-700">
             <ImageIcon className="mr-1.5 inline h-4 w-4 text-slate-500" />
             Other actor payloads
           </summary>
+          {lead.website_raw ? (
+            <div className="mt-3">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-700">Website (screenshot actor)</p>
+              <pre className="max-h-80 overflow-auto rounded-lg bg-slate-900 p-3 text-[11px] text-slate-100">
+                {JSON.stringify(lead.website_raw, null, 2)}
+              </pre>
+            </div>
+          ) : null}
           {lead.instagram_raw ? (
             <div className="mt-3">
               <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-fuchsia-700">Instagram</p>

@@ -85,6 +85,7 @@ export type Database = {
           website_analyzed_at: string | null
           website_label: string | null
           website_modern_score: number | null
+          website_raw: Json | null
           website_screenshot_url: string | null
         }
         Insert: {
@@ -139,6 +140,7 @@ export type Database = {
           website_analyzed_at?: string | null
           website_label?: string | null
           website_modern_score?: number | null
+          website_raw?: Json | null
           website_screenshot_url?: string | null
         }
         Update: {
@@ -193,6 +195,7 @@ export type Database = {
           website_analyzed_at?: string | null
           website_label?: string | null
           website_modern_score?: number | null
+          website_raw?: Json | null
           website_screenshot_url?: string | null
         }
         Relationships: [
