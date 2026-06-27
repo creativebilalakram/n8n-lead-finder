@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { extractBrandDnaInsights } from "@/lib/brand-dna";
+import { fetchWithRetry } from "@/lib/fetch-retry";
 
 // Run the solutionssmart/brand-dna Apify actor on a lead's website, then score
 // the returned brand system deterministically. AI is only used by website analysis.
@@ -18,13 +19,18 @@ export const Route = createFileRoute("/api/public/brand/analyze")({
         let startUrl = url.trim();
         if (!/^https?:\/\//i.test(startUrl)) startUrl = "https://" + startUrl;
 
-        // 1) Apify brand-dna actor (sync — can take a while; long sites may time out at the edge)
-        const apifyRes = await fetch(
-          `https://api.apify.com/v2/acts/solutionssmart~brand-dna/run-sync-get-dataset-items?token=${apifyToken}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
+        // 1) Apify brand-dna actor — 120s hard timeout + 1 retry to ride out transient Worker drops
+        let apifyRes: Response;
+        try {
+          apifyRes = await fetchWithRetry(
+            `https://api.apify.com/v2/acts/solutionssmart~brand-dna/run-sync-get-dataset-items?token=${apifyToken}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              timeoutMs: 120_000,
+              retries: 1,
+              backoffMs: 2000,
+              body: JSON.stringify({
               adaptiveConcurrency: true,
               captureScreenshot: true,
               debug: false,
@@ -41,9 +47,13 @@ export const Route = createFileRoute("/api/public/brand/analyze")({
               useProxy: true,
               useRenderingFallback: true,
               useTranslation: false,
-            }),
-          },
-        );
+              }),
+            },
+          );
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : "fetch failed";
+          return Response.json({ error: `Brand DNA fetch failed: ${msg}` }, { status: 502 });
+        }
         if (!apifyRes.ok) {
           const t = await apifyRes.text();
           return Response.json({ error: `Brand DNA scrape failed: ${apifyRes.status}`, detail: t.slice(0, 400) }, { status: 502 });
