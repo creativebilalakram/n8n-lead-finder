@@ -54,6 +54,10 @@ export async function triggerAutoEnrichLead(leadId: string, force = false) {
   return res.json().catch(() => ({}));
 }
 
+function isFailedStatus(status: string | null): boolean {
+  return status === "error" || status === "failed";
+}
+
 // Backfill trigger: finds every currently qualified lead across ALL runs that
 // hasn't been auto-enriched yet. Failed leads are skipped by default so the
 // system doesn't burn credits retrying known-bad sites/handles.
@@ -76,7 +80,7 @@ export async function triggerAutoEnrichBacklog(
     .filter((l) => {
       const s = ((l as Record<string, unknown>).autoEnrichStatus as string | null) ?? null;
       if (!s) return true;
-      if (includeFailed && s === "error") return true;
+      if (includeFailed && isFailedStatus(s)) return true;
       return false;
     })
     .map((l) => l.id as string)

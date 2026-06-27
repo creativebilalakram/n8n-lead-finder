@@ -70,7 +70,7 @@ export const Route = createFileRoute("/api/public/auto-enrich")({
           if (status === "running") {
             return Response.json({ leadId, skipped: "already_running" });
           }
-          if (status === "error") {
+          if (status === "error" || status === "failed") {
             return Response.json({ leadId, skipped: "previously_failed" });
           }
           if (status === "done" && finishedAt) {
