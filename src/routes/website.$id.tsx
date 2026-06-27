@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { isPackageStale, stringifyWebsitePackage, type WebsiteDataPackage } from "@/lib/website-package";
+import { buildLovablePromptUrl, isPackageStale, stringifyWebsitePackage, type WebsiteDataPackage } from "@/lib/website-package";
 
 export const Route = createFileRoute("/website/$id")({
   head: () => ({ meta: [{ title: "Website Builder — LeadForge" }] }),
@@ -93,11 +93,7 @@ function WebsiteBuilderPage() {
 
   const sendToGenerator = () => {
     if (!pkg) return;
-    const prompt =
-      "Build a premium, modern, conversion-focused website for this business using ONLY the structured data below. Use the brand colors, logo, fonts, hero image, services, reviews, hours and contact info as the source of truth.\n\n" +
-      "WEBSITE_DATA_PACKAGE:\n" +
-      stringifyWebsitePackage(pkg);
-    const url = "https://lovable.dev/?autosubmit=true#prompt=" + encodeURIComponent(prompt);
+    const url = buildLovablePromptUrl(pkg);
     const a = document.createElement("a");
     a.href = url;
     a.target = "_blank";
