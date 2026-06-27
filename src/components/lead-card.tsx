@@ -17,6 +17,7 @@ import type { Lead } from "@/lib/lead-types";
 import { useEffect, useState } from "react";
 import { ensureOpenedLoaded, isClicked, leadKey, markClicked, subscribeClicked, toggleClicked } from "@/lib/clicked-leads";
 import { supabase } from "@/integrations/supabase/client";
+import { computeAdjustedScore } from "@/lib/score-adjust";
 
 export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean }) {
   const key = leadKey(lead);
@@ -76,7 +77,13 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
     }
   };
 
-  const tier = (lead.leadTier || "").toLowerCase();
+  const baseScore = typeof lead.leadScore === "number" ? lead.leadScore : undefined;
+  const adjusted = analysis
+    ? computeAdjustedScore(baseScore, analysis.score)
+    : null;
+  const displayScore = adjusted ? adjusted.score : baseScore;
+  const displayTier = adjusted ? adjusted.tier : lead.leadTier;
+  const tier = (displayTier || "").toLowerCase();
   const tierBadge =
     tier === "hot"
       ? "bg-gradient-to-r from-rose-500 to-orange-500 text-white"
@@ -181,12 +188,15 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
             <p className="mt-0.5 truncate text-xs text-slate-500">{lead.categoryName}</p>
           )}
         </div>
-        {lead.leadTier && (
+        {displayTier && (
           <span
             className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ${tierBadge}`}
           >
-            {lead.leadTier}
-            {typeof lead.leadScore === "number" ? ` · ${lead.leadScore}` : ""}
+            {displayTier}
+            {typeof displayScore === "number" ? ` · ${displayScore}` : ""}
+            {adjusted && adjusted.bonus > 0 ? (
+              <span className="ml-1 opacity-90">(+{adjusted.bonus})</span>
+            ) : null}
           </span>
         )}
       </div>
