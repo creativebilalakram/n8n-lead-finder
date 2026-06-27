@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Activity, Download, RefreshCw, CheckCircle2, XCircle, Clock, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { saveSearchRun, listImportedApifyRunIds } from "@/lib/leads-db";
+import { triggerAutoEnrichForRun } from "@/lib/auto-enrich";
 import type { Lead } from "@/lib/lead-types";
 
 export const Route = createFileRoute("/runs")({
