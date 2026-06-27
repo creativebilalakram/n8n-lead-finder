@@ -85,6 +85,10 @@ export type Database = {
           website_analyzed_at: string | null
           website_label: string | null
           website_modern_score: number | null
+          website_package: Json | null
+          website_package_built_at: string | null
+          website_package_overrides: Json | null
+          website_package_version: number | null
           website_raw: Json | null
           website_screenshot_url: string | null
         }
@@ -140,6 +144,10 @@ export type Database = {
           website_analyzed_at?: string | null
           website_label?: string | null
           website_modern_score?: number | null
+          website_package?: Json | null
+          website_package_built_at?: string | null
+          website_package_overrides?: Json | null
+          website_package_version?: number | null
           website_raw?: Json | null
           website_screenshot_url?: string | null
         }
@@ -195,6 +203,10 @@ export type Database = {
           website_analyzed_at?: string | null
           website_label?: string | null
           website_modern_score?: number | null
+          website_package?: Json | null
+          website_package_built_at?: string | null
+          website_package_overrides?: Json | null
+          website_package_version?: number | null
           website_raw?: Json | null
           website_screenshot_url?: string | null
         }

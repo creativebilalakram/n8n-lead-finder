@@ -81,6 +81,11 @@ export const Route = createFileRoute("/api/public/brand/analyze")({
           });
         }
 
+        try {
+          const { rebuildWebsitePackageServer } = await import("@/lib/website-package.server");
+          await rebuildWebsitePackageServer(leadId);
+        } catch { /* non-fatal */ }
+
         return Response.json({ leadId, score, label, summary, screenshotUrl, insights });
       },
     },

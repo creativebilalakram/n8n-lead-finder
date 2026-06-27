@@ -121,6 +121,11 @@ export const Route = createFileRoute("/api/public/website/analyze")({
           });
         }
 
+        try {
+          const { rebuildWebsitePackageServer } = await import("@/lib/website-package.server");
+          await rebuildWebsitePackageServer(leadId);
+        } catch { /* non-fatal */ }
+
         return Response.json({ leadId, screenshotUrl, score, label, reason });
       },
     },
