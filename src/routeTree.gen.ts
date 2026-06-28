@@ -24,6 +24,7 @@ import { Route as ApiPublicWebsitePackageRebuildRouteImport } from './routes/api
 import { Route as ApiPublicLeadsStatusRouteImport } from './routes/api/public/leads.status'
 import { Route as ApiPublicLeadsStartRouteImport } from './routes/api/public/leads.start'
 import { Route as ApiPublicInstagramAnalyzeRouteImport } from './routes/api/public/instagram.analyze'
+import { Route as ApiPublicContactsEnrichRouteImport } from './routes/api/public/contacts.enrich'
 import { Route as ApiPublicBrandAnalyzeRouteImport } from './routes/api/public/brand.analyze'
 import { Route as ApiPublicApifyRunsRouteImport } from './routes/api/public/apify.runs'
 import { Route as ApiPublicApifyImportRouteImport } from './routes/api/public/apify.import'
@@ -105,6 +106,11 @@ const ApiPublicInstagramAnalyzeRoute =
     path: '/api/public/instagram/analyze',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicContactsEnrichRoute = ApiPublicContactsEnrichRouteImport.update({
+  id: '/api/public/contacts/enrich',
+  path: '/api/public/contacts/enrich',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicBrandAnalyzeRoute = ApiPublicBrandAnalyzeRouteImport.update({
   id: '/api/public/brand/analyze',
   path: '/api/public/brand/analyze',
@@ -135,6 +141,7 @@ export interface FileRoutesByFullPath {
   '/api/public/apify/import': typeof ApiPublicApifyImportRoute
   '/api/public/apify/runs': typeof ApiPublicApifyRunsRoute
   '/api/public/brand/analyze': typeof ApiPublicBrandAnalyzeRoute
+  '/api/public/contacts/enrich': typeof ApiPublicContactsEnrichRoute
   '/api/public/instagram/analyze': typeof ApiPublicInstagramAnalyzeRoute
   '/api/public/leads/start': typeof ApiPublicLeadsStartRoute
   '/api/public/leads/status': typeof ApiPublicLeadsStatusRoute
@@ -155,6 +162,7 @@ export interface FileRoutesByTo {
   '/api/public/apify/import': typeof ApiPublicApifyImportRoute
   '/api/public/apify/runs': typeof ApiPublicApifyRunsRoute
   '/api/public/brand/analyze': typeof ApiPublicBrandAnalyzeRoute
+  '/api/public/contacts/enrich': typeof ApiPublicContactsEnrichRoute
   '/api/public/instagram/analyze': typeof ApiPublicInstagramAnalyzeRoute
   '/api/public/leads/start': typeof ApiPublicLeadsStartRoute
   '/api/public/leads/status': typeof ApiPublicLeadsStatusRoute
@@ -176,6 +184,7 @@ export interface FileRoutesById {
   '/api/public/apify/import': typeof ApiPublicApifyImportRoute
   '/api/public/apify/runs': typeof ApiPublicApifyRunsRoute
   '/api/public/brand/analyze': typeof ApiPublicBrandAnalyzeRoute
+  '/api/public/contacts/enrich': typeof ApiPublicContactsEnrichRoute
   '/api/public/instagram/analyze': typeof ApiPublicInstagramAnalyzeRoute
   '/api/public/leads/start': typeof ApiPublicLeadsStartRoute
   '/api/public/leads/status': typeof ApiPublicLeadsStatusRoute
@@ -198,6 +207,7 @@ export interface FileRouteTypes {
     | '/api/public/apify/import'
     | '/api/public/apify/runs'
     | '/api/public/brand/analyze'
+    | '/api/public/contacts/enrich'
     | '/api/public/instagram/analyze'
     | '/api/public/leads/start'
     | '/api/public/leads/status'
@@ -218,6 +228,7 @@ export interface FileRouteTypes {
     | '/api/public/apify/import'
     | '/api/public/apify/runs'
     | '/api/public/brand/analyze'
+    | '/api/public/contacts/enrich'
     | '/api/public/instagram/analyze'
     | '/api/public/leads/start'
     | '/api/public/leads/status'
@@ -238,6 +249,7 @@ export interface FileRouteTypes {
     | '/api/public/apify/import'
     | '/api/public/apify/runs'
     | '/api/public/brand/analyze'
+    | '/api/public/contacts/enrich'
     | '/api/public/instagram/analyze'
     | '/api/public/leads/start'
     | '/api/public/leads/status'
@@ -259,6 +271,7 @@ export interface RootRouteChildren {
   ApiPublicApifyImportRoute: typeof ApiPublicApifyImportRoute
   ApiPublicApifyRunsRoute: typeof ApiPublicApifyRunsRoute
   ApiPublicBrandAnalyzeRoute: typeof ApiPublicBrandAnalyzeRoute
+  ApiPublicContactsEnrichRoute: typeof ApiPublicContactsEnrichRoute
   ApiPublicInstagramAnalyzeRoute: typeof ApiPublicInstagramAnalyzeRoute
   ApiPublicLeadsStartRoute: typeof ApiPublicLeadsStartRoute
   ApiPublicLeadsStatusRoute: typeof ApiPublicLeadsStatusRoute
@@ -373,6 +386,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicInstagramAnalyzeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/contacts/enrich': {
+      id: '/api/public/contacts/enrich'
+      path: '/api/public/contacts/enrich'
+      fullPath: '/api/public/contacts/enrich'
+      preLoaderRoute: typeof ApiPublicContactsEnrichRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/brand/analyze': {
       id: '/api/public/brand/analyze'
       path: '/api/public/brand/analyze'
@@ -411,6 +431,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicApifyImportRoute: ApiPublicApifyImportRoute,
   ApiPublicApifyRunsRoute: ApiPublicApifyRunsRoute,
   ApiPublicBrandAnalyzeRoute: ApiPublicBrandAnalyzeRoute,
+  ApiPublicContactsEnrichRoute: ApiPublicContactsEnrichRoute,
   ApiPublicInstagramAnalyzeRoute: ApiPublicInstagramAnalyzeRoute,
   ApiPublicLeadsStartRoute: ApiPublicLeadsStartRoute,
   ApiPublicLeadsStatusRoute: ApiPublicLeadsStatusRoute,
