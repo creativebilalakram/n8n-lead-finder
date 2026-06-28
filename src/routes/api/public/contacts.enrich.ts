@@ -310,6 +310,7 @@ async function runPipeline(businessId: string, jobId: string, businessName: stri
     return;
   }
   let emailsFound = 0;
+  const noEmailDMs: Array<{ id: string; url: string }> = [];
   for (const dm of insertedDMs) {
     const url = dm.person_profile_url as string | null;
     if (!url) continue;
@@ -318,7 +319,7 @@ async function runPipeline(businessId: string, jobId: string, businessName: stri
       { startUrls: [{ url, id: "1" }] },
       { token: apifyToken, maxWaitMs: 180_000, pollIntervalMs: 6_000 },
     );
-    if (!run.ok) continue;
+    if (!run.ok) { noEmailDMs.push({ id: dm.id as string, url }); continue; }
     const emails: Array<{ email: string; confidence?: string }> = [];
     for (const item of run.items) {
       const e = (item.email || item.foundEmail || item.workEmail) as string | undefined;
@@ -345,12 +346,75 @@ async function runPipeline(businessId: string, jobId: string, businessName: stri
         body: JSON.stringify(rows),
       });
       if (ins.ok) emailsFound += emails.length;
+    } else {
+      noEmailDMs.push({ id: dm.id as string, url });
     }
   }
+
+  // Fallback: harvestapi~linkedin-profile-scraper (Profile details + email search)
+  let fallbackEmailsFound = 0;
+  let fallbackError: string | null = null;
+  if (noEmailDMs.length) {
+    steps = await updateStep(jobId, steps, "emails", {
+      note: `Primary actor returned no email for ${noEmailDMs.length} profile(s) — trying HarvestAPI fallback`,
+    });
+    const harvest = await runApifyActorAsync<Json>(
+      "harvestapi~linkedin-profile-scraper",
+      {
+        profileScraperMode: "Profile details + email search ($10 per 1k)",
+        queries: noEmailDMs.map((d) => d.url),
+      },
+      { token: apifyToken, maxWaitMs: 240_000, pollIntervalMs: 6_000 },
+    );
+    if (!harvest.ok) {
+      fallbackError = harvest.error;
+    } else {
+      const norm = (s: string) => s.toLowerCase().replace(/\/+$/, "").replace(/^https?:\/\/(www\.)?/, "");
+      for (const item of harvest.items) {
+        const itemUrl = (item.linkedinUrl || item.profileUrl || item.url || item.input || item.query) as string | undefined;
+        const match = itemUrl
+          ? noEmailDMs.find((d) => norm(d.url) === norm(String(itemUrl)) || norm(String(itemUrl)).includes(norm(d.url)) || norm(d.url).includes(norm(String(itemUrl))))
+          : null;
+        const dmId = match?.id;
+        const collected: Array<{ email: string; confidence?: string }> = [];
+        const e = (item.email || item.foundEmail || item.workEmail || item.personalEmail) as string | undefined;
+        if (typeof e === "string" && e.includes("@")) collected.push({ email: e });
+        const arr = item.emails as unknown;
+        if (Array.isArray(arr)) {
+          for (const v of arr) {
+            if (typeof v === "string" && v.includes("@")) collected.push({ email: v });
+            else if (v && typeof v === "object" && typeof (v as Json).email === "string") collected.push({ email: (v as Json).email as string, confidence: (v as Json).confidence as string | undefined });
+          }
+        }
+        if (!collected.length || !dmId) continue;
+        const rows = collected.map((c) => ({
+          decision_maker_id: dmId,
+          business_id: businessId,
+          email: c.email,
+          confidence: c.confidence ?? "harvestapi-fallback",
+          raw: { ...c, source: "harvestapi~linkedin-profile-scraper" },
+        }));
+        const ins = await sb("linkedin_emails", {
+          method: "POST",
+          headers: { Prefer: "resolution=merge-duplicates,return=representation" },
+          body: JSON.stringify(rows),
+        });
+        if (ins.ok) fallbackEmailsFound += collected.length;
+      }
+    }
+  }
+
   steps = await updateStep(jobId, steps, "emails", {
     status: "completed",
     finishedAt: new Date().toISOString(),
-    counts: { emails: emailsFound },
+    counts: { emails: emailsFound + fallbackEmailsFound, primary: emailsFound, fallback: fallbackEmailsFound },
+    note: fallbackError
+      ? `Fallback (HarvestAPI) failed: ${fallbackError}`
+      : fallbackEmailsFound > 0
+        ? `Recovered ${fallbackEmailsFound} email(s) via HarvestAPI fallback`
+        : noEmailDMs.length && fallbackEmailsFound === 0
+          ? `Neither primary nor HarvestAPI fallback found emails for ${noEmailDMs.length} profile(s)`
+          : null,
   });
 
   await patchJob(jobId, { status: "completed", finished_at: new Date().toISOString() });
