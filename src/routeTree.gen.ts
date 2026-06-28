@@ -20,6 +20,10 @@ import { Route as ContactsIndexRouteImport } from './routes/contacts.index'
 import { Route as WebsiteIdRouteImport } from './routes/website.$id'
 import { Route as LeadsIdRouteImport } from './routes/leads.$id'
 import { Route as HistoryIdRouteImport } from './routes/history.$id'
+import { Route as ContactsWebsiteContactsRouteImport } from './routes/contacts.website-contacts'
+import { Route as ContactsRulesRouteImport } from './routes/contacts.rules'
+import { Route as ContactsProcessingRouteImport } from './routes/contacts.processing'
+import { Route as ContactsEmailsRouteImport } from './routes/contacts.emails'
 import { Route as ContactsDecisionMakersRouteImport } from './routes/contacts.decision-makers'
 import { Route as ApiPublicAutoEnrichRouteImport } from './routes/api/public/auto-enrich'
 import { Route as ApiPublicWebsiteAnalyzeRouteImport } from './routes/api/public/website.analyze'
@@ -87,6 +91,26 @@ const HistoryIdRoute = HistoryIdRouteImport.update({
   path: '/history/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ContactsWebsiteContactsRoute = ContactsWebsiteContactsRouteImport.update({
+  id: '/website-contacts',
+  path: '/website-contacts',
+  getParentRoute: () => ContactsRoute,
+} as any)
+const ContactsRulesRoute = ContactsRulesRouteImport.update({
+  id: '/rules',
+  path: '/rules',
+  getParentRoute: () => ContactsRoute,
+} as any)
+const ContactsProcessingRoute = ContactsProcessingRouteImport.update({
+  id: '/processing',
+  path: '/processing',
+  getParentRoute: () => ContactsRoute,
+} as any)
+const ContactsEmailsRoute = ContactsEmailsRouteImport.update({
+  id: '/emails',
+  path: '/emails',
+  getParentRoute: () => ContactsRoute,
+} as any)
 const ContactsDecisionMakersRoute = ContactsDecisionMakersRouteImport.update({
   id: '/decision-makers',
   path: '/decision-makers',
@@ -152,6 +176,10 @@ export interface FileRoutesByFullPath {
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/contacts/decision-makers': typeof ContactsDecisionMakersRoute
+  '/contacts/emails': typeof ContactsEmailsRoute
+  '/contacts/processing': typeof ContactsProcessingRoute
+  '/contacts/rules': typeof ContactsRulesRoute
+  '/contacts/website-contacts': typeof ContactsWebsiteContactsRoute
   '/history/$id': typeof HistoryIdRoute
   '/leads/$id': typeof LeadsIdRoute
   '/website/$id': typeof WebsiteIdRoute
@@ -175,6 +203,10 @@ export interface FileRoutesByTo {
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/contacts/decision-makers': typeof ContactsDecisionMakersRoute
+  '/contacts/emails': typeof ContactsEmailsRoute
+  '/contacts/processing': typeof ContactsProcessingRoute
+  '/contacts/rules': typeof ContactsRulesRoute
+  '/contacts/website-contacts': typeof ContactsWebsiteContactsRoute
   '/history/$id': typeof HistoryIdRoute
   '/leads/$id': typeof LeadsIdRoute
   '/website/$id': typeof WebsiteIdRoute
@@ -200,6 +232,10 @@ export interface FileRoutesById {
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/contacts/decision-makers': typeof ContactsDecisionMakersRoute
+  '/contacts/emails': typeof ContactsEmailsRoute
+  '/contacts/processing': typeof ContactsProcessingRoute
+  '/contacts/rules': typeof ContactsRulesRoute
+  '/contacts/website-contacts': typeof ContactsWebsiteContactsRoute
   '/history/$id': typeof HistoryIdRoute
   '/leads/$id': typeof LeadsIdRoute
   '/website/$id': typeof WebsiteIdRoute
@@ -226,6 +262,10 @@ export interface FileRouteTypes {
     | '/search'
     | '/settings'
     | '/contacts/decision-makers'
+    | '/contacts/emails'
+    | '/contacts/processing'
+    | '/contacts/rules'
+    | '/contacts/website-contacts'
     | '/history/$id'
     | '/leads/$id'
     | '/website/$id'
@@ -249,6 +289,10 @@ export interface FileRouteTypes {
     | '/search'
     | '/settings'
     | '/contacts/decision-makers'
+    | '/contacts/emails'
+    | '/contacts/processing'
+    | '/contacts/rules'
+    | '/contacts/website-contacts'
     | '/history/$id'
     | '/leads/$id'
     | '/website/$id'
@@ -273,6 +317,10 @@ export interface FileRouteTypes {
     | '/search'
     | '/settings'
     | '/contacts/decision-makers'
+    | '/contacts/emails'
+    | '/contacts/processing'
+    | '/contacts/rules'
+    | '/contacts/website-contacts'
     | '/history/$id'
     | '/leads/$id'
     | '/website/$id'
@@ -393,6 +441,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HistoryIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/contacts/website-contacts': {
+      id: '/contacts/website-contacts'
+      path: '/website-contacts'
+      fullPath: '/contacts/website-contacts'
+      preLoaderRoute: typeof ContactsWebsiteContactsRouteImport
+      parentRoute: typeof ContactsRoute
+    }
+    '/contacts/rules': {
+      id: '/contacts/rules'
+      path: '/rules'
+      fullPath: '/contacts/rules'
+      preLoaderRoute: typeof ContactsRulesRouteImport
+      parentRoute: typeof ContactsRoute
+    }
+    '/contacts/processing': {
+      id: '/contacts/processing'
+      path: '/processing'
+      fullPath: '/contacts/processing'
+      preLoaderRoute: typeof ContactsProcessingRouteImport
+      parentRoute: typeof ContactsRoute
+    }
+    '/contacts/emails': {
+      id: '/contacts/emails'
+      path: '/emails'
+      fullPath: '/contacts/emails'
+      preLoaderRoute: typeof ContactsEmailsRouteImport
+      parentRoute: typeof ContactsRoute
+    }
     '/contacts/decision-makers': {
       id: '/contacts/decision-makers'
       path: '/decision-makers'
@@ -475,11 +551,19 @@ declare module '@tanstack/react-router' {
 
 interface ContactsRouteChildren {
   ContactsDecisionMakersRoute: typeof ContactsDecisionMakersRoute
+  ContactsEmailsRoute: typeof ContactsEmailsRoute
+  ContactsProcessingRoute: typeof ContactsProcessingRoute
+  ContactsRulesRoute: typeof ContactsRulesRoute
+  ContactsWebsiteContactsRoute: typeof ContactsWebsiteContactsRoute
   ContactsIndexRoute: typeof ContactsIndexRoute
 }
 
 const ContactsRouteChildren: ContactsRouteChildren = {
   ContactsDecisionMakersRoute: ContactsDecisionMakersRoute,
+  ContactsEmailsRoute: ContactsEmailsRoute,
+  ContactsProcessingRoute: ContactsProcessingRoute,
+  ContactsRulesRoute: ContactsRulesRoute,
+  ContactsWebsiteContactsRoute: ContactsWebsiteContactsRoute,
   ContactsIndexRoute: ContactsIndexRoute,
 }
 
