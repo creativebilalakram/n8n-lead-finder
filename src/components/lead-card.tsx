@@ -71,6 +71,7 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
   };
   const [brand, setBrand] = useState<BrandAnalysis | null>(null);
   const [brandLoading, setBrandLoading] = useState(false);
+  const [opening, setOpening] = useState(false);
   const leadIdForAnalysis = typeof lead.id === "string" ? lead.id : undefined;
   useEffect(() => {
     if (!leadIdForAnalysis) return;
@@ -241,13 +242,8 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
   const detectedIgUsername = brand?.instagramUsername || extractInstagramTarget(igHandle || "")?.username;
 
   const openLovable = async () => {
-    // Open a placeholder tab synchronously inside the user gesture.
-    // Browsers block window.open / programmatic clicks called after an
-    // `await`, which is why the button appeared to do nothing.
-    const placeholder = window.open("about:blank", "_blank", "noopener");
-    void markClicked(key).catch(() => {
-      toast.error("Couldn't save opened status");
-    });
+    if (opening) return;
+    setOpening(true);
     let url: string | undefined;
     const leadId = typeof lead.id === "string" ? lead.id : undefined;
     const progress = toast.loading(
@@ -255,10 +251,6 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
     );
     try {
       if (leadId) {
-        // Always rebuild with ensureEnriched=true so the brief contains
-        // every available section (website screenshot + AI score, Brand
-        // DNA, Instagram). The endpoint skips analyses that already ran,
-        // so this is cheap on already-enriched leads.
         let pkg: WebsiteDataPackage | null = null;
         for (let attempt = 0; attempt < 2 && !pkg; attempt++) {
           const res = await fetch("/api/public/website-package/rebuild", {
@@ -277,26 +269,33 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
         if (pkg) url = buildLovablePromptUrl(pkg);
       }
     } catch {
-      // ignore — fall through to legacy fallback below
+      // ignore — handled below
     }
     toast.dismiss(progress);
     if (!url) {
-      placeholder?.close();
       toast.error("Website package unavailable — rebuild it from the Website page first.");
+      setOpening(false);
       return;
     }
-    toast.success("Brief ready — opening Lovable");
-    if (placeholder) {
-      placeholder.location.href = url;
-    } else {
-      // Popup blocker swallowed the synchronous open — fall back to a
-      // foreground navigation in a new tab via an anchor click.
+    void markClicked(key).catch(() => {});
+    const opened = window.open(url, "_blank", "noopener,noreferrer");
+    if (!opened) {
+      // Popup blocker stopped us — anchor click is the most reliable fallback.
       const a = document.createElement("a");
       a.href = url;
       a.target = "_blank";
       a.rel = "noopener noreferrer";
+      document.body.appendChild(a);
       a.click();
+      a.remove();
+      toast.success("Brief ready", {
+        description: "If a new tab didn't open, click here to launch Lovable.",
+        action: { label: "Open", onClick: () => window.open(url, "_blank", "noopener,noreferrer") },
+      });
+    } else {
+      toast.success("Brief ready — opening Lovable");
     }
+    setOpening(false);
   };
 
   return (
@@ -608,18 +607,31 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
         <button
           type="button"
           onClick={openLovable}
+          disabled={opening}
           className={`group/btn relative w-full overflow-hidden rounded-xl px-4 py-3 text-sm font-semibold text-white transition ${
             clicked
               ? "bg-gradient-to-r from-emerald-600 to-teal-600 shadow-md shadow-emerald-500/30 hover:shadow-lg"
               : muted
                 ? "bg-slate-700 hover:bg-slate-800"
                 : "bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 shadow-md shadow-indigo-500/30 hover:shadow-lg hover:shadow-indigo-500/40"
-          }`}
+          } ${opening ? "cursor-wait opacity-80" : ""}`}
         >
           <span className="relative flex items-center justify-center gap-2">
-            {clicked ? <Check className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
-            {clicked ? "Opened — open again" : "Open in Lovable"}
-            <ExternalLink className="h-3.5 w-3.5 opacity-80 transition group-hover/btn:translate-x-0.5" />
+            {opening ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : clicked ? (
+              <Check className="h-4 w-4" />
+            ) : (
+              <Sparkles className="h-4 w-4" />
+            )}
+            {opening
+              ? "Preparing brief…"
+              : clicked
+                ? "Opened — open again"
+                : "Open in Lovable"}
+            {!opening && (
+              <ExternalLink className="h-3.5 w-3.5 opacity-80 transition group-hover/btn:translate-x-0.5" />
+            )}
           </span>
         </button>
       </div>
