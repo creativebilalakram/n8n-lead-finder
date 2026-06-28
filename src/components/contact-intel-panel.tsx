@@ -341,6 +341,15 @@ export function ContactIntelPanel({ leadId, businessName, website }: Props) {
                   const score = dm.manual_score_override ?? dm.decision_maker_score;
                   const dmEmails = emailsByDm.get(dm.id) ?? [];
                   const isHigh = (dm.priority || "").toLowerCase() === "high";
+                  const emailsStep = (steps as Record<string, { status?: string; note?: string | null }>).emails || {};
+                  const emailsRunning = emailsStep.status === "running";
+                  const emailsDone = emailsStep.status === "completed" || emailsStep.status === "skipped" || emailsStep.status === "failed";
+                  const isFindingThis = findingEmailFor === dm.id;
+                  // Spinner if explicitly finding this DM, or a global emails-step run is in flight
+                  // and this DM still has no email recorded.
+                  const showSpinner = isFindingThis || (emailsRunning && dmEmails.length === 0);
+                  // Show "no email found via Apify" only after the step has finished without producing an email.
+                  const showNoEmail = !showSpinner && emailsDone && dmEmails.length === 0 && !!dm.person_profile_url;
                   return (
                     <li
                       key={dm.id}
@@ -380,18 +389,33 @@ export function ContactIntelPanel({ leadId, businessName, website }: Props) {
                         <div className="mt-2 flex justify-end">
                           <button
                             type="button"
-                            disabled={running || findingEmailFor === dm.id}
+                            disabled={running || isFindingThis || emailsRunning}
                             onClick={() => findEmailForDm(dm.id)}
                             className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
                             title={dmEmails.length ? "Search again for emails on this profile" : "Find email for this person"}
                           >
-                            {findingEmailFor === dm.id ? (
+                            {showSpinner ? (
                               <Loader2 className="h-3 w-3 animate-spin" />
                             ) : (
                               <Mail className="h-3 w-3" />
                             )}
-                            {dmEmails.length ? "Re-find email" : "Find email"}
+                            {showSpinner
+                              ? "Searching email…"
+                              : dmEmails.length
+                                ? "Re-find email"
+                                : "Find email"}
                           </button>
+                        </div>
+                      )}
+                      {showSpinner && (
+                        <div className="mt-2 flex items-center gap-1.5 rounded-md bg-sky-50 px-2 py-1 text-[11px] text-sky-700">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Apify is searching this profile for an email…
+                        </div>
+                      )}
+                      {showNoEmail && (
+                        <div className="mt-2 rounded-md bg-amber-50 px-2 py-1 text-[11px] text-amber-800">
+                          No email found via Apify (primary + HarvestAPI fallback). Click "Find email" to retry.
                         </div>
                       )}
                       {dmEmails.length > 0 && (
