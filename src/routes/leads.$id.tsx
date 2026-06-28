@@ -34,6 +34,7 @@ import {
 import { computeAdjustedScore } from "@/lib/score-adjust";
 import { extractBrandDnaInsights, extractInstagramFromPayload } from "@/lib/brand-dna";
 import { triggerAutoEnrichLead } from "@/lib/auto-enrich";
+import { acquireLovableOpenLock, openLovableTabOnce } from "@/lib/lovable-open";
 
 export const Route = createFileRoute("/leads/$id")({
   head: () => ({ meta: [{ title: "Lead detail — LeadForge" }] }),
@@ -69,6 +70,7 @@ function LeadDetailPage() {
 
   const [analyzing, setAnalyzing] = useState<null | "website" | "instagram" | "brand">(null);
   const [reRunning, setReRunning] = useState(false);
+  const [openingLovable, setOpeningLovable] = useState(false);
 
   const websiteScore = (lead?.website_modern_score as number | null) ?? null;
   const brandScore = (lead?.brand_dna_score as number | null) ?? null;
@@ -117,6 +119,13 @@ function LeadDetailPage() {
   };
 
   const openInLovable = async () => {
+    const openKey = `lead:${id}`;
+    const releaseOpenLock = acquireLovableOpenLock(openKey);
+    if (!releaseOpenLock) {
+      toast.info("Already preparing/opened for this lead — duplicate click ignored.");
+      return;
+    }
+    setOpeningLovable(true);
     void markClicked(id).catch(() => {});
     let pkg: WebsiteDataPackage | null = null;
     const progress = toast.loading(
@@ -139,23 +148,20 @@ function LeadDetailPage() {
     const url = pkg ? buildLovablePromptUrl(pkg) : null;
     if (!url) {
       toast.error("Website package unavailable — rebuild it first.");
+      setOpeningLovable(false);
+      releaseOpenLock();
       return;
     }
     toast.success("Brief ready — opening Lovable");
-    const a = document.createElement("a");
-    a.href = url;
-    a.target = "_blank";
-    a.rel = "noopener noreferrer";
-    const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
-    a.dispatchEvent(
-      new MouseEvent("click", {
-        bubbles: true,
-        cancelable: true,
-        view: window,
-        ctrlKey: !isMac,
-        metaKey: isMac,
-      }),
-    );
+    const opened = openLovableTabOnce(url, openKey);
+    if (!opened) {
+      toast.success("Brief ready", {
+        description: "If a new tab didn't open, click here to launch Lovable.",
+        action: { label: "Open", onClick: () => openLovableTabOnce(url, `${openKey}:manual:${Date.now()}`) },
+      });
+    }
+    setOpeningLovable(false);
+    releaseOpenLock();
   };
 
   if (isLoading) {
@@ -311,11 +317,12 @@ function LeadDetailPage() {
         <div className="mt-5 flex flex-wrap gap-2">
           <button
             onClick={openInLovable}
-            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-indigo-500/30 hover:shadow-lg"
+            disabled={openingLovable}
+            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-indigo-500/30 hover:shadow-lg disabled:cursor-wait disabled:opacity-80"
           >
-            <Sparkles className="h-4 w-4" />
-            Open in Lovable
-            <ExternalLink className="h-3.5 w-3.5" />
+            {openingLovable ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            {openingLovable ? "Preparing…" : "Open in Lovable"}
+            {!openingLovable && <ExternalLink className="h-3.5 w-3.5" />}
           </button>
           <Link
             to="/website/$id"

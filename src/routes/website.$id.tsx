@@ -28,6 +28,7 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { buildLovablePromptUrl, isPackageStale, stringifyWebsitePackage, type WebsiteDataPackage } from "@/lib/website-package";
+import { acquireLovableOpenLock, openLovableTabOnce } from "@/lib/lovable-open";
 
 export const Route = createFileRoute("/website/$id")({
   head: () => ({ meta: [{ title: "Website Builder — LeadForge" }] }),
@@ -58,6 +59,7 @@ function WebsiteBuilderPage() {
   const router = useRouter();
   const { data, isLoading, refetch } = useQuery({ queryKey: ["wdp", id], queryFn: () => fetchRow(id) });
   const [rebuilding, setRebuilding] = useState(false);
+  const [sending, setSending] = useState(false);
 
   const pkg = data?.website_package ?? null;
   const stale = useMemo(() => isPackageStale(data?.website_package_version), [data]);
@@ -92,6 +94,13 @@ function WebsiteBuilderPage() {
   };
 
   const sendToGenerator = async () => {
+    const openKey = `lead:${id}`;
+    const releaseOpenLock = acquireLovableOpenLock(openKey);
+    if (!releaseOpenLock) {
+      toast.info("Already preparing/opened for this lead — duplicate click ignored.");
+      return;
+    }
+    setSending(true);
     let finalPkg = pkg;
     const progress = toast.loading(
       "Preparing complete brief — running any missing enrichment…",
@@ -112,18 +121,23 @@ function WebsiteBuilderPage() {
     toast.dismiss(progress);
     if (!finalPkg) {
       toast.error("Website package unavailable — rebuild it first.");
+      setSending(false);
+      releaseOpenLock();
       return;
     }
     void refetch();
     const url = buildLovablePromptUrl(finalPkg);
-    const a = document.createElement("a");
-    a.href = url;
-    a.target = "_blank";
-    a.rel = "noopener noreferrer";
-    const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
-    a.dispatchEvent(
-      new MouseEvent("click", { bubbles: true, cancelable: true, view: window, ctrlKey: !isMac, metaKey: isMac }),
-    );
+    const opened = openLovableTabOnce(url, openKey);
+    if (!opened) {
+      toast.success("Brief ready", {
+        description: "If a new tab didn't open, click here to launch Lovable.",
+        action: { label: "Open", onClick: () => openLovableTabOnce(url, `${openKey}:manual:${Date.now()}`) },
+      });
+    } else {
+      toast.success("Brief ready — opening Lovable");
+    }
+    setSending(false);
+    releaseOpenLock();
   };
 
   if (isLoading) {
@@ -200,10 +214,11 @@ function WebsiteBuilderPage() {
           </button>
           <button
             onClick={sendToGenerator}
-            disabled={!pkg}
-            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-indigo-500/30 hover:shadow-lg disabled:opacity-50"
+            disabled={!pkg || sending}
+            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-indigo-500/30 hover:shadow-lg disabled:cursor-wait disabled:opacity-50"
           >
-            <Sparkles className="h-3.5 w-3.5" /> Send to website generator
+            {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+            {sending ? "Preparing…" : "Send to website generator"}
           </button>
         </div>
       </div>

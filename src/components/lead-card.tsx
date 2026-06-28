@@ -23,6 +23,7 @@ import { computeAdjustedScore } from "@/lib/score-adjust";
 import { Link } from "@tanstack/react-router";
 import { extractBrandDnaInsights, extractInstagramFromPayload, extractInstagramTarget } from "@/lib/brand-dna";
 import { buildLovablePromptUrl, type WebsiteDataPackage } from "@/lib/website-package";
+import { acquireLovableOpenLock, openLovableTabOnce } from "@/lib/lovable-open";
 
 export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean }) {
   const key = leadKey(lead);
@@ -242,10 +243,15 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
   const detectedIgUsername = brand?.instagramUsername || extractInstagramTarget(igHandle || "")?.username;
 
   const openLovable = async () => {
-    if (opening) return;
+    const leadId = typeof lead.id === "string" ? lead.id : undefined;
+    const openKey = `lead:${leadId ?? key}`;
+    const releaseOpenLock = acquireLovableOpenLock(openKey);
+    if (!releaseOpenLock) {
+      toast.info("Already preparing/opened for this lead — duplicate click ignored.");
+      return;
+    }
     setOpening(true);
     let url: string | undefined;
-    const leadId = typeof lead.id === "string" ? lead.id : undefined;
     const progress = toast.loading(
       "Preparing complete brief — running any missing enrichment (website, brand, Instagram)…",
     );
@@ -275,27 +281,21 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
     if (!url) {
       toast.error("Website package unavailable — rebuild it from the Website page first.");
       setOpening(false);
+      releaseOpenLock();
       return;
     }
     void markClicked(key).catch(() => {});
-    const opened = window.open(url, "_blank", "noopener,noreferrer");
+    const opened = openLovableTabOnce(url, openKey);
     if (!opened) {
-      // Popup blocker stopped us — anchor click is the most reliable fallback.
-      const a = document.createElement("a");
-      a.href = url;
-      a.target = "_blank";
-      a.rel = "noopener noreferrer";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
       toast.success("Brief ready", {
         description: "If a new tab didn't open, click here to launch Lovable.",
-        action: { label: "Open", onClick: () => window.open(url, "_blank", "noopener,noreferrer") },
+        action: { label: "Open", onClick: () => openLovableTabOnce(url, `${openKey}:manual:${Date.now()}`) },
       });
     } else {
       toast.success("Brief ready — opening Lovable");
     }
     setOpening(false);
+    releaseOpenLock();
   };
 
   return (
