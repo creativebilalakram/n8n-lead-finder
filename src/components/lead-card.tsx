@@ -618,6 +618,18 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
       )}
 
       <div className="mt-auto pt-5">
+        {typeof lead.id === "string" && (
+          <Link
+            to="/leads/$id"
+            params={{ id: lead.id }}
+            hash="contacts"
+            className="mb-2 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50/60 px-4 py-2 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100"
+          >
+            <Users className="h-3.5 w-3.5" />
+            Find decision makers &amp; emails
+            <ExternalLink className="h-3 w-3 opacity-70" />
+          </Link>
+        )}
         <button
           type="button"
           onClick={openLovable}
