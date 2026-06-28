@@ -1,0 +1,335 @@
+import { useEffect, useMemo, useState } from "react";
+import { Users, Mail, Phone, Linkedin, Loader2, Sparkles, ExternalLink, RefreshCw, Globe, Crown } from "lucide-react";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { CopyButton } from "@/components/copy-button";
+import type { Business, ContactJob, DecisionMaker, WebsiteContacts, LinkedinEmail } from "@/lib/contacts-db";
+import { startEnrichment } from "@/lib/contacts-db";
+
+type Props = {
+  leadId: string;
+  businessName: string;
+  website: string | null;
+};
+
+export function ContactIntelPanel({ leadId, businessName, website }: Props) {
+  const [business, setBusiness] = useState<Business | null>(null);
+  const [job, setJob] = useState<ContactJob | null>(null);
+  const [dms, setDms] = useState<DecisionMaker[]>([]);
+  const [contacts, setContacts] = useState<WebsiteContacts | null>(null);
+  const [emails, setEmails] = useState<LinkedinEmail[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [starting, setStarting] = useState(false);
+
+  const load = async () => {
+    const { data: bizRows } = await supabase
+      .from("businesses")
+      .select("*")
+      .eq("lead_id", leadId)
+      .order("updated_at", { ascending: false })
+      .limit(1);
+    const biz = (bizRows?.[0] as Business | undefined) ?? null;
+    setBusiness(biz);
+    if (!biz) {
+      setLoading(false);
+      return;
+    }
+    const [{ data: jobRows }, { data: dmRows }, { data: wcRows }, { data: emRows }] = await Promise.all([
+      supabase.from("contact_jobs").select("*").eq("business_id", biz.id).order("started_at", { ascending: false }).limit(1),
+      supabase.from("decision_makers").select("*").eq("business_id", biz.id).order("decision_maker_score", { ascending: false }),
+      supabase.from("website_contacts").select("*").eq("business_id", biz.id).order("updated_at", { ascending: false }).limit(1),
+      supabase.from("linkedin_emails").select("*").eq("business_id", biz.id).order("created_at", { ascending: false }),
+    ]);
+    setJob((jobRows?.[0] as ContactJob | undefined) ?? null);
+    setDms((dmRows as DecisionMaker[] | null) ?? []);
+    setContacts((wcRows?.[0] as WebsiteContacts | undefined) ?? null);
+    setEmails((emRows as LinkedinEmail[] | null) ?? []);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leadId]);
+
+  // Poll while running
+  useEffect(() => {
+    if (!job || job.status !== "running") return;
+    const t = setInterval(() => { void load(); }, 4000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job?.status, business?.id]);
+
+  const run = async () => {
+    setStarting(true);
+    try {
+      await startEnrichment(businessName, website, leadId);
+      toast.success("Contact Intelligence started — running in background");
+      // Give backend a beat then load
+      setTimeout(() => { void load(); }, 1200);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to start");
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  const emailsByDm = useMemo(() => {
+    const map = new Map<string, LinkedinEmail[]>();
+    for (const e of emails) {
+      const list = map.get(e.decision_maker_id) ?? [];
+      list.push(e);
+      map.set(e.decision_maker_id, list);
+    }
+    return map;
+  }, [emails]);
+
+  const steps = job?.steps ?? {};
+  const stepBadge = (s?: { status: string }) => {
+    const st = s?.status ?? "pending";
+    const cls =
+      st === "completed"
+        ? "bg-emerald-100 text-emerald-700"
+        : st === "running"
+          ? "bg-amber-100 text-amber-700 animate-pulse"
+          : st === "failed"
+            ? "bg-rose-100 text-rose-700"
+            : st === "skipped"
+              ? "bg-slate-100 text-slate-500"
+              : "bg-slate-100 text-slate-500";
+    return <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${cls}`}>{st}</span>;
+  };
+
+  const running = job?.status === "running";
+  const hasData = dms.length > 0 || contacts || emails.length > 0;
+
+  return (
+    <div className="rounded-2xl border border-white/70 bg-white/80 p-5 shadow-sm backdrop-blur-xl">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Users className="h-4 w-4 text-indigo-600" />
+          <h2 className="text-sm font-semibold text-slate-900">Contact Intelligence</h2>
+          {job && (
+            <span
+              className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ring-1 ${
+                job.status === "completed"
+                  ? "bg-emerald-100 text-emerald-700 ring-emerald-200"
+                  : job.status === "running"
+                    ? "bg-amber-100 text-amber-700 ring-amber-200"
+                    : job.status === "failed"
+                      ? "bg-rose-100 text-rose-700 ring-rose-200"
+                      : "bg-slate-100 text-slate-600 ring-slate-200"
+              }`}
+            >
+              {job.status}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {business && (
+            <button
+              onClick={() => void load()}
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-50"
+              title="Refresh"
+            >
+              <RefreshCw className="h-3 w-3" /> Refresh
+            </button>
+          )}
+          <button
+            onClick={run}
+            disabled={starting || running}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-indigo-600 to-violet-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm shadow-indigo-500/30 hover:shadow disabled:opacity-60"
+          >
+            {starting || running ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+            {running ? "Running…" : hasData ? "Re-run enrichment" : "Find decision makers"}
+          </button>
+        </div>
+      </div>
+      <p className="mt-1 text-[11px] text-slate-500">
+        Auto-prefilled from this lead: <span className="font-medium text-slate-700">{businessName}</span>
+        {website ? <> · {website.replace(/^https?:\/\//, "")}</> : null}
+      </p>
+
+      {/* Step progress */}
+      {job && (
+        <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
+          <StepCell label="Website scraper" badge={stepBadge((steps as Record<string, { status: string }>).website)} />
+          <StepCell label="Decision makers" badge={stepBadge((steps as Record<string, { status: string }>).decision_makers)} />
+          <StepCell label="LinkedIn → email" badge={stepBadge((steps as Record<string, { status: string }>).emails)} />
+        </div>
+      )}
+
+      {loading ? (
+        <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading…
+        </div>
+      ) : !business ? (
+        <p className="mt-3 text-xs text-slate-500">
+          No enrichment yet. Click "Find decision makers" — we'll use this lead's business name and website to find LinkedIn profiles, work emails, and site contacts.
+        </p>
+      ) : (
+        <div className="mt-4 space-y-5">
+          {/* Decision makers */}
+          <section>
+            <h3 className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+              <Crown className="h-3 w-3 text-amber-500" /> Decision makers
+              <span className="text-slate-400">({dms.length})</span>
+            </h3>
+            {dms.length === 0 ? (
+              <p className="text-xs text-slate-500">{running ? "Searching LinkedIn…" : "None yet."}</p>
+            ) : (
+              <ul className="space-y-2">
+                {dms.map((dm) => {
+                  const score = dm.manual_score_override ?? dm.decision_maker_score;
+                  const dmEmails = emailsByDm.get(dm.id) ?? [];
+                  const isHigh = (dm.priority || "").toLowerCase() === "high";
+                  return (
+                    <li
+                      key={dm.id}
+                      className={`rounded-xl border p-3 ${isHigh ? "border-amber-200 bg-amber-50/50" : "border-slate-200 bg-white/70"}`}
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="truncate text-sm font-semibold text-slate-900">
+                              {dm.person_name || "Unknown"}
+                            </span>
+                            <span
+                              className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase ${
+                                isHigh ? "bg-amber-200 text-amber-900" : "bg-slate-200 text-slate-700"
+                              }`}
+                            >
+                              {dm.priority || "—"} · {score}
+                            </span>
+                          </div>
+                          {dm.person_title && (
+                            <p className="truncate text-[11px] text-slate-600">{dm.person_title}</p>
+                          )}
+                        </div>
+                        {dm.person_profile_url && (
+                          <a
+                            href={dm.person_profile_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] font-medium text-sky-700 hover:bg-sky-100"
+                          >
+                            <Linkedin className="h-3 w-3" /> Profile
+                            <ExternalLink className="h-2.5 w-2.5" />
+                          </a>
+                        )}
+                      </div>
+                      {dmEmails.length > 0 && (
+                        <div className="mt-2 space-y-1">
+                          {dmEmails.map((e) => (
+                            <div
+                              key={e.id}
+                              className="flex items-center justify-between gap-2 rounded-md bg-emerald-50/70 px-2 py-1 text-[11px]"
+                            >
+                              <a href={`mailto:${e.email}`} className="truncate font-mono text-emerald-800 hover:underline">
+                                {e.email}
+                              </a>
+                              <div className="flex items-center gap-1">
+                                {e.confidence && (
+                                  <span className="rounded-full bg-white px-1.5 py-0.5 text-[9px] font-medium text-emerald-700">
+                                    {e.confidence}
+                                  </span>
+                                )}
+                                <CopyButton value={e.email} />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+
+          {/* Website contacts */}
+          {contacts && (
+            <section>
+              <h3 className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+                <Globe className="h-3 w-3 text-slate-500" /> Website contacts
+              </h3>
+              <div className="grid gap-2 sm:grid-cols-3">
+                <ContactList icon={<Mail className="h-3 w-3" />} label="Emails" items={contacts.emails} mailto />
+                <ContactList icon={<Phone className="h-3 w-3" />} label="Phones" items={contacts.phones} tel />
+                <ContactList icon={<Linkedin className="h-3 w-3" />} label="LinkedIn" items={contacts.linkedins} link />
+              </div>
+              {Object.entries(contacts.socials || {}).some(([, v]) => Array.isArray(v) && v.length > 0) && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {Object.entries(contacts.socials).flatMap(([net, arr]) =>
+                    (arr || []).slice(0, 3).map((u) => (
+                      <a
+                        key={`${net}-${u}`}
+                        href={u}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] text-slate-600 hover:bg-slate-50"
+                      >
+                        {net.replace(/s$/, "")}
+                      </a>
+                    )),
+                  )}
+                </div>
+              )}
+            </section>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StepCell({ label, badge }: { label: string; badge: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white/70 px-2.5 py-1.5">
+      <span className="truncate text-slate-600">{label}</span>
+      {badge}
+    </div>
+  );
+}
+
+function ContactList({
+  icon,
+  label,
+  items,
+  mailto,
+  tel,
+  link,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  items: string[];
+  mailto?: boolean;
+  tel?: boolean;
+  link?: boolean;
+}) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white/70 px-2.5 py-2">
+      <div className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+        {icon} {label} <span className="text-slate-400">({items?.length || 0})</span>
+      </div>
+      <ul className="space-y-0.5 text-[11px]">
+        {(items || []).slice(0, 6).map((v) => {
+          const href = mailto ? `mailto:${v}` : tel ? `tel:${v}` : link ? v : undefined;
+          return (
+            <li key={v} className="flex items-center justify-between gap-1">
+              {href ? (
+                <a href={href} target={link ? "_blank" : undefined} rel="noopener noreferrer" className="truncate text-slate-800 hover:text-indigo-600 hover:underline">
+                  {v}
+                </a>
+              ) : (
+                <span className="truncate text-slate-800">{v}</span>
+              )}
+              <CopyButton value={v} />
+            </li>
+          );
+        })}
+        {(items?.length || 0) === 0 && <li className="text-slate-400">—</li>}
+      </ul>
+    </div>
+  );
+}
