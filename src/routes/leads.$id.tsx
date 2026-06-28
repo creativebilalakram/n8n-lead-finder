@@ -498,6 +498,13 @@ function LeadDetailPage() {
         </ActorPanel>
       </div>
 
+      {/* Contact Intelligence — prefilled from this lead */}
+      <ContactIntelPanel
+        leadId={id}
+        businessName={((lead.title as string | null) || "").trim()}
+        website={(lead.website as string | null) || null}
+      />
+
       {/* Rejection reasons */}
       {Array.isArray(lead.rejection_reasons) && (lead.rejection_reasons as unknown[]).length > 0 ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-5">
