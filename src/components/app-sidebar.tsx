@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Search, History, Sparkles, Activity, Users, Settings } from "lucide-react";
+import { LayoutDashboard, Search, History, Sparkles, Activity, Users, Settings, Contact, UserSearch, Mail, Workflow, Filter } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -20,6 +20,15 @@ const items = [
   { title: "Apify Runs", url: "/runs", icon: Activity },
   { title: "History", url: "/history", icon: History },
   { title: "Settings", url: "/settings", icon: Settings },
+];
+
+const contactItems = [
+  { title: "Overview", url: "/contacts", icon: Contact },
+  { title: "Decision Makers", url: "/contacts/decision-makers", icon: UserSearch },
+  { title: "Website Contacts", url: "/contacts/website-contacts", icon: Users },
+  { title: "Emails Found", url: "/contacts/emails", icon: Mail },
+  { title: "Processing Center", url: "/contacts/processing", icon: Workflow },
+  { title: "Filters & Rules", url: "/contacts/rules", icon: Filter },
 ];
 
 export function AppSidebar() {
@@ -52,6 +61,23 @@ export function AppSidebar() {
               {items.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild isActive={isActive(item.url)}>
+                    <Link to={item.url} className="flex items-center gap-2">
+                      <item.icon className="h-4 w-4" />
+                      {!collapsed && <span>{item.title}</span>}
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup>
+          <SidebarGroupLabel>Contact Intelligence</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {contactItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild isActive={currentPath === item.url}>
                     <Link to={item.url} className="flex items-center gap-2">
                       <item.icon className="h-4 w-4" />
                       {!collapsed && <span>{item.title}</span>}

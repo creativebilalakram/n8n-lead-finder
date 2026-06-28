@@ -12,18 +12,26 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as RunsRouteImport } from './routes/runs'
+import { Route as ContactsRouteImport } from './routes/contacts'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LeadsIndexRouteImport } from './routes/leads.index'
 import { Route as HistoryIndexRouteImport } from './routes/history.index'
+import { Route as ContactsIndexRouteImport } from './routes/contacts.index'
 import { Route as WebsiteIdRouteImport } from './routes/website.$id'
 import { Route as LeadsIdRouteImport } from './routes/leads.$id'
 import { Route as HistoryIdRouteImport } from './routes/history.$id'
+import { Route as ContactsWebsiteContactsRouteImport } from './routes/contacts.website-contacts'
+import { Route as ContactsRulesRouteImport } from './routes/contacts.rules'
+import { Route as ContactsProcessingRouteImport } from './routes/contacts.processing'
+import { Route as ContactsEmailsRouteImport } from './routes/contacts.emails'
+import { Route as ContactsDecisionMakersRouteImport } from './routes/contacts.decision-makers'
 import { Route as ApiPublicAutoEnrichRouteImport } from './routes/api/public/auto-enrich'
 import { Route as ApiPublicWebsiteAnalyzeRouteImport } from './routes/api/public/website.analyze'
 import { Route as ApiPublicWebsitePackageRebuildRouteImport } from './routes/api/public/website-package.rebuild'
 import { Route as ApiPublicLeadsStatusRouteImport } from './routes/api/public/leads.status'
 import { Route as ApiPublicLeadsStartRouteImport } from './routes/api/public/leads.start'
 import { Route as ApiPublicInstagramAnalyzeRouteImport } from './routes/api/public/instagram.analyze'
+import { Route as ApiPublicContactsEnrichRouteImport } from './routes/api/public/contacts.enrich'
 import { Route as ApiPublicBrandAnalyzeRouteImport } from './routes/api/public/brand.analyze'
 import { Route as ApiPublicApifyRunsRouteImport } from './routes/api/public/apify.runs'
 import { Route as ApiPublicApifyImportRouteImport } from './routes/api/public/apify.import'
@@ -43,6 +51,11 @@ const RunsRoute = RunsRouteImport.update({
   path: '/runs',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ContactsRoute = ContactsRouteImport.update({
+  id: '/contacts',
+  path: '/contacts',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -58,6 +71,11 @@ const HistoryIndexRoute = HistoryIndexRouteImport.update({
   path: '/history/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ContactsIndexRoute = ContactsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ContactsRoute,
+} as any)
 const WebsiteIdRoute = WebsiteIdRouteImport.update({
   id: '/website/$id',
   path: '/website/$id',
@@ -72,6 +90,31 @@ const HistoryIdRoute = HistoryIdRouteImport.update({
   id: '/history/$id',
   path: '/history/$id',
   getParentRoute: () => rootRouteImport,
+} as any)
+const ContactsWebsiteContactsRoute = ContactsWebsiteContactsRouteImport.update({
+  id: '/website-contacts',
+  path: '/website-contacts',
+  getParentRoute: () => ContactsRoute,
+} as any)
+const ContactsRulesRoute = ContactsRulesRouteImport.update({
+  id: '/rules',
+  path: '/rules',
+  getParentRoute: () => ContactsRoute,
+} as any)
+const ContactsProcessingRoute = ContactsProcessingRouteImport.update({
+  id: '/processing',
+  path: '/processing',
+  getParentRoute: () => ContactsRoute,
+} as any)
+const ContactsEmailsRoute = ContactsEmailsRouteImport.update({
+  id: '/emails',
+  path: '/emails',
+  getParentRoute: () => ContactsRoute,
+} as any)
+const ContactsDecisionMakersRoute = ContactsDecisionMakersRouteImport.update({
+  id: '/decision-makers',
+  path: '/decision-makers',
+  getParentRoute: () => ContactsRoute,
 } as any)
 const ApiPublicAutoEnrichRoute = ApiPublicAutoEnrichRouteImport.update({
   id: '/api/public/auto-enrich',
@@ -105,6 +148,11 @@ const ApiPublicInstagramAnalyzeRoute =
     path: '/api/public/instagram/analyze',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicContactsEnrichRoute = ApiPublicContactsEnrichRouteImport.update({
+  id: '/api/public/contacts/enrich',
+  path: '/api/public/contacts/enrich',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicBrandAnalyzeRoute = ApiPublicBrandAnalyzeRouteImport.update({
   id: '/api/public/brand/analyze',
   path: '/api/public/brand/analyze',
@@ -123,18 +171,26 @@ const ApiPublicApifyImportRoute = ApiPublicApifyImportRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/contacts': typeof ContactsRouteWithChildren
   '/runs': typeof RunsRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
+  '/contacts/decision-makers': typeof ContactsDecisionMakersRoute
+  '/contacts/emails': typeof ContactsEmailsRoute
+  '/contacts/processing': typeof ContactsProcessingRoute
+  '/contacts/rules': typeof ContactsRulesRoute
+  '/contacts/website-contacts': typeof ContactsWebsiteContactsRoute
   '/history/$id': typeof HistoryIdRoute
   '/leads/$id': typeof LeadsIdRoute
   '/website/$id': typeof WebsiteIdRoute
+  '/contacts/': typeof ContactsIndexRoute
   '/history/': typeof HistoryIndexRoute
   '/leads/': typeof LeadsIndexRoute
   '/api/public/auto-enrich': typeof ApiPublicAutoEnrichRoute
   '/api/public/apify/import': typeof ApiPublicApifyImportRoute
   '/api/public/apify/runs': typeof ApiPublicApifyRunsRoute
   '/api/public/brand/analyze': typeof ApiPublicBrandAnalyzeRoute
+  '/api/public/contacts/enrich': typeof ApiPublicContactsEnrichRoute
   '/api/public/instagram/analyze': typeof ApiPublicInstagramAnalyzeRoute
   '/api/public/leads/start': typeof ApiPublicLeadsStartRoute
   '/api/public/leads/status': typeof ApiPublicLeadsStatusRoute
@@ -146,15 +202,22 @@ export interface FileRoutesByTo {
   '/runs': typeof RunsRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
+  '/contacts/decision-makers': typeof ContactsDecisionMakersRoute
+  '/contacts/emails': typeof ContactsEmailsRoute
+  '/contacts/processing': typeof ContactsProcessingRoute
+  '/contacts/rules': typeof ContactsRulesRoute
+  '/contacts/website-contacts': typeof ContactsWebsiteContactsRoute
   '/history/$id': typeof HistoryIdRoute
   '/leads/$id': typeof LeadsIdRoute
   '/website/$id': typeof WebsiteIdRoute
+  '/contacts': typeof ContactsIndexRoute
   '/history': typeof HistoryIndexRoute
   '/leads': typeof LeadsIndexRoute
   '/api/public/auto-enrich': typeof ApiPublicAutoEnrichRoute
   '/api/public/apify/import': typeof ApiPublicApifyImportRoute
   '/api/public/apify/runs': typeof ApiPublicApifyRunsRoute
   '/api/public/brand/analyze': typeof ApiPublicBrandAnalyzeRoute
+  '/api/public/contacts/enrich': typeof ApiPublicContactsEnrichRoute
   '/api/public/instagram/analyze': typeof ApiPublicInstagramAnalyzeRoute
   '/api/public/leads/start': typeof ApiPublicLeadsStartRoute
   '/api/public/leads/status': typeof ApiPublicLeadsStatusRoute
@@ -164,18 +227,26 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/contacts': typeof ContactsRouteWithChildren
   '/runs': typeof RunsRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
+  '/contacts/decision-makers': typeof ContactsDecisionMakersRoute
+  '/contacts/emails': typeof ContactsEmailsRoute
+  '/contacts/processing': typeof ContactsProcessingRoute
+  '/contacts/rules': typeof ContactsRulesRoute
+  '/contacts/website-contacts': typeof ContactsWebsiteContactsRoute
   '/history/$id': typeof HistoryIdRoute
   '/leads/$id': typeof LeadsIdRoute
   '/website/$id': typeof WebsiteIdRoute
+  '/contacts/': typeof ContactsIndexRoute
   '/history/': typeof HistoryIndexRoute
   '/leads/': typeof LeadsIndexRoute
   '/api/public/auto-enrich': typeof ApiPublicAutoEnrichRoute
   '/api/public/apify/import': typeof ApiPublicApifyImportRoute
   '/api/public/apify/runs': typeof ApiPublicApifyRunsRoute
   '/api/public/brand/analyze': typeof ApiPublicBrandAnalyzeRoute
+  '/api/public/contacts/enrich': typeof ApiPublicContactsEnrichRoute
   '/api/public/instagram/analyze': typeof ApiPublicInstagramAnalyzeRoute
   '/api/public/leads/start': typeof ApiPublicLeadsStartRoute
   '/api/public/leads/status': typeof ApiPublicLeadsStatusRoute
@@ -186,18 +257,26 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/contacts'
     | '/runs'
     | '/search'
     | '/settings'
+    | '/contacts/decision-makers'
+    | '/contacts/emails'
+    | '/contacts/processing'
+    | '/contacts/rules'
+    | '/contacts/website-contacts'
     | '/history/$id'
     | '/leads/$id'
     | '/website/$id'
+    | '/contacts/'
     | '/history/'
     | '/leads/'
     | '/api/public/auto-enrich'
     | '/api/public/apify/import'
     | '/api/public/apify/runs'
     | '/api/public/brand/analyze'
+    | '/api/public/contacts/enrich'
     | '/api/public/instagram/analyze'
     | '/api/public/leads/start'
     | '/api/public/leads/status'
@@ -209,15 +288,22 @@ export interface FileRouteTypes {
     | '/runs'
     | '/search'
     | '/settings'
+    | '/contacts/decision-makers'
+    | '/contacts/emails'
+    | '/contacts/processing'
+    | '/contacts/rules'
+    | '/contacts/website-contacts'
     | '/history/$id'
     | '/leads/$id'
     | '/website/$id'
+    | '/contacts'
     | '/history'
     | '/leads'
     | '/api/public/auto-enrich'
     | '/api/public/apify/import'
     | '/api/public/apify/runs'
     | '/api/public/brand/analyze'
+    | '/api/public/contacts/enrich'
     | '/api/public/instagram/analyze'
     | '/api/public/leads/start'
     | '/api/public/leads/status'
@@ -226,18 +312,26 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/contacts'
     | '/runs'
     | '/search'
     | '/settings'
+    | '/contacts/decision-makers'
+    | '/contacts/emails'
+    | '/contacts/processing'
+    | '/contacts/rules'
+    | '/contacts/website-contacts'
     | '/history/$id'
     | '/leads/$id'
     | '/website/$id'
+    | '/contacts/'
     | '/history/'
     | '/leads/'
     | '/api/public/auto-enrich'
     | '/api/public/apify/import'
     | '/api/public/apify/runs'
     | '/api/public/brand/analyze'
+    | '/api/public/contacts/enrich'
     | '/api/public/instagram/analyze'
     | '/api/public/leads/start'
     | '/api/public/leads/status'
@@ -247,6 +341,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ContactsRoute: typeof ContactsRouteWithChildren
   RunsRoute: typeof RunsRoute
   SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRoute
@@ -259,6 +354,7 @@ export interface RootRouteChildren {
   ApiPublicApifyImportRoute: typeof ApiPublicApifyImportRoute
   ApiPublicApifyRunsRoute: typeof ApiPublicApifyRunsRoute
   ApiPublicBrandAnalyzeRoute: typeof ApiPublicBrandAnalyzeRoute
+  ApiPublicContactsEnrichRoute: typeof ApiPublicContactsEnrichRoute
   ApiPublicInstagramAnalyzeRoute: typeof ApiPublicInstagramAnalyzeRoute
   ApiPublicLeadsStartRoute: typeof ApiPublicLeadsStartRoute
   ApiPublicLeadsStatusRoute: typeof ApiPublicLeadsStatusRoute
@@ -289,6 +385,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RunsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/contacts': {
+      id: '/contacts'
+      path: '/contacts'
+      fullPath: '/contacts'
+      preLoaderRoute: typeof ContactsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -310,6 +413,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HistoryIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/contacts/': {
+      id: '/contacts/'
+      path: '/'
+      fullPath: '/contacts/'
+      preLoaderRoute: typeof ContactsIndexRouteImport
+      parentRoute: typeof ContactsRoute
+    }
     '/website/$id': {
       id: '/website/$id'
       path: '/website/$id'
@@ -330,6 +440,41 @@ declare module '@tanstack/react-router' {
       fullPath: '/history/$id'
       preLoaderRoute: typeof HistoryIdRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/contacts/website-contacts': {
+      id: '/contacts/website-contacts'
+      path: '/website-contacts'
+      fullPath: '/contacts/website-contacts'
+      preLoaderRoute: typeof ContactsWebsiteContactsRouteImport
+      parentRoute: typeof ContactsRoute
+    }
+    '/contacts/rules': {
+      id: '/contacts/rules'
+      path: '/rules'
+      fullPath: '/contacts/rules'
+      preLoaderRoute: typeof ContactsRulesRouteImport
+      parentRoute: typeof ContactsRoute
+    }
+    '/contacts/processing': {
+      id: '/contacts/processing'
+      path: '/processing'
+      fullPath: '/contacts/processing'
+      preLoaderRoute: typeof ContactsProcessingRouteImport
+      parentRoute: typeof ContactsRoute
+    }
+    '/contacts/emails': {
+      id: '/contacts/emails'
+      path: '/emails'
+      fullPath: '/contacts/emails'
+      preLoaderRoute: typeof ContactsEmailsRouteImport
+      parentRoute: typeof ContactsRoute
+    }
+    '/contacts/decision-makers': {
+      id: '/contacts/decision-makers'
+      path: '/decision-makers'
+      fullPath: '/contacts/decision-makers'
+      preLoaderRoute: typeof ContactsDecisionMakersRouteImport
+      parentRoute: typeof ContactsRoute
     }
     '/api/public/auto-enrich': {
       id: '/api/public/auto-enrich'
@@ -373,6 +518,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicInstagramAnalyzeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/contacts/enrich': {
+      id: '/api/public/contacts/enrich'
+      path: '/api/public/contacts/enrich'
+      fullPath: '/api/public/contacts/enrich'
+      preLoaderRoute: typeof ApiPublicContactsEnrichRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/brand/analyze': {
       id: '/api/public/brand/analyze'
       path: '/api/public/brand/analyze'
@@ -397,8 +549,31 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface ContactsRouteChildren {
+  ContactsDecisionMakersRoute: typeof ContactsDecisionMakersRoute
+  ContactsEmailsRoute: typeof ContactsEmailsRoute
+  ContactsProcessingRoute: typeof ContactsProcessingRoute
+  ContactsRulesRoute: typeof ContactsRulesRoute
+  ContactsWebsiteContactsRoute: typeof ContactsWebsiteContactsRoute
+  ContactsIndexRoute: typeof ContactsIndexRoute
+}
+
+const ContactsRouteChildren: ContactsRouteChildren = {
+  ContactsDecisionMakersRoute: ContactsDecisionMakersRoute,
+  ContactsEmailsRoute: ContactsEmailsRoute,
+  ContactsProcessingRoute: ContactsProcessingRoute,
+  ContactsRulesRoute: ContactsRulesRoute,
+  ContactsWebsiteContactsRoute: ContactsWebsiteContactsRoute,
+  ContactsIndexRoute: ContactsIndexRoute,
+}
+
+const ContactsRouteWithChildren = ContactsRoute._addFileChildren(
+  ContactsRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ContactsRoute: ContactsRouteWithChildren,
   RunsRoute: RunsRoute,
   SearchRoute: SearchRoute,
   SettingsRoute: SettingsRoute,
@@ -411,6 +586,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicApifyImportRoute: ApiPublicApifyImportRoute,
   ApiPublicApifyRunsRoute: ApiPublicApifyRunsRoute,
   ApiPublicBrandAnalyzeRoute: ApiPublicBrandAnalyzeRoute,
+  ApiPublicContactsEnrichRoute: ApiPublicContactsEnrichRoute,
   ApiPublicInstagramAnalyzeRoute: ApiPublicInstagramAnalyzeRoute,
   ApiPublicLeadsStartRoute: ApiPublicLeadsStartRoute,
   ApiPublicLeadsStatusRoute: ApiPublicLeadsStatusRoute,
