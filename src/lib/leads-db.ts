@@ -201,7 +201,7 @@ export async function getSearchRunDetail(
   const { data: rows, error: lErr } = await supabase
     .from("leads")
     .select(
-      "id, place_id, title, category, address, city, country_code, phone, email, website, rating, reviews_count, lead_score, lead_tier, red_flags, passed, rejection_reasons, owner_update_age_days",
+      "id, place_id, title, category, address, city, country_code, phone, email, website, rating, reviews_count, lead_score, lead_tier, red_flags, passed, rejection_reasons, owner_update_age_days, website_modern_score, website_label",
     )
     .eq("search_run_id", id)
     .order("lead_score", { ascending: false, nullsFirst: false });

@@ -4,7 +4,7 @@ import { applyFiltersToLead, type FilterSettings } from "./filter-settings";
 import { leadIdentityKey } from "./lead-identity";
 
 const COMPACT_LEADS_SELECT =
-  "id, search_run_id, place_id, title, category, address, city, country_code, phone, email, website, rating, reviews_count, lead_score, lead_tier, passed, owner_update_age_days, auto_enrich_status, created_at";
+  "id, search_run_id, place_id, title, category, address, city, country_code, phone, email, website, rating, reviews_count, lead_score, lead_tier, passed, owner_update_age_days, auto_enrich_status, created_at, website_modern_score, website_label";
 
 type CompactLeadRow = {
   id: string;
@@ -26,6 +26,8 @@ type CompactLeadRow = {
   owner_update_age_days?: number | null;
   auto_enrich_status?: string | null;
   created_at?: string | null;
+  website_modern_score?: number | null;
+  website_label?: string | null;
 };
 
 function rowToLead(r: CompactLeadRow): Lead {
@@ -50,6 +52,8 @@ function rowToLead(r: CompactLeadRow): Lead {
     autoEnrichStatus: r.auto_enrich_status ?? undefined,
     createdAtIso: r.created_at ?? undefined,
     passed: Boolean(r.passed),
+    websiteModernScore: r.website_modern_score ?? undefined,
+    websiteLabel: r.website_label ?? undefined,
   };
 }
 
