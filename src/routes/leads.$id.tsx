@@ -35,6 +35,7 @@ import { computeAdjustedScore } from "@/lib/score-adjust";
 import { extractBrandDnaInsights, extractInstagramFromPayload } from "@/lib/brand-dna";
 import { triggerAutoEnrichLead } from "@/lib/auto-enrich";
 import { acquireLovableOpenLock, openLovableTabOnce } from "@/lib/lovable-open";
+import { ContactIntelPanel } from "@/components/contact-intel-panel";
 
 export const Route = createFileRoute("/leads/$id")({
   head: () => ({ meta: [{ title: "Lead detail — LeadForge" }] }),
