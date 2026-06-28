@@ -20,6 +20,7 @@ import { Route as ContactsIndexRouteImport } from './routes/contacts.index'
 import { Route as WebsiteIdRouteImport } from './routes/website.$id'
 import { Route as LeadsIdRouteImport } from './routes/leads.$id'
 import { Route as HistoryIdRouteImport } from './routes/history.$id'
+import { Route as ContactsDecisionMakersRouteImport } from './routes/contacts.decision-makers'
 import { Route as ApiPublicAutoEnrichRouteImport } from './routes/api/public/auto-enrich'
 import { Route as ApiPublicWebsiteAnalyzeRouteImport } from './routes/api/public/website.analyze'
 import { Route as ApiPublicWebsitePackageRebuildRouteImport } from './routes/api/public/website-package.rebuild'
@@ -86,6 +87,11 @@ const HistoryIdRoute = HistoryIdRouteImport.update({
   path: '/history/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ContactsDecisionMakersRoute = ContactsDecisionMakersRouteImport.update({
+  id: '/decision-makers',
+  path: '/decision-makers',
+  getParentRoute: () => ContactsRoute,
+} as any)
 const ApiPublicAutoEnrichRoute = ApiPublicAutoEnrichRouteImport.update({
   id: '/api/public/auto-enrich',
   path: '/api/public/auto-enrich',
@@ -145,6 +151,7 @@ export interface FileRoutesByFullPath {
   '/runs': typeof RunsRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
+  '/contacts/decision-makers': typeof ContactsDecisionMakersRoute
   '/history/$id': typeof HistoryIdRoute
   '/leads/$id': typeof LeadsIdRoute
   '/website/$id': typeof WebsiteIdRoute
@@ -167,6 +174,7 @@ export interface FileRoutesByTo {
   '/runs': typeof RunsRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
+  '/contacts/decision-makers': typeof ContactsDecisionMakersRoute
   '/history/$id': typeof HistoryIdRoute
   '/leads/$id': typeof LeadsIdRoute
   '/website/$id': typeof WebsiteIdRoute
@@ -191,6 +199,7 @@ export interface FileRoutesById {
   '/runs': typeof RunsRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
+  '/contacts/decision-makers': typeof ContactsDecisionMakersRoute
   '/history/$id': typeof HistoryIdRoute
   '/leads/$id': typeof LeadsIdRoute
   '/website/$id': typeof WebsiteIdRoute
@@ -216,6 +225,7 @@ export interface FileRouteTypes {
     | '/runs'
     | '/search'
     | '/settings'
+    | '/contacts/decision-makers'
     | '/history/$id'
     | '/leads/$id'
     | '/website/$id'
@@ -238,6 +248,7 @@ export interface FileRouteTypes {
     | '/runs'
     | '/search'
     | '/settings'
+    | '/contacts/decision-makers'
     | '/history/$id'
     | '/leads/$id'
     | '/website/$id'
@@ -261,6 +272,7 @@ export interface FileRouteTypes {
     | '/runs'
     | '/search'
     | '/settings'
+    | '/contacts/decision-makers'
     | '/history/$id'
     | '/leads/$id'
     | '/website/$id'
@@ -381,6 +393,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HistoryIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/contacts/decision-makers': {
+      id: '/contacts/decision-makers'
+      path: '/decision-makers'
+      fullPath: '/contacts/decision-makers'
+      preLoaderRoute: typeof ContactsDecisionMakersRouteImport
+      parentRoute: typeof ContactsRoute
+    }
     '/api/public/auto-enrich': {
       id: '/api/public/auto-enrich'
       path: '/api/public/auto-enrich'
@@ -455,10 +474,12 @@ declare module '@tanstack/react-router' {
 }
 
 interface ContactsRouteChildren {
+  ContactsDecisionMakersRoute: typeof ContactsDecisionMakersRoute
   ContactsIndexRoute: typeof ContactsIndexRoute
 }
 
 const ContactsRouteChildren: ContactsRouteChildren = {
+  ContactsDecisionMakersRoute: ContactsDecisionMakersRoute,
   ContactsIndexRoute: ContactsIndexRoute,
 }
 
