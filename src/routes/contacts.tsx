@@ -11,14 +11,15 @@ export const Route = createFileRoute("/contacts")({
   component: ContactsLayout,
 });
 
-const tabs = [
+type Tab = { to: string; label: string; icon: typeof Contact; exact?: boolean };
+const tabs: Tab[] = [
   { to: "/contacts", label: "Overview", icon: Contact, exact: true },
   { to: "/contacts/decision-makers", label: "Decision Makers", icon: UserSearch },
   { to: "/contacts/website-contacts", label: "Website Contacts", icon: Users },
   { to: "/contacts/emails", label: "Emails", icon: Mail },
   { to: "/contacts/processing", label: "Processing", icon: Workflow },
   { to: "/contacts/rules", label: "Rules", icon: Filter },
-] as const;
+];
 
 function ContactsLayout() {
   const path = useRouterState({ select: (s) => s.location.pathname });
@@ -35,7 +36,7 @@ function ContactsLayout() {
             return (
               <Link
                 key={t.to}
-                to={t.to}
+                to={t.to as "/contacts"}
                 className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium transition ${active ? "bg-gradient-to-br from-indigo-500 to-fuchsia-500 text-white shadow-sm" : "text-slate-600 hover:bg-white"}`}
               >
                 <t.icon className="h-3.5 w-3.5" />
