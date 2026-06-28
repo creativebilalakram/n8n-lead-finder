@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { CopyButton } from "@/components/copy-button";
 import type { Business, ContactJob, DecisionMaker, WebsiteContacts, LinkedinEmail } from "@/lib/contacts-db";
-import { startEnrichment } from "@/lib/contacts-db";
+import { startEnrichment, rerunStep, type RerunStep } from "@/lib/contacts-db";
 
 type Props = {
   leadId: string;
@@ -21,6 +21,7 @@ export function ContactIntelPanel({ leadId, businessName, website }: Props) {
   const [leadRow, setLeadRow] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
+  const [rerunningStep, setRerunningStep] = useState<RerunStep | "emails_missing" | null>(null);
 
   const load = async () => {
     const { data: lr } = await supabase
@@ -110,6 +111,20 @@ export function ContactIntelPanel({ leadId, businessName, website }: Props) {
   const running = job?.status === "running";
   const hasData = dms.length > 0 || contacts || emails.length > 0;
 
+  const doRerun = async (step: RerunStep, scope: "all" | "missing" = "all") => {
+    if (!business) return;
+    setRerunningStep(scope === "missing" && step === "emails" ? "emails_missing" : step);
+    try {
+      const res = await rerunStep(business.id, step, scope);
+      toast.success(res.alreadyRunning ? "Already running — watching progress" : `Re-running ${labelFor(step).toLowerCase()}…`);
+      setTimeout(() => { void load(); }, 1000);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Re-run failed");
+    } finally {
+      setRerunningStep(null);
+    }
+  };
+
   const allSignals = useMemo(() => aggregateSignals({ leadRow, contacts, dms, emails }), [leadRow, contacts, dms, emails]);
   const signalsTotal =
     allSignals.emails.length +
@@ -168,9 +183,33 @@ export function ContactIntelPanel({ leadId, businessName, website }: Props) {
       {job && (
         <div className="mt-3 space-y-1.5">
           <div className="grid grid-cols-3 gap-2 text-[11px]">
-            <StepCell label="Website scraper" badge={stepBadge((steps as Record<string, { status: string }>).website)} />
-            <StepCell label="Decision makers" badge={stepBadge((steps as Record<string, { status: string }>).decision_makers)} />
-            <StepCell label="LinkedIn → email" badge={stepBadge((steps as Record<string, { status: string }>).emails)} />
+            <StepCell
+              label="Website scraper"
+              badge={stepBadge((steps as Record<string, { status: string }>).website)}
+              onRerun={business && !running ? () => doRerun("website") : undefined}
+              rerunning={rerunningStep === "website"}
+            />
+            <StepCell
+              label="Decision makers"
+              badge={stepBadge((steps as Record<string, { status: string }>).decision_makers)}
+              onRerun={business && !running ? () => doRerun("decision_makers") : undefined}
+              rerunning={rerunningStep === "decision_makers"}
+            />
+            <StepCell
+              label="LinkedIn → email"
+              badge={stepBadge((steps as Record<string, { status: string }>).emails)}
+              onRerun={business && !running && dms.length > 0 ? () => doRerun("emails") : undefined}
+              rerunning={rerunningStep === "emails"}
+              extraAction={
+                business && !running && dms.length > 0
+                  ? {
+                      label: "Missing only",
+                      onClick: () => doRerun("emails", "missing"),
+                      busy: rerunningStep === "emails_missing",
+                    }
+                  : undefined
+              }
+            />
           </div>
           {(["website", "decision_makers", "emails"] as const).map((k) => {
             const st = (steps as Record<string, { note?: string | null; reason?: string | null; linkedinSource?: string | null }>)[k];
@@ -387,11 +426,53 @@ export function ContactIntelPanel({ leadId, businessName, website }: Props) {
   );
 }
 
-function StepCell({ label, badge }: { label: string; badge: React.ReactNode }) {
+function StepCell({
+  label,
+  badge,
+  onRerun,
+  rerunning,
+  extraAction,
+}: {
+  label: string;
+  badge: React.ReactNode;
+  onRerun?: () => void;
+  rerunning?: boolean;
+  extraAction?: { label: string; onClick: () => void; busy?: boolean };
+}) {
   return (
-    <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white/70 px-2.5 py-1.5">
-      <span className="truncate text-slate-600">{label}</span>
-      {badge}
+    <div className="flex flex-col gap-1 rounded-lg border border-slate-200 bg-white/70 px-2.5 py-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="truncate text-slate-600">{label}</span>
+        {badge}
+      </div>
+      {(onRerun || extraAction) && (
+        <div className="flex items-center gap-1.5">
+          {onRerun && (
+            <button
+              type="button"
+              onClick={onRerun}
+              disabled={rerunning}
+              className="inline-flex items-center gap-1 rounded-md border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700 hover:bg-indigo-100 disabled:opacity-60"
+              title={`Re-run ${label}`}
+            >
+              {rerunning ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <RefreshCw className="h-2.5 w-2.5" />}
+              Re-run
+            </button>
+          )}
+          {extraAction && (
+            <button
+              type="button"
+              onClick={extraAction.onClick}
+              disabled={extraAction.busy}
+              className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 hover:bg-amber-100 disabled:opacity-60"
+              title={`${extraAction.label} — only DMs without emails yet`}
+            >
+              {extraAction.busy ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <RefreshCw className="h-2.5 w-2.5" />}
+              {extraAction.label}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
