@@ -20,6 +20,7 @@ function AllLeadsPage() {
   const [q, setQ] = useState("");
   const [tier, setTier] = useState<"all" | "hot" | "warm" | "mild" | "cold">("all");
   const [onlyUnopened, setOnlyUnopened] = useState(false);
+  const [onlyOutdated, setOnlyOutdated] = useState(false);
   const [view, setView] = useState<"qualified" | "filtered">("qualified");
 
   const { data: rawLeads, isLoading, isError, error } = useQuery({
@@ -48,11 +49,15 @@ function AllLeadsPage() {
     return leads.filter((l) => {
       if (tier !== "all" && (l.leadTier || "").toLowerCase() !== tier) return false;
       if (onlyUnopened && isClicked(leadKey(l))) return false;
+      if (onlyOutdated) {
+        const ws = (l as Record<string, unknown>).websiteModernScore;
+        if (typeof ws !== "number" || ws >= 6) return false;
+      }
       if (!needle) return true;
       const hay = `${l.title ?? ""} ${l.address ?? ""} ${l.categoryName ?? ""} ${l.website ?? ""} ${(l.emails ?? []).join(" ")}`.toLowerCase();
       return hay.includes(needle);
     });
-  }, [leads, q, tier, onlyUnopened]);
+  }, [leads, q, tier, onlyUnopened, onlyOutdated]);
 
   const openedCount = useMemo(
     () => (leads ?? []).filter((l) => isClicked(leadKey(l))).length,
@@ -148,6 +153,15 @@ function AllLeadsPage() {
             className="h-3.5 w-3.5 accent-indigo-600"
           />
           Only unopened
+        </label>
+        <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-800">
+          <input
+            type="checkbox"
+            checked={onlyOutdated}
+            onChange={(e) => setOnlyOutdated(e.target.checked)}
+            className="h-3.5 w-3.5 accent-amber-600"
+          />
+          Only outdated websites (&lt; 6)
         </label>
       </div>
 
