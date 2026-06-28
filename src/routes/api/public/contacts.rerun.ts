@@ -35,6 +35,7 @@ async function runStep(opts: {
   jobId: string;
   step: Step;
   scope?: "all" | "missing"; // emails only
+  dmIds?: string[]; // emails only — restrict to specific decision makers
 }) {
   // Load business + lead
   const bizRes = await sb(`businesses?id=eq.${opts.businessId}&select=*`);
@@ -80,6 +81,10 @@ async function runStep(opts: {
     const dmRes = await sb(`decision_makers?business_id=eq.${opts.businessId}&select=id,person_profile_url`);
     const dms = (dmRes.ok ? ((await dmRes.json()) as Json[]) : []) as Array<{ id: string; person_profile_url: string | null }>;
     let target = dms.filter((d) => !!d.person_profile_url);
+    if (opts.dmIds && opts.dmIds.length) {
+      const want = new Set(opts.dmIds);
+      target = target.filter((d) => want.has(d.id));
+    }
     if (opts.scope === "missing") {
       const emRes = await sb(`linkedin_emails?business_id=eq.${opts.businessId}&select=decision_maker_id`);
       const existing = emRes.ok ? ((await emRes.json()) as Array<{ decision_maker_id: string }>) : [];
@@ -101,7 +106,7 @@ export const Route = createFileRoute("/api/public/contacts/rerun")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        let body: { businessId?: string; step?: Step; scope?: "all" | "missing" } = {};
+        let body: { businessId?: string; step?: Step; scope?: "all" | "missing"; dmIds?: string[] } = {};
         try { body = await request.json(); } catch { return Response.json({ error: "Invalid JSON" }, { status: 400 }); }
         const businessId = (body.businessId || "").trim();
         const step = body.step;
@@ -123,7 +128,7 @@ export const Route = createFileRoute("/api/public/contacts/rerun")({
           body: JSON.stringify({ enrichment_status: "running", updated_at: new Date().toISOString() }),
         }).catch(() => {});
 
-        runStep({ businessId, jobId: job.id as string, step, scope: body.scope }).catch(async (e) => {
+        runStep({ businessId, jobId: job.id as string, step, scope: body.scope, dmIds: body.dmIds }).catch(async (e) => {
           await patchJob(job.id as string, {
             status: "failed",
             error: String((e as Error)?.message || e),
