@@ -230,6 +230,8 @@ export async function getSearchRunDetail(
       ownerUpdateAgeDays: r.owner_update_age_days ?? undefined,
       passed: r.passed,
       rejectionReasons: (r.rejection_reasons as string[] | null) ?? undefined,
+      websiteModernScore: (r as Record<string, unknown>).website_modern_score as number | undefined,
+      websiteLabel: (r as Record<string, unknown>).website_label as string | undefined,
     };
     if (r.passed) leads.push(lead);
     else filteredOut.push(lead);
