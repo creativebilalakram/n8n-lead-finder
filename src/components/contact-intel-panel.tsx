@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Users, Mail, Phone, Linkedin, Loader2, Sparkles, ExternalLink, RefreshCw, Globe, Crown } from "lucide-react";
+import { Users, Mail, Phone, Linkedin, Loader2, Sparkles, ExternalLink, RefreshCw, Globe, Crown, Radar, Instagram, Facebook, Youtube, Twitter, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { CopyButton } from "@/components/copy-button";
@@ -18,10 +18,17 @@ export function ContactIntelPanel({ leadId, businessName, website }: Props) {
   const [dms, setDms] = useState<DecisionMaker[]>([]);
   const [contacts, setContacts] = useState<WebsiteContacts | null>(null);
   const [emails, setEmails] = useState<LinkedinEmail[]>([]);
+  const [leadRow, setLeadRow] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
 
   const load = async () => {
+    const { data: lr } = await supabase
+      .from("leads")
+      .select("phone,phones,email,emails,instagram_url,instagram_username,website,raw,brand_dna_raw,instagram_raw")
+      .eq("id", leadId)
+      .maybeSingle();
+    setLeadRow((lr as Record<string, unknown> | null) ?? null);
     const { data: bizRows } = await supabase
       .from("businesses")
       .select("*")
@@ -102,6 +109,13 @@ export function ContactIntelPanel({ leadId, businessName, website }: Props) {
 
   const running = job?.status === "running";
   const hasData = dms.length > 0 || contacts || emails.length > 0;
+
+  const allSignals = useMemo(() => aggregateSignals({ leadRow, contacts, dms, emails }), [leadRow, contacts, dms, emails]);
+  const signalsTotal =
+    allSignals.emails.length +
+    allSignals.phones.length +
+    allSignals.linkedins.length +
+    Object.values(allSignals.socials).reduce((n, arr) => n + arr.length, 0);
 
   return (
     <div className="rounded-2xl border border-white/70 bg-white/80 p-5 shadow-sm backdrop-blur-xl">
@@ -186,6 +200,79 @@ export function ContactIntelPanel({ leadId, businessName, website }: Props) {
         </p>
       ) : (
         <div className="mt-4 space-y-5">
+          {/* All discovered signals — aggregated across every actor */}
+          {signalsTotal > 0 && (
+            <section className="rounded-xl border border-indigo-200/70 bg-gradient-to-br from-indigo-50/70 via-white to-violet-50/40 p-3.5">
+              <h3 className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-indigo-800">
+                <Radar className="h-3.5 w-3.5" /> All discovered signals
+                <span className="text-indigo-400">({signalsTotal})</span>
+              </h3>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                <SignalGroup
+                  icon={<Mail className="h-3 w-3" />}
+                  label="Emails"
+                  items={allSignals.emails}
+                  hrefFor={(v) => `mailto:${v.value}`}
+                />
+                <SignalGroup
+                  icon={<Phone className="h-3 w-3" />}
+                  label="Phones"
+                  items={allSignals.phones}
+                  hrefFor={(v) => `tel:${v.value}`}
+                />
+                <SignalGroup
+                  icon={<Linkedin className="h-3 w-3" />}
+                  label="LinkedIn"
+                  items={allSignals.linkedins}
+                  hrefFor={(v) => v.value}
+                  external
+                />
+                <SignalGroup
+                  icon={<Instagram className="h-3 w-3" />}
+                  label="Instagram"
+                  items={allSignals.socials.instagram}
+                  hrefFor={(v) => v.value}
+                  external
+                />
+                <SignalGroup
+                  icon={<Facebook className="h-3 w-3" />}
+                  label="Facebook"
+                  items={allSignals.socials.facebook}
+                  hrefFor={(v) => v.value}
+                  external
+                />
+                <SignalGroup
+                  icon={<Youtube className="h-3 w-3" />}
+                  label="YouTube"
+                  items={allSignals.socials.youtube}
+                  hrefFor={(v) => v.value}
+                  external
+                />
+                <SignalGroup
+                  icon={<Twitter className="h-3 w-3" />}
+                  label="X / Twitter"
+                  items={allSignals.socials.twitter}
+                  hrefFor={(v) => v.value}
+                  external
+                />
+                <SignalGroup
+                  icon={<Link2 className="h-3 w-3" />}
+                  label="TikTok"
+                  items={allSignals.socials.tiktok}
+                  hrefFor={(v) => v.value}
+                  external
+                />
+                <SignalGroup
+                  icon={<Globe className="h-3 w-3" />}
+                  label="Websites"
+                  items={allSignals.websites}
+                  hrefFor={(v) => v.value}
+                  external
+                />
+              </div>
+            </section>
+          )}
+
           {/* Decision makers */}
           <section>
             <h3 className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
