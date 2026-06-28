@@ -402,6 +402,194 @@ function labelFor(k: "website" | "decision_makers" | "emails") {
   return "LinkedIn → email";
 }
 
+type Signal = { value: string; sources: string[] };
+type Aggregated = {
+  emails: Signal[];
+  phones: Signal[];
+  linkedins: Signal[];
+  websites: Signal[];
+  socials: {
+    instagram: Signal[];
+    facebook: Signal[];
+    youtube: Signal[];
+    twitter: Signal[];
+    tiktok: Signal[];
+  };
+};
+
+const SOCIAL_PATTERNS: Record<keyof Aggregated["socials"], RegExp> = {
+  instagram: /https?:\/\/(?:www\.)?instagram\.com\/[A-Za-z0-9._\-\/?=&%#]+/gi,
+  facebook: /https?:\/\/(?:www\.)?facebook\.com\/[A-Za-z0-9._\-\/?=&%#]+/gi,
+  youtube: /https?:\/\/(?:www\.)?(?:youtube\.com|youtu\.be)\/[A-Za-z0-9._\-\/?=&%#]+/gi,
+  twitter: /https?:\/\/(?:www\.)?(?:twitter\.com|x\.com)\/[A-Za-z0-9._\-\/?=&%#]+/gi,
+  tiktok: /https?:\/\/(?:www\.)?tiktok\.com\/@[A-Za-z0-9._\-\/?=&%#]+/gi,
+};
+const LINKEDIN_RE = /https?:\/\/(?:[a-z]{2,4}\.)?linkedin\.com\/[A-Za-z0-9._\-\/?=&%#]+/gi;
+const EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+const PHONE_RE = /(?:\+?\d[\d\s().-]{6,}\d)/g;
+const WEBSITE_RE = /https?:\/\/[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?:\/[^\s"'<>]*)?/gi;
+
+function clean(v: string) {
+  return v.replace(/[)\].,'"<>]+$/g, "").trim();
+}
+function addSignal(map: Map<string, Signal>, value: string, source: string) {
+  const key = value.toLowerCase();
+  const existing = map.get(key);
+  if (existing) {
+    if (!existing.sources.includes(source)) existing.sources.push(source);
+  } else {
+    map.set(key, { value, sources: [source] });
+  }
+}
+function mineFrom(blob: unknown, source: string, agg: {
+  emails: Map<string, Signal>;
+  phones: Map<string, Signal>;
+  linkedins: Map<string, Signal>;
+  socials: Record<keyof Aggregated["socials"], Map<string, Signal>>;
+  websites: Map<string, Signal>;
+}) {
+  if (blob == null) return;
+  let txt: string;
+  try { txt = typeof blob === "string" ? blob : JSON.stringify(blob); } catch { return; }
+  for (const m of txt.matchAll(EMAIL_RE)) addSignal(agg.emails, clean(m[0]), source);
+  for (const m of txt.matchAll(LINKEDIN_RE)) addSignal(agg.linkedins, clean(m[0]), source);
+  for (const [key, re] of Object.entries(SOCIAL_PATTERNS)) {
+    for (const m of txt.matchAll(re)) addSignal(agg.socials[key as keyof Aggregated["socials"]], clean(m[0]), source);
+  }
+}
+
+function aggregateSignals({
+  leadRow,
+  contacts,
+  dms,
+  emails,
+}: {
+  leadRow: Record<string, unknown> | null;
+  contacts: WebsiteContacts | null;
+  dms: DecisionMaker[];
+  emails: LinkedinEmail[];
+}): Aggregated {
+  const agg = {
+    emails: new Map<string, Signal>(),
+    phones: new Map<string, Signal>(),
+    linkedins: new Map<string, Signal>(),
+    socials: {
+      instagram: new Map<string, Signal>(),
+      facebook: new Map<string, Signal>(),
+      youtube: new Map<string, Signal>(),
+      twitter: new Map<string, Signal>(),
+      tiktok: new Map<string, Signal>(),
+    },
+    websites: new Map<string, Signal>(),
+  };
+
+  // From the lead row itself (Google Business Profile)
+  if (leadRow) {
+    const phone = leadRow.phone as string | null | undefined;
+    if (phone) addSignal(agg.phones, phone, "GBP");
+    if (Array.isArray(leadRow.phones)) for (const p of leadRow.phones) if (typeof p === "string") addSignal(agg.phones, p, "GBP");
+    const email = leadRow.email as string | null | undefined;
+    if (email) addSignal(agg.emails, email, "GBP");
+    if (Array.isArray(leadRow.emails)) for (const e of leadRow.emails) if (typeof e === "string") addSignal(agg.emails, e, "GBP");
+    const site = leadRow.website as string | null | undefined;
+    if (site) addSignal(agg.websites, site, "GBP");
+    const ig = leadRow.instagram_url as string | null | undefined;
+    if (ig) addSignal(agg.socials.instagram, ig, "Instagram actor");
+    mineFrom(leadRow.raw, "GBP", agg);
+    mineFrom(leadRow.brand_dna_raw, "Brand DNA", agg);
+    mineFrom(leadRow.instagram_raw, "Instagram actor", agg);
+  }
+
+  // From website-contacts (the contact-info-scraper)
+  if (contacts) {
+    for (const e of contacts.emails || []) addSignal(agg.emails, e, "Website");
+    for (const p of contacts.phones || []) addSignal(agg.phones, p, "Website");
+    for (const l of contacts.linkedins || []) addSignal(agg.linkedins, l, "Website");
+    const s = contacts.socials || {};
+    for (const url of (s.instagrams as string[] | undefined) || []) addSignal(agg.socials.instagram, url, "Website");
+    for (const url of (s.facebooks as string[] | undefined) || []) addSignal(agg.socials.facebook, url, "Website");
+    for (const url of (s.youtubes as string[] | undefined) || []) addSignal(agg.socials.youtube, url, "Website");
+    for (const url of (s.twitters as string[] | undefined) || []) addSignal(agg.socials.twitter, url, "Website");
+    for (const url of (s.tiktoks as string[] | undefined) || []) addSignal(agg.socials.tiktok, url, "Website");
+  }
+
+  // From decision makers + LinkedIn-to-email
+  for (const dm of dms) {
+    if (dm.person_profile_url) addSignal(agg.linkedins, dm.person_profile_url, `DM: ${dm.person_name || "person"}`);
+  }
+  for (const e of emails) addSignal(agg.emails, e.email, "LinkedIn→email");
+
+  // Mine phone numbers from raw blobs (more lenient — only via leadRow/brand to avoid noise)
+  if (leadRow) {
+    const text = `${JSON.stringify(leadRow.raw || "")} ${JSON.stringify(leadRow.brand_dna_raw || "")}`;
+    for (const m of text.matchAll(PHONE_RE)) {
+      const v = m[0].trim();
+      const digits = v.replace(/\D/g, "");
+      if (digits.length >= 9 && digits.length <= 15) addSignal(agg.phones, v, "Mined");
+    }
+  }
+
+  const toArr = (m: Map<string, Signal>) => [...m.values()].slice(0, 25);
+  return {
+    emails: toArr(agg.emails),
+    phones: toArr(agg.phones),
+    linkedins: toArr(agg.linkedins),
+    websites: toArr(agg.websites),
+    socials: {
+      instagram: toArr(agg.socials.instagram),
+      facebook: toArr(agg.socials.facebook),
+      youtube: toArr(agg.socials.youtube),
+      twitter: toArr(agg.socials.twitter),
+      tiktok: toArr(agg.socials.tiktok),
+    },
+  };
+}
+
+function SignalGroup({
+  icon,
+  label,
+  items,
+  hrefFor,
+  external,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  items: Signal[];
+  hrefFor: (s: Signal) => string;
+  external?: boolean;
+}) {
+  if (!items.length) return null;
+  return (
+    <div className="rounded-lg border border-white/80 bg-white/80 px-2.5 py-2 shadow-sm">
+      <div className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+        {icon} {label} <span className="text-slate-400">({items.length})</span>
+      </div>
+      <ul className="space-y-0.5 text-[11px]">
+        {items.slice(0, 8).map((s) => (
+          <li key={s.value} className="flex items-center justify-between gap-1">
+            <a
+              href={hrefFor(s)}
+              target={external ? "_blank" : undefined}
+              rel="noopener noreferrer"
+              className="truncate text-slate-800 hover:text-indigo-600 hover:underline"
+              title={`${s.value} · from ${s.sources.join(", ")}`}
+            >
+              {s.value}
+            </a>
+            <div className="flex shrink-0 items-center gap-1">
+              <span className="rounded-full bg-indigo-50 px-1.5 py-0.5 text-[9px] font-medium text-indigo-700 ring-1 ring-indigo-100">
+                {s.sources[0]}
+                {s.sources.length > 1 ? ` +${s.sources.length - 1}` : ""}
+              </span>
+              <CopyButton value={s.value} />
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function ContactList({
   icon,
   label,
