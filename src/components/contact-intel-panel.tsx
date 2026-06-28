@@ -22,6 +22,7 @@ export function ContactIntelPanel({ leadId, businessName, website }: Props) {
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
   const [rerunningStep, setRerunningStep] = useState<RerunStep | "emails_missing" | null>(null);
+  const [findingEmailFor, setFindingEmailFor] = useState<string | null>(null);
 
   const load = async () => {
     const { data: lr } = await supabase
@@ -122,6 +123,20 @@ export function ContactIntelPanel({ leadId, businessName, website }: Props) {
       toast.error(e instanceof Error ? e.message : "Re-run failed");
     } finally {
       setRerunningStep(null);
+    }
+  };
+
+  const findEmailForDm = async (dmId: string) => {
+    if (!business) return;
+    setFindingEmailFor(dmId);
+    try {
+      const res = await rerunStep(business.id, "emails", "all", [dmId]);
+      toast.success(res.alreadyRunning ? "Already running — watching progress" : "Searching email…");
+      setTimeout(() => { void load(); }, 1000);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Email lookup failed");
+    } finally {
+      setFindingEmailFor(null);
     }
   };
 
@@ -361,6 +376,24 @@ export function ContactIntelPanel({ leadId, businessName, website }: Props) {
                           </a>
                         )}
                       </div>
+                      {dm.person_profile_url && (
+                        <div className="mt-2 flex justify-end">
+                          <button
+                            type="button"
+                            disabled={running || findingEmailFor === dm.id}
+                            onClick={() => findEmailForDm(dm.id)}
+                            className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                            title={dmEmails.length ? "Search again for emails on this profile" : "Find email for this person"}
+                          >
+                            {findingEmailFor === dm.id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <Mail className="h-3 w-3" />
+                            )}
+                            {dmEmails.length ? "Re-find email" : "Find email"}
+                          </button>
+                        </div>
+                      )}
                       {dmEmails.length > 0 && (
                         <div className="mt-2 space-y-1">
                           {dmEmails.map((e) => (

@@ -101,11 +101,11 @@ export async function startEnrichment(businessName: string, website: string | nu
 
 export type RerunStep = "website" | "decision_makers" | "emails";
 
-export async function rerunStep(businessId: string, step: RerunStep, scope: "all" | "missing" = "all") {
+export async function rerunStep(businessId: string, step: RerunStep, scope: "all" | "missing" = "all", dmIds?: string[]) {
   const res = await fetch("/api/public/contacts/rerun", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ businessId, step, scope }),
+    body: JSON.stringify({ businessId, step, scope, dmIds }),
   });
   if (!res.ok) throw new Error(`Re-run failed: ${res.status}`);
   return res.json() as Promise<{ businessId: string; jobId: string; step: RerunStep; alreadyRunning?: boolean }>;
