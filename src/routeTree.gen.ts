@@ -16,6 +16,7 @@ import { Route as ContactsRouteImport } from './routes/contacts'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LeadsIndexRouteImport } from './routes/leads.index'
 import { Route as HistoryIndexRouteImport } from './routes/history.index'
+import { Route as ContactsIndexRouteImport } from './routes/contacts.index'
 import { Route as WebsiteIdRouteImport } from './routes/website.$id'
 import { Route as LeadsIdRouteImport } from './routes/leads.$id'
 import { Route as HistoryIdRouteImport } from './routes/history.$id'
@@ -64,6 +65,11 @@ const HistoryIndexRoute = HistoryIndexRouteImport.update({
   id: '/history/',
   path: '/history/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const ContactsIndexRoute = ContactsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ContactsRoute,
 } as any)
 const WebsiteIdRoute = WebsiteIdRouteImport.update({
   id: '/website/$id',
@@ -135,13 +141,14 @@ const ApiPublicApifyImportRoute = ApiPublicApifyImportRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/contacts': typeof ContactsRoute
+  '/contacts': typeof ContactsRouteWithChildren
   '/runs': typeof RunsRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/history/$id': typeof HistoryIdRoute
   '/leads/$id': typeof LeadsIdRoute
   '/website/$id': typeof WebsiteIdRoute
+  '/contacts/': typeof ContactsIndexRoute
   '/history/': typeof HistoryIndexRoute
   '/leads/': typeof LeadsIndexRoute
   '/api/public/auto-enrich': typeof ApiPublicAutoEnrichRoute
@@ -157,13 +164,13 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/contacts': typeof ContactsRoute
   '/runs': typeof RunsRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/history/$id': typeof HistoryIdRoute
   '/leads/$id': typeof LeadsIdRoute
   '/website/$id': typeof WebsiteIdRoute
+  '/contacts': typeof ContactsIndexRoute
   '/history': typeof HistoryIndexRoute
   '/leads': typeof LeadsIndexRoute
   '/api/public/auto-enrich': typeof ApiPublicAutoEnrichRoute
@@ -180,13 +187,14 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/contacts': typeof ContactsRoute
+  '/contacts': typeof ContactsRouteWithChildren
   '/runs': typeof RunsRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/history/$id': typeof HistoryIdRoute
   '/leads/$id': typeof LeadsIdRoute
   '/website/$id': typeof WebsiteIdRoute
+  '/contacts/': typeof ContactsIndexRoute
   '/history/': typeof HistoryIndexRoute
   '/leads/': typeof LeadsIndexRoute
   '/api/public/auto-enrich': typeof ApiPublicAutoEnrichRoute
@@ -211,6 +219,7 @@ export interface FileRouteTypes {
     | '/history/$id'
     | '/leads/$id'
     | '/website/$id'
+    | '/contacts/'
     | '/history/'
     | '/leads/'
     | '/api/public/auto-enrich'
@@ -226,13 +235,13 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/contacts'
     | '/runs'
     | '/search'
     | '/settings'
     | '/history/$id'
     | '/leads/$id'
     | '/website/$id'
+    | '/contacts'
     | '/history'
     | '/leads'
     | '/api/public/auto-enrich'
@@ -255,6 +264,7 @@ export interface FileRouteTypes {
     | '/history/$id'
     | '/leads/$id'
     | '/website/$id'
+    | '/contacts/'
     | '/history/'
     | '/leads/'
     | '/api/public/auto-enrich'
@@ -271,7 +281,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  ContactsRoute: typeof ContactsRoute
+  ContactsRoute: typeof ContactsRouteWithChildren
   RunsRoute: typeof RunsRoute
   SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRoute
@@ -342,6 +352,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/history/'
       preLoaderRoute: typeof HistoryIndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/contacts/': {
+      id: '/contacts/'
+      path: '/'
+      fullPath: '/contacts/'
+      preLoaderRoute: typeof ContactsIndexRouteImport
+      parentRoute: typeof ContactsRoute
     }
     '/website/$id': {
       id: '/website/$id'
@@ -437,9 +454,21 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface ContactsRouteChildren {
+  ContactsIndexRoute: typeof ContactsIndexRoute
+}
+
+const ContactsRouteChildren: ContactsRouteChildren = {
+  ContactsIndexRoute: ContactsIndexRoute,
+}
+
+const ContactsRouteWithChildren = ContactsRoute._addFileChildren(
+  ContactsRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  ContactsRoute: ContactsRoute,
+  ContactsRoute: ContactsRouteWithChildren,
   RunsRoute: RunsRoute,
   SearchRoute: SearchRoute,
   SettingsRoute: SettingsRoute,
