@@ -67,6 +67,63 @@ async function updateStep(jobId: string, currentSteps: Json, step: string, paylo
   return next;
 }
 
+// Mine LinkedIn URLs from any nested JSON blob.
+const LINKEDIN_RE = /https?:\/\/(?:[a-z]{2,4}\.)?linkedin\.com\/[A-Za-z0-9._\-\/?%=&#]+/gi;
+function mineLinkedIns(blob: unknown): string[] {
+  if (blob == null) return [];
+  try {
+    const txt = typeof blob === "string" ? blob : JSON.stringify(blob);
+    const out = new Set<string>();
+    for (const m of txt.matchAll(LINKEDIN_RE)) {
+      const clean = m[0].replace(/[)\].,'"<>]+$/g, "");
+      out.add(clean);
+    }
+    return [...out];
+  } catch {
+    return [];
+  }
+}
+function rankLinkedIns(urls: string[]): string[] {
+  // company pages first, then school, then in/people
+  const score = (u: string) => {
+    const l = u.toLowerCase();
+    if (l.includes("/company/")) return 3;
+    if (l.includes("/school/")) return 2;
+    if (l.includes("/in/") || l.includes("/pub/")) return 1;
+    return 0;
+  };
+  return [...new Set(urls)].sort((a, b) => score(b) - score(a));
+}
+
+type LinkedInHint = { url: string; source: string };
+
+async function gatherLeadHints(leadId: string | null): Promise<{
+  linkedinHints: LinkedInHint[];
+  instagramUrl: string | null;
+  websiteFromLead: string | null;
+}> {
+  if (!leadId) return { linkedinHints: [], instagramUrl: null, websiteFromLead: null };
+  const res = await sb(
+    `leads?id=eq.${leadId}&select=raw,brand_dna_raw,instagram_raw,instagram_url,website`,
+  );
+  if (!res.ok) return { linkedinHints: [], instagramUrl: null, websiteFromLead: null };
+  const rows = (await res.json()) as Json[];
+  const row = rows[0];
+  if (!row) return { linkedinHints: [], instagramUrl: null, websiteFromLead: null };
+  const hints: LinkedInHint[] = [];
+  for (const u of rankLinkedIns(mineLinkedIns(row.raw))) hints.push({ url: u, source: "Google Business Profile" });
+  for (const u of rankLinkedIns(mineLinkedIns(row.brand_dna_raw))) hints.push({ url: u, source: "Brand DNA" });
+  for (const u of rankLinkedIns(mineLinkedIns(row.instagram_raw))) hints.push({ url: u, source: "Instagram bio" });
+  // dedupe preserving first-seen source
+  const seen = new Set<string>();
+  const deduped = hints.filter((h) => (seen.has(h.url) ? false : (seen.add(h.url), true)));
+  return {
+    linkedinHints: deduped,
+    instagramUrl: (row.instagram_url as string | null) || null,
+    websiteFromLead: (row.website as string | null) || null,
+  };
+}
+
 function pickWebsiteContacts(items: Json[]) {
   const emails = new Set<string>();
   const phones = new Set<string>();
@@ -95,7 +152,7 @@ function pickWebsiteContacts(items: Json[]) {
   return { emails: [...emails], phones: [...phones], linkedins: [...linkedins], socials };
 }
 
-async function runPipeline(businessId: string, jobId: string, businessName: string, website: string | null) {
+async function runPipeline(businessId: string, jobId: string, businessName: string, website: string | null, leadId: string | null) {
   const { apifyToken } = env();
   let steps: Json = {
     website: { status: "pending" },
@@ -103,8 +160,15 @@ async function runPipeline(businessId: string, jobId: string, businessName: stri
     emails: { status: "pending" },
   };
 
+  // Smart fallback: gather LinkedIn hints from previously-enriched lead data
+  // (Google Business Profile raw, Brand DNA, Instagram bio). We use these
+  // when the website scraper finds no LinkedIn — so the pipeline is never
+  // blocked by one weak signal.
+  const hints = await gatherLeadHints(leadId);
+
   // Step 1: contact-info-scraper
   let firstLinkedIn = "";
+  let linkedInSource = "";
   if (website) {
     steps = await updateStep(jobId, steps, "website", { status: "running", startedAt: new Date().toISOString() });
     const run = await runApifyActorAsync<Json>(
@@ -128,6 +192,7 @@ async function runPipeline(businessId: string, jobId: string, businessName: stri
     if (run.ok) {
       const picked = pickWebsiteContacts(run.items);
       firstLinkedIn = picked.linkedins[0] || "";
+      if (firstLinkedIn) linkedInSource = "website";
       await sb("website_contacts", {
         method: "POST",
         headers: { Prefer: "resolution=merge-duplicates,return=representation" },
@@ -145,18 +210,48 @@ async function runPipeline(businessId: string, jobId: string, businessName: stri
         status: "completed",
         finishedAt: new Date().toISOString(),
         counts: { emails: picked.emails.length, phones: picked.phones.length, socials: Object.values(picked.socials).flat().length },
+        linkedinSource: firstLinkedIn ? "website" : null,
+        note: firstLinkedIn ? null : "No LinkedIn found on website — will try fallback signals",
       });
     } else {
-      steps = await updateStep(jobId, steps, "website", { status: "failed", error: run.error, finishedAt: new Date().toISOString() });
+      steps = await updateStep(jobId, steps, "website", {
+        status: "failed",
+        error: run.error,
+        finishedAt: new Date().toISOString(),
+        note: "Website scrape failed — using fallback LinkedIn hints from other actors",
+      });
     }
   } else {
-    steps = await updateStep(jobId, steps, "website", { status: "skipped", reason: "No website" });
+    steps = await updateStep(jobId, steps, "website", {
+      status: "skipped",
+      reason: "No website — using LinkedIn hints from GBP/Brand DNA/Instagram",
+    });
+  }
+
+  // Fallback: if website didn't yield a LinkedIn, fall back to hints.
+  if (!firstLinkedIn && hints.linkedinHints.length) {
+    const top = hints.linkedinHints[0];
+    firstLinkedIn = top.url;
+    linkedInSource = top.source;
   }
 
   // Step 2: decision-maker-finder
-  steps = await updateStep(jobId, steps, "decision_makers", { status: "running", startedAt: new Date().toISOString() });
+  steps = await updateStep(jobId, steps, "decision_makers", {
+    status: "running",
+    startedAt: new Date().toISOString(),
+    linkedinSource: linkedInSource || (firstLinkedIn ? "website" : "name-only"),
+    note: firstLinkedIn
+      ? linkedInSource === "website"
+        ? `Using company LinkedIn found on website`
+        : `Website had no LinkedIn — falling back to ${linkedInSource}`
+      : `No company LinkedIn anywhere — searching by business name only`,
+  });
   const companies = [businessName];
   if (firstLinkedIn) companies.push(firstLinkedIn);
+  // Add a couple of additional hints (deduped) so the actor has more to chew on
+  for (const h of hints.linkedinHints.slice(0, 3)) {
+    if (!companies.includes(h.url)) companies.push(h.url);
+  }
   const dmRun = await runApifyActorAsync<DMCandidate>(
     "piotrv1001~linkedin-decision-maker-finder",
     {
@@ -192,13 +287,28 @@ async function runPipeline(businessId: string, jobId: string, businessName: stri
       status: "completed",
       finishedAt: new Date().toISOString(),
       counts: { found: dmRun.items.length, kept: scored.length },
+      note: scored.length === 0
+        ? "No qualifying decision makers — try a different LinkedIn company URL"
+        : null,
     });
   } else {
     steps = await updateStep(jobId, steps, "decision_makers", { status: "failed", error: dmRun.error, finishedAt: new Date().toISOString() });
   }
 
   // Step 3: linkedin-to-email per kept person
-  steps = await updateStep(jobId, steps, "emails", { status: "running", startedAt: new Date().toISOString() });
+  steps = await updateStep(jobId, steps, "emails", {
+    status: insertedDMs.length === 0 ? "skipped" : "running",
+    startedAt: new Date().toISOString(),
+    reason: insertedDMs.length === 0 ? "No decision makers to resolve emails for" : undefined,
+  });
+  if (insertedDMs.length === 0) {
+    await patchJob(jobId, { status: "completed", finished_at: new Date().toISOString() });
+    await sb(`businesses?id=eq.${businessId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ enrichment_status: "completed", last_enriched_at: new Date().toISOString(), updated_at: new Date().toISOString() }),
+    }).catch(() => {});
+    return;
+  }
   let emailsFound = 0;
   for (const dm of insertedDMs) {
     const url = dm.person_profile_url as string | null;
@@ -278,7 +388,7 @@ export const Route = createFileRoute("/api/public/contacts/enrich")({
         }).catch(() => {});
 
         // Fire-and-forget; client polls /contacts/status
-        runPipeline(biz.id as string, job.id as string, name, website).catch(async (e) => {
+        runPipeline(biz.id as string, job.id as string, name, website, body.leadId ?? null).catch(async (e) => {
           await patchJob(job.id as string, { status: "failed", error: String((e as Error)?.message || e), finished_at: new Date().toISOString() });
         });
 
