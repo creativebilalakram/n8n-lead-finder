@@ -16,7 +16,16 @@ export type ContactJob = {
   id: string;
   business_id: string;
   status: string;
-  steps: Record<string, { status: string; error?: string; counts?: Record<string, number>; startedAt?: string; finishedAt?: string; reason?: string }>;
+  steps: Record<string, {
+    status: string;
+    error?: string;
+    counts?: Record<string, number>;
+    startedAt?: string;
+    finishedAt?: string;
+    reason?: string;
+    note?: string | null;
+    linkedinSource?: string | null;
+  }>;
   error: string | null;
   started_at: string;
   finished_at: string | null;

@@ -152,10 +152,27 @@ export function ContactIntelPanel({ leadId, businessName, website }: Props) {
 
       {/* Step progress */}
       {job && (
-        <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
-          <StepCell label="Website scraper" badge={stepBadge((steps as Record<string, { status: string }>).website)} />
-          <StepCell label="Decision makers" badge={stepBadge((steps as Record<string, { status: string }>).decision_makers)} />
-          <StepCell label="LinkedIn → email" badge={stepBadge((steps as Record<string, { status: string }>).emails)} />
+        <div className="mt-3 space-y-1.5">
+          <div className="grid grid-cols-3 gap-2 text-[11px]">
+            <StepCell label="Website scraper" badge={stepBadge((steps as Record<string, { status: string }>).website)} />
+            <StepCell label="Decision makers" badge={stepBadge((steps as Record<string, { status: string }>).decision_makers)} />
+            <StepCell label="LinkedIn → email" badge={stepBadge((steps as Record<string, { status: string }>).emails)} />
+          </div>
+          {(["website", "decision_makers", "emails"] as const).map((k) => {
+            const st = (steps as Record<string, { note?: string | null; reason?: string | null; linkedinSource?: string | null }>)[k];
+            const msg = st?.note || st?.reason;
+            if (!msg) return null;
+            return (
+              <div key={k} className="rounded-md border border-indigo-100 bg-indigo-50/60 px-2.5 py-1 text-[10.5px] text-indigo-800">
+                <span className="font-semibold">{labelFor(k)}:</span> {msg}
+                {st?.linkedinSource && (
+                  <span className="ml-1 rounded-full bg-white px-1.5 py-0.5 text-[9px] font-semibold text-indigo-700 ring-1 ring-indigo-200">
+                    source: {st.linkedinSource}
+                  </span>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -290,6 +307,12 @@ function StepCell({ label, badge }: { label: string; badge: React.ReactNode }) {
       {badge}
     </div>
   );
+}
+
+function labelFor(k: "website" | "decision_makers" | "emails") {
+  if (k === "website") return "Website scraper";
+  if (k === "decision_makers") return "Decision makers";
+  return "LinkedIn → email";
 }
 
 function ContactList({
