@@ -222,11 +222,24 @@ export function LeadCard({ lead, muted = false }: { lead: Lead; muted?: boolean 
     }
   };
 
-  const baseScore = typeof lead.leadScore === "number" ? lead.leadScore : undefined;
-  const adjusted = analysis
-    ? computeAdjustedScore(baseScore, analysis.score)
-    : null;
-  const displayScore = adjusted ? adjusted.score : baseScore;
+  // If filter-settings already applied a website bonus, lead.baseLeadScore
+  // holds the unboosted value. Use it to avoid double-counting the bonus.
+  const rawBase = (lead as Record<string, unknown>).baseLeadScore;
+  const baseScore =
+    typeof rawBase === "number"
+      ? rawBase
+      : typeof lead.leadScore === "number"
+        ? lead.leadScore
+        : undefined;
+  // Prefer freshly fetched analysis.score, else the stored website_modern_score.
+  const websiteScoreForBonus =
+    (analysis?.score as number | undefined) ??
+    ((lead as Record<string, unknown>).websiteModernScore as number | undefined);
+  const adjusted =
+    websiteScoreForBonus != null
+      ? computeAdjustedScore(baseScore, websiteScoreForBonus)
+      : null;
+  const displayScore = adjusted ? adjusted.score : (lead.leadScore ?? baseScore);
   const displayTier = adjusted ? adjusted.tier : lead.leadTier;
   const tier = (displayTier || "").toLowerCase();
   const tierBadge =

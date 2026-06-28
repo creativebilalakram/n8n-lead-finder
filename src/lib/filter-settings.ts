@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import type { Lead } from "./lead-types";
+import { computeAdjustedScore } from "./score-adjust";
 
 export type FilterSettings = {
   minReviews: number;
@@ -198,5 +199,22 @@ export function evaluateLead(lead: Lead, s: FilterSettings): Evaluation {
 
 export function applyFiltersToLead(lead: Lead, s: FilterSettings): Lead {
   const e = evaluateLead(lead, s);
-  return { ...lead, passed: e.passed, rejectionReasons: e.rejectionReasons };
+  // Re-rank live: outdated websites get a bigger opportunity bonus, so the
+  // displayed score and tier reflect website modernity at render time instead
+  // of the stale value stored at scrape-time.
+  const base = typeof lead.leadScore === "number" ? lead.leadScore : 0;
+  const websiteScore = (lead as Record<string, unknown>).websiteModernScore as
+    | number
+    | null
+    | undefined;
+  const { score, tier, bonus } = computeAdjustedScore(base, websiteScore);
+  return {
+    ...lead,
+    passed: e.passed,
+    rejectionReasons: e.rejectionReasons,
+    leadScore: score,
+    leadTier: tier,
+    baseLeadScore: base,
+    websiteScoreBonus: bonus,
+  };
 }
