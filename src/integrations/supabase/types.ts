@@ -32,6 +32,133 @@ export type Database = {
         }
         Relationships: []
       }
+      businesses: {
+        Row: {
+          created_at: string
+          enrichment_status: string
+          id: string
+          last_enriched_at: string | null
+          lead_id: string | null
+          name: string
+          normalized_key: string
+          updated_at: string
+          website: string | null
+        }
+        Insert: {
+          created_at?: string
+          enrichment_status?: string
+          id?: string
+          last_enriched_at?: string | null
+          lead_id?: string | null
+          name: string
+          normalized_key: string
+          updated_at?: string
+          website?: string | null
+        }
+        Update: {
+          created_at?: string
+          enrichment_status?: string
+          id?: string
+          last_enriched_at?: string | null
+          lead_id?: string | null
+          name?: string
+          normalized_key?: string
+          updated_at?: string
+          website?: string | null
+        }
+        Relationships: []
+      }
+      contact_jobs: {
+        Row: {
+          business_id: string
+          error: string | null
+          finished_at: string | null
+          id: string
+          started_at: string
+          status: string
+          steps: Json
+        }
+        Insert: {
+          business_id: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          started_at?: string
+          status?: string
+          steps?: Json
+        }
+        Update: {
+          business_id?: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          started_at?: string
+          status?: string
+          steps?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_jobs_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      decision_makers: {
+        Row: {
+          added_to_outreach: boolean
+          business_id: string
+          confidence: string | null
+          created_at: string
+          decision_maker_score: number
+          id: string
+          manual_score_override: number | null
+          person_name: string | null
+          person_profile_url: string | null
+          person_title: string | null
+          priority: string
+          raw: Json | null
+        }
+        Insert: {
+          added_to_outreach?: boolean
+          business_id: string
+          confidence?: string | null
+          created_at?: string
+          decision_maker_score?: number
+          id?: string
+          manual_score_override?: number | null
+          person_name?: string | null
+          person_profile_url?: string | null
+          person_title?: string | null
+          priority?: string
+          raw?: Json | null
+        }
+        Update: {
+          added_to_outreach?: boolean
+          business_id?: string
+          confidence?: string | null
+          created_at?: string
+          decision_maker_score?: number
+          id?: string
+          manual_score_override?: number | null
+          person_name?: string | null
+          person_profile_url?: string | null
+          person_title?: string | null
+          priority?: string
+          raw?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "decision_makers_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leads: {
         Row: {
           address: string | null
@@ -235,6 +362,51 @@ export type Database = {
           },
         ]
       }
+      linkedin_emails: {
+        Row: {
+          business_id: string
+          confidence: string | null
+          created_at: string
+          decision_maker_id: string
+          email: string
+          id: string
+          raw: Json | null
+        }
+        Insert: {
+          business_id: string
+          confidence?: string | null
+          created_at?: string
+          decision_maker_id: string
+          email: string
+          id?: string
+          raw?: Json | null
+        }
+        Update: {
+          business_id?: string
+          confidence?: string | null
+          created_at?: string
+          decision_maker_id?: string
+          email?: string
+          id?: string
+          raw?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "linkedin_emails_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "linkedin_emails_decision_maker_id_fkey"
+            columns: ["decision_maker_id"]
+            isOneToOne: false
+            referencedRelation: "decision_makers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       search_runs: {
         Row: {
           apify_finished_at: string | null
@@ -273,6 +445,47 @@ export type Database = {
           total_count?: number
         }
         Relationships: []
+      }
+      website_contacts: {
+        Row: {
+          business_id: string
+          emails: Json
+          id: string
+          linkedins: Json
+          phones: Json
+          raw: Json | null
+          socials: Json
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          emails?: Json
+          id?: string
+          linkedins?: Json
+          phones?: Json
+          raw?: Json | null
+          socials?: Json
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          emails?: Json
+          id?: string
+          linkedins?: Json
+          phones?: Json
+          raw?: Json | null
+          socials?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "website_contacts_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: true
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
