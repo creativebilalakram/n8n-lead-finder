@@ -22,6 +22,7 @@ export function ContactIntelPanel({ leadId, businessName, website }: Props) {
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
   const [rerunningStep, setRerunningStep] = useState<RerunStep | "emails_missing" | null>(null);
+  const [findingEmailFor, setFindingEmailFor] = useState<string | null>(null);
 
   const load = async () => {
     const { data: lr } = await supabase
@@ -122,6 +123,20 @@ export function ContactIntelPanel({ leadId, businessName, website }: Props) {
       toast.error(e instanceof Error ? e.message : "Re-run failed");
     } finally {
       setRerunningStep(null);
+    }
+  };
+
+  const findEmailForDm = async (dmId: string) => {
+    if (!business) return;
+    setFindingEmailFor(dmId);
+    try {
+      const res = await rerunStep(business.id, "emails", "all", [dmId]);
+      toast.success(res.alreadyRunning ? "Already running — watching progress" : "Searching email…");
+      setTimeout(() => { void load(); }, 1000);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Email lookup failed");
+    } finally {
+      setFindingEmailFor(null);
     }
   };
 
