@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Save, Sparkles, Phone, Mail, Instagram, Facebook, Globe, Youtube, Music2, Linkedin, MessageCircle, RefreshCw, ShieldCheck } from "lucide-react";
+import { Loader2, Save, Sparkles, Phone, Mail, Instagram, Facebook, Globe, Youtube, Music2, Linkedin, MessageCircle, ShieldCheck, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -171,7 +171,20 @@ export function BusinessChannelsCard({ leadId, businessId, raw }: Props) {
 
       if (existing) {
         setExistingId(existing.id);
-        setState(existing);
+        // Existing saved values win, but fill any blanks from the freshly
+        // merged sources so newly available data (e.g. phone from GBP) shows up.
+        const filled: Partial<BusinessChannels> = { ...existing };
+        const ex = existing as unknown as Record<string, unknown>;
+        const isBlank = (v: unknown) =>
+          v == null || v === "" || (Array.isArray(v) && v.length === 0);
+        if (isBlank(ex.generic_emails)) filled.generic_emails = mergedRow.generic_emails;
+        if (isBlank(ex.generic_phones)) filled.generic_phones = mergedRow.generic_phones;
+        for (const k of [
+          "instagram_url","facebook_url","tiktok_url","linkedin_company_url","twitter_url","youtube_url",
+        ] as const) {
+          if (isBlank(ex[k])) (filled as Record<string, unknown>)[k] = (mergedRow as Record<string, unknown>)[k];
+        }
+        setState(filled);
         // Merge sources map from existing row + freshly computed for any
         // values that match. This lets chips appear even on previously saved
         // rows that didn't store sources.
@@ -225,7 +238,7 @@ export function BusinessChannelsCard({ leadId, businessId, raw }: Props) {
     }
   };
 
-  const resyncAll = async () => {
+  const runWebsiteScraper = async () => {
     setSyncing(true);
     const t = toast.loading("Running website contact scraper + merging all sources…");
     try {
@@ -279,9 +292,9 @@ export function BusinessChannelsCard({ leadId, businessId, raw }: Props) {
           <Button size="sm" variant="outline" onClick={mergeNow} disabled={loading || syncing} className="h-8 text-xs">
             <Sparkles className="mr-1 h-3 w-3" /> Re-merge
           </Button>
-          <Button size="sm" variant="outline" onClick={resyncAll} disabled={syncing} className="h-8 text-xs">
-            {syncing ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <RefreshCw className="mr-1 h-3 w-3" />}
-            Resync from all sources
+          <Button size="sm" variant="outline" onClick={runWebsiteScraper} disabled={syncing} className="h-8 text-xs">
+            {syncing ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Search className="mr-1 h-3 w-3" />}
+            Run website scraper
           </Button>
           <Button size="sm" onClick={save} disabled={loading || saving} className="h-8 text-xs">
             {saving ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Save className="mr-1 h-3 w-3" />}
