@@ -115,8 +115,8 @@ export type InboxRow = {
   id: string;
   title: string;
   city: string | null;
-  leadScore: number | null;
-  leadTier: string | null;
+  lead_score: number | null;
+  lead_tier: string | null;
   outreach_status: string | null;
   last_action_at: string | null;
   last_action_note: string | null;
@@ -141,18 +141,18 @@ function hasAnyChannel(c: DmContact): boolean {
 export async function getInboxLeads(): Promise<InboxRow[]> {
   const { data: leads, error } = await supabase
     .from("leads")
-    .select("id, title, city, leadScore, leadTier, passed, outreach_status, last_action_at, last_action_note")
+    .select("id, title, city, lead_score, lead_tier, passed, outreach_status, last_action_at, last_action_note")
     .eq("passed", true)
-    .in("leadTier", ["Hot", "Warm"])
-    .order("leadScore", { ascending: false })
+    .in("lead_tier", ["Hot", "Warm"])
+    .order("lead_score", { ascending: false })
     .limit(500);
   if (error) throw error;
   const rows = (leads ?? []) as Array<{
     id: string;
     title: string | null;
     city: string | null;
-    leadScore: number | null;
-    leadTier: string | null;
+    lead_score: number | null;
+    lead_tier: string | null;
     outreach_status: string | null;
     last_action_at: string | null;
     last_action_note: string | null;
@@ -200,8 +200,8 @@ export async function getInboxLeads(): Promise<InboxRow[]> {
       id: r.id,
       title: r.title ?? "Untitled",
       city: r.city,
-      leadScore: r.leadScore,
-      leadTier: r.leadTier,
+      lead_score: r.lead_score,
+      lead_tier: r.lead_tier,
       outreach_status: r.outreach_status,
       last_action_at: r.last_action_at,
       last_action_note: r.last_action_note,
