@@ -29,6 +29,7 @@ import { Route as ContactsDecisionMakersRouteImport } from './routes/contacts.de
 import { Route as ApiPublicAutoEnrichRouteImport } from './routes/api/public/auto-enrich'
 import { Route as ApiPublicWebsiteAnalyzeRouteImport } from './routes/api/public/website.analyze'
 import { Route as ApiPublicWebsitePackageRebuildRouteImport } from './routes/api/public/website-package.rebuild'
+import { Route as ApiPublicOutreachGenerateRouteImport } from './routes/api/public/outreach.generate'
 import { Route as ApiPublicLeadsStatusRouteImport } from './routes/api/public/leads.status'
 import { Route as ApiPublicLeadsStartRouteImport } from './routes/api/public/leads.start'
 import { Route as ApiPublicInstagramAnalyzeRouteImport } from './routes/api/public/instagram.analyze'
@@ -140,6 +141,12 @@ const ApiPublicWebsitePackageRebuildRoute =
     path: '/api/public/website-package/rebuild',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicOutreachGenerateRoute =
+  ApiPublicOutreachGenerateRouteImport.update({
+    id: '/api/public/outreach/generate',
+    path: '/api/public/outreach/generate',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicLeadsStatusRoute = ApiPublicLeadsStatusRouteImport.update({
   id: '/api/public/leads/status',
   path: '/api/public/leads/status',
@@ -215,6 +222,7 @@ export interface FileRoutesByFullPath {
   '/api/public/instagram/analyze': typeof ApiPublicInstagramAnalyzeRoute
   '/api/public/leads/start': typeof ApiPublicLeadsStartRoute
   '/api/public/leads/status': typeof ApiPublicLeadsStatusRoute
+  '/api/public/outreach/generate': typeof ApiPublicOutreachGenerateRoute
   '/api/public/website-package/rebuild': typeof ApiPublicWebsitePackageRebuildRoute
   '/api/public/website/analyze': typeof ApiPublicWebsiteAnalyzeRoute
 }
@@ -245,6 +253,7 @@ export interface FileRoutesByTo {
   '/api/public/instagram/analyze': typeof ApiPublicInstagramAnalyzeRoute
   '/api/public/leads/start': typeof ApiPublicLeadsStartRoute
   '/api/public/leads/status': typeof ApiPublicLeadsStatusRoute
+  '/api/public/outreach/generate': typeof ApiPublicOutreachGenerateRoute
   '/api/public/website-package/rebuild': typeof ApiPublicWebsitePackageRebuildRoute
   '/api/public/website/analyze': typeof ApiPublicWebsiteAnalyzeRoute
 }
@@ -277,6 +286,7 @@ export interface FileRoutesById {
   '/api/public/instagram/analyze': typeof ApiPublicInstagramAnalyzeRoute
   '/api/public/leads/start': typeof ApiPublicLeadsStartRoute
   '/api/public/leads/status': typeof ApiPublicLeadsStatusRoute
+  '/api/public/outreach/generate': typeof ApiPublicOutreachGenerateRoute
   '/api/public/website-package/rebuild': typeof ApiPublicWebsitePackageRebuildRoute
   '/api/public/website/analyze': typeof ApiPublicWebsiteAnalyzeRoute
 }
@@ -310,6 +320,7 @@ export interface FileRouteTypes {
     | '/api/public/instagram/analyze'
     | '/api/public/leads/start'
     | '/api/public/leads/status'
+    | '/api/public/outreach/generate'
     | '/api/public/website-package/rebuild'
     | '/api/public/website/analyze'
   fileRoutesByTo: FileRoutesByTo
@@ -340,6 +351,7 @@ export interface FileRouteTypes {
     | '/api/public/instagram/analyze'
     | '/api/public/leads/start'
     | '/api/public/leads/status'
+    | '/api/public/outreach/generate'
     | '/api/public/website-package/rebuild'
     | '/api/public/website/analyze'
   id:
@@ -371,6 +383,7 @@ export interface FileRouteTypes {
     | '/api/public/instagram/analyze'
     | '/api/public/leads/start'
     | '/api/public/leads/status'
+    | '/api/public/outreach/generate'
     | '/api/public/website-package/rebuild'
     | '/api/public/website/analyze'
   fileRoutesById: FileRoutesById
@@ -397,6 +410,7 @@ export interface RootRouteChildren {
   ApiPublicInstagramAnalyzeRoute: typeof ApiPublicInstagramAnalyzeRoute
   ApiPublicLeadsStartRoute: typeof ApiPublicLeadsStartRoute
   ApiPublicLeadsStatusRoute: typeof ApiPublicLeadsStatusRoute
+  ApiPublicOutreachGenerateRoute: typeof ApiPublicOutreachGenerateRoute
   ApiPublicWebsitePackageRebuildRoute: typeof ApiPublicWebsitePackageRebuildRoute
   ApiPublicWebsiteAnalyzeRoute: typeof ApiPublicWebsiteAnalyzeRoute
 }
@@ -543,6 +557,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicWebsitePackageRebuildRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/outreach/generate': {
+      id: '/api/public/outreach/generate'
+      path: '/api/public/outreach/generate'
+      fullPath: '/api/public/outreach/generate'
+      preLoaderRoute: typeof ApiPublicOutreachGenerateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/leads/status': {
       id: '/api/public/leads/status'
       path: '/api/public/leads/status'
@@ -653,6 +674,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicInstagramAnalyzeRoute: ApiPublicInstagramAnalyzeRoute,
   ApiPublicLeadsStartRoute: ApiPublicLeadsStartRoute,
   ApiPublicLeadsStatusRoute: ApiPublicLeadsStatusRoute,
+  ApiPublicOutreachGenerateRoute: ApiPublicOutreachGenerateRoute,
   ApiPublicWebsitePackageRebuildRoute: ApiPublicWebsitePackageRebuildRoute,
   ApiPublicWebsiteAnalyzeRoute: ApiPublicWebsiteAnalyzeRoute,
 }
