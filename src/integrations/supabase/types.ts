@@ -32,6 +32,69 @@ export type Database = {
         }
         Relationships: []
       }
+      business_channels: {
+        Row: {
+          business_id: string | null
+          facebook_url: string | null
+          generic_emails: Json
+          generic_phones: Json
+          id: string
+          instagram_url: string | null
+          lead_id: string | null
+          linkedin_company_url: string | null
+          tiktok_url: string | null
+          twitter_url: string | null
+          updated_at: string
+          whatsapp_business: string | null
+          youtube_url: string | null
+        }
+        Insert: {
+          business_id?: string | null
+          facebook_url?: string | null
+          generic_emails?: Json
+          generic_phones?: Json
+          id?: string
+          instagram_url?: string | null
+          lead_id?: string | null
+          linkedin_company_url?: string | null
+          tiktok_url?: string | null
+          twitter_url?: string | null
+          updated_at?: string
+          whatsapp_business?: string | null
+          youtube_url?: string | null
+        }
+        Update: {
+          business_id?: string | null
+          facebook_url?: string | null
+          generic_emails?: Json
+          generic_phones?: Json
+          id?: string
+          instagram_url?: string | null
+          lead_id?: string | null
+          linkedin_company_url?: string | null
+          tiktok_url?: string | null
+          twitter_url?: string | null
+          updated_at?: string
+          whatsapp_business?: string | null
+          youtube_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_channels_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_channels_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: true
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       businesses: {
         Row: {
           created_at: string
@@ -159,6 +222,90 @@ export type Database = {
           },
         ]
       }
+      dm_contacts: {
+        Row: {
+          confidence: string | null
+          created_at: string
+          decision_maker_id: string | null
+          facebook_url: string | null
+          first_name: string | null
+          full_name: string | null
+          id: string
+          instagram_handle: string | null
+          last_name: string | null
+          lead_id: string | null
+          linkedin_url: string | null
+          notes: string | null
+          personal_email: string | null
+          phone: string | null
+          role: string | null
+          source: string | null
+          twitter_handle: string | null
+          updated_at: string
+          whatsapp: string | null
+          work_email: string | null
+        }
+        Insert: {
+          confidence?: string | null
+          created_at?: string
+          decision_maker_id?: string | null
+          facebook_url?: string | null
+          first_name?: string | null
+          full_name?: string | null
+          id?: string
+          instagram_handle?: string | null
+          last_name?: string | null
+          lead_id?: string | null
+          linkedin_url?: string | null
+          notes?: string | null
+          personal_email?: string | null
+          phone?: string | null
+          role?: string | null
+          source?: string | null
+          twitter_handle?: string | null
+          updated_at?: string
+          whatsapp?: string | null
+          work_email?: string | null
+        }
+        Update: {
+          confidence?: string | null
+          created_at?: string
+          decision_maker_id?: string | null
+          facebook_url?: string | null
+          first_name?: string | null
+          full_name?: string | null
+          id?: string
+          instagram_handle?: string | null
+          last_name?: string | null
+          lead_id?: string | null
+          linkedin_url?: string | null
+          notes?: string | null
+          personal_email?: string | null
+          phone?: string | null
+          role?: string | null
+          source?: string | null
+          twitter_handle?: string | null
+          updated_at?: string
+          whatsapp?: string | null
+          work_email?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dm_contacts_decision_maker_id_fkey"
+            columns: ["decision_maker_id"]
+            isOneToOne: true
+            referencedRelation: "decision_makers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dm_contacts_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leads: {
         Row: {
           address: string | null
@@ -196,10 +343,13 @@ export type Database = {
           instagram_url: string | null
           instagram_username: string | null
           instagram_verified: boolean | null
+          last_action_at: string | null
+          last_action_note: string | null
           lead_score: number | null
           lead_tier: string | null
           lovable_url: string | null
           opened_at: string | null
+          outreach_status: string | null
           owner_update_age_days: number | null
           passed: boolean
           phone: string | null
@@ -260,10 +410,13 @@ export type Database = {
           instagram_url?: string | null
           instagram_username?: string | null
           instagram_verified?: boolean | null
+          last_action_at?: string | null
+          last_action_note?: string | null
           lead_score?: number | null
           lead_tier?: string | null
           lovable_url?: string | null
           opened_at?: string | null
+          outreach_status?: string | null
           owner_update_age_days?: number | null
           passed?: boolean
           phone?: string | null
@@ -324,10 +477,13 @@ export type Database = {
           instagram_url?: string | null
           instagram_username?: string | null
           instagram_verified?: boolean | null
+          last_action_at?: string | null
+          last_action_note?: string | null
           lead_score?: number | null
           lead_tier?: string | null
           lovable_url?: string | null
           opened_at?: string | null
+          outreach_status?: string | null
           owner_update_age_days?: number | null
           passed?: boolean
           phone?: string | null
