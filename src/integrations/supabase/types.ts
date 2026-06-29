@@ -34,6 +34,7 @@ export type Database = {
       }
       business_channels: {
         Row: {
+          auto_synced_at: string | null
           business_id: string | null
           facebook_url: string | null
           generic_emails: Json
@@ -42,6 +43,7 @@ export type Database = {
           instagram_url: string | null
           lead_id: string | null
           linkedin_company_url: string | null
+          sources: Json
           tiktok_url: string | null
           twitter_url: string | null
           updated_at: string
@@ -49,6 +51,7 @@ export type Database = {
           youtube_url: string | null
         }
         Insert: {
+          auto_synced_at?: string | null
           business_id?: string | null
           facebook_url?: string | null
           generic_emails?: Json
@@ -57,6 +60,7 @@ export type Database = {
           instagram_url?: string | null
           lead_id?: string | null
           linkedin_company_url?: string | null
+          sources?: Json
           tiktok_url?: string | null
           twitter_url?: string | null
           updated_at?: string
@@ -64,6 +68,7 @@ export type Database = {
           youtube_url?: string | null
         }
         Update: {
+          auto_synced_at?: string | null
           business_id?: string | null
           facebook_url?: string | null
           generic_emails?: Json
@@ -72,6 +77,7 @@ export type Database = {
           instagram_url?: string | null
           lead_id?: string | null
           linkedin_company_url?: string | null
+          sources?: Json
           tiktok_url?: string | null
           twitter_url?: string | null
           updated_at?: string

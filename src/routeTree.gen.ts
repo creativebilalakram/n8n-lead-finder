@@ -34,6 +34,7 @@ import { Route as ApiPublicLeadsStartRouteImport } from './routes/api/public/lea
 import { Route as ApiPublicInstagramAnalyzeRouteImport } from './routes/api/public/instagram.analyze'
 import { Route as ApiPublicContactsRerunRouteImport } from './routes/api/public/contacts.rerun'
 import { Route as ApiPublicContactsEnrichRouteImport } from './routes/api/public/contacts.enrich'
+import { Route as ApiPublicChannelsSyncRouteImport } from './routes/api/public/channels.sync'
 import { Route as ApiPublicBrandAnalyzeRouteImport } from './routes/api/public/brand.analyze'
 import { Route as ApiPublicApifyRunsRouteImport } from './routes/api/public/apify.runs'
 import { Route as ApiPublicApifyImportRouteImport } from './routes/api/public/apify.import'
@@ -165,6 +166,11 @@ const ApiPublicContactsEnrichRoute = ApiPublicContactsEnrichRouteImport.update({
   path: '/api/public/contacts/enrich',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicChannelsSyncRoute = ApiPublicChannelsSyncRouteImport.update({
+  id: '/api/public/channels/sync',
+  path: '/api/public/channels/sync',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicBrandAnalyzeRoute = ApiPublicBrandAnalyzeRouteImport.update({
   id: '/api/public/brand/analyze',
   path: '/api/public/brand/analyze',
@@ -203,6 +209,7 @@ export interface FileRoutesByFullPath {
   '/api/public/apify/import': typeof ApiPublicApifyImportRoute
   '/api/public/apify/runs': typeof ApiPublicApifyRunsRoute
   '/api/public/brand/analyze': typeof ApiPublicBrandAnalyzeRoute
+  '/api/public/channels/sync': typeof ApiPublicChannelsSyncRoute
   '/api/public/contacts/enrich': typeof ApiPublicContactsEnrichRoute
   '/api/public/contacts/rerun': typeof ApiPublicContactsRerunRoute
   '/api/public/instagram/analyze': typeof ApiPublicInstagramAnalyzeRoute
@@ -232,6 +239,7 @@ export interface FileRoutesByTo {
   '/api/public/apify/import': typeof ApiPublicApifyImportRoute
   '/api/public/apify/runs': typeof ApiPublicApifyRunsRoute
   '/api/public/brand/analyze': typeof ApiPublicBrandAnalyzeRoute
+  '/api/public/channels/sync': typeof ApiPublicChannelsSyncRoute
   '/api/public/contacts/enrich': typeof ApiPublicContactsEnrichRoute
   '/api/public/contacts/rerun': typeof ApiPublicContactsRerunRoute
   '/api/public/instagram/analyze': typeof ApiPublicInstagramAnalyzeRoute
@@ -263,6 +271,7 @@ export interface FileRoutesById {
   '/api/public/apify/import': typeof ApiPublicApifyImportRoute
   '/api/public/apify/runs': typeof ApiPublicApifyRunsRoute
   '/api/public/brand/analyze': typeof ApiPublicBrandAnalyzeRoute
+  '/api/public/channels/sync': typeof ApiPublicChannelsSyncRoute
   '/api/public/contacts/enrich': typeof ApiPublicContactsEnrichRoute
   '/api/public/contacts/rerun': typeof ApiPublicContactsRerunRoute
   '/api/public/instagram/analyze': typeof ApiPublicInstagramAnalyzeRoute
@@ -295,6 +304,7 @@ export interface FileRouteTypes {
     | '/api/public/apify/import'
     | '/api/public/apify/runs'
     | '/api/public/brand/analyze'
+    | '/api/public/channels/sync'
     | '/api/public/contacts/enrich'
     | '/api/public/contacts/rerun'
     | '/api/public/instagram/analyze'
@@ -324,6 +334,7 @@ export interface FileRouteTypes {
     | '/api/public/apify/import'
     | '/api/public/apify/runs'
     | '/api/public/brand/analyze'
+    | '/api/public/channels/sync'
     | '/api/public/contacts/enrich'
     | '/api/public/contacts/rerun'
     | '/api/public/instagram/analyze'
@@ -354,6 +365,7 @@ export interface FileRouteTypes {
     | '/api/public/apify/import'
     | '/api/public/apify/runs'
     | '/api/public/brand/analyze'
+    | '/api/public/channels/sync'
     | '/api/public/contacts/enrich'
     | '/api/public/contacts/rerun'
     | '/api/public/instagram/analyze'
@@ -379,6 +391,7 @@ export interface RootRouteChildren {
   ApiPublicApifyImportRoute: typeof ApiPublicApifyImportRoute
   ApiPublicApifyRunsRoute: typeof ApiPublicApifyRunsRoute
   ApiPublicBrandAnalyzeRoute: typeof ApiPublicBrandAnalyzeRoute
+  ApiPublicChannelsSyncRoute: typeof ApiPublicChannelsSyncRoute
   ApiPublicContactsEnrichRoute: typeof ApiPublicContactsEnrichRoute
   ApiPublicContactsRerunRoute: typeof ApiPublicContactsRerunRoute
   ApiPublicInstagramAnalyzeRoute: typeof ApiPublicInstagramAnalyzeRoute
@@ -565,6 +578,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicContactsEnrichRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/channels/sync': {
+      id: '/api/public/channels/sync'
+      path: '/api/public/channels/sync'
+      fullPath: '/api/public/channels/sync'
+      preLoaderRoute: typeof ApiPublicChannelsSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/brand/analyze': {
       id: '/api/public/brand/analyze'
       path: '/api/public/brand/analyze'
@@ -627,6 +647,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicApifyImportRoute: ApiPublicApifyImportRoute,
   ApiPublicApifyRunsRoute: ApiPublicApifyRunsRoute,
   ApiPublicBrandAnalyzeRoute: ApiPublicBrandAnalyzeRoute,
+  ApiPublicChannelsSyncRoute: ApiPublicChannelsSyncRoute,
   ApiPublicContactsEnrichRoute: ApiPublicContactsEnrichRoute,
   ApiPublicContactsRerunRoute: ApiPublicContactsRerunRoute,
   ApiPublicInstagramAnalyzeRoute: ApiPublicInstagramAnalyzeRoute,
