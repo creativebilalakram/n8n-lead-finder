@@ -296,10 +296,6 @@ export function BusinessChannelsCard({ leadId, businessId, raw }: Props) {
             {syncing ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Search className="mr-1 h-3 w-3" />}
             Run website scraper
           </Button>
-          <Button size="sm" variant="outline" onClick={runWebsiteScraper} disabled={syncing} className="h-8 text-xs">
-            {syncing ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <RefreshCw className="mr-1 h-3 w-3" />}
-            Resync all
-          </Button>
           <Button size="sm" onClick={save} disabled={loading || saving} className="h-8 text-xs">
             {saving ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Save className="mr-1 h-3 w-3" />}
             {existingId ? "Save" : "Create"}
