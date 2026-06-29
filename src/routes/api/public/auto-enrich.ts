@@ -60,7 +60,7 @@ export const Route = createFileRoute("/api/public/auto-enrich")({
 
         // 1) Load lead
         const getRes = await fetch(
-          `${supabaseUrl}/rest/v1/leads?id=eq.${leadId}&select=id,website,lead_score,lead_tier,passed,auto_enrich_status,auto_enrich_started_at,auto_enrich_finished_at,website_modern_score`,
+          `${supabaseUrl}/rest/v1/leads?id=eq.${leadId}&select=id,website,instagram_url,lead_score,lead_tier,passed,auto_enrich_status,auto_enrich_started_at,auto_enrich_finished_at,website_modern_score`,
           { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
         );
         if (!getRes.ok) return Response.json({ error: "Lead fetch failed" }, { status: 502 });
