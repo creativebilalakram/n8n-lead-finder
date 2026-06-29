@@ -551,7 +551,7 @@ export async function runEmailsStep(opts: {
       : fallbackEmailsFound > 0
         ? `Recovered ${fallbackEmailsFound} email(s) via anchor fallback`
         : noEmailDMs.length && fallbackEmailsFound === 0
-          ? `No emails found for ${noEmailDMs.length} profile(s) (HarvestAPI + anchor both empty)`
+          ? `HarvestAPI ran (${primaryItemCount} items, matched ${primaryMatchedDMs}/${dmsWithUrl.length}) + anchor fallback both returned 0 emails for ${noEmailDMs.length} profile(s)`
           : null,
   });
   return { steps, emailsFound: primaryEmailsFound, fallbackEmailsFound };
