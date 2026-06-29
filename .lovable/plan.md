@@ -1,101 +1,92 @@
-# Contact Hub — Plan
+# AI Outreach Drafter for LeadForge
 
-Additive feature for manual ContactOut data + outreach tracking. Existing scoring, enrichment, and lead pipeline untouched.
+Adds an AI-powered outreach copy layer on top of the existing Contact Hub: per recipient × per channel drafts, editable, approvable, scheduled follow-ups, and a Kanban pipeline at `/outreach`.
 
-## 1. Database migration
+## 1. Database (single migration)
 
-Two new tables (open-access RLS to match existing tables).
+New `public.outreach_drafts` table exactly per the provided schema:
+- FKs to `leads` (cascade) and `dm_contacts` (cascade, nullable for business-generic).
+- `channel`, `recipient_type`, `recipient_handle`, `sequence_step`, `scheduled_for`.
+- `subject`, `message_body`, `demo_url`.
+- `ai_model`, `ai_prompt_version`, `generation_context jsonb`.
+- `status` (draft/approved/sent/failed/replied/skipped), `sent_at`, `reply_received_at`.
+- Indexes on `lead_id`, `status`, and partial on `scheduled_for` for draft/approved.
+- GRANTs to authenticated + service_role, RLS enabled, permissive policy consistent with existing tables (other tables in this project use single open policies — match that pattern).
+- `updated_at` trigger using existing `public.touch_updated_at()`.
 
-**`dm_contacts`** — per-decision-maker channels
-- FKs: `decision_maker_id → decision_makers(id)`, `lead_id → leads(id)` (both ON DELETE CASCADE)
-- Identity: `full_name`, `first_name`, `last_name`, `role`
-- Channels: `personal_email`, `work_email`, `phone`, `whatsapp`, `linkedin_url`, `instagram_handle`, `facebook_url`, `twitter_handle`
-- Provenance: `source` (`contactout-manual` | `apify` | `pdl` | `manual-research`), `confidence` (`verified` | `likely` | `guessed`), `notes`
-- `created_at`, `updated_at` + update trigger
-- Indexes on `lead_id`, `decision_maker_id`
+## 2. Server-side prompt module
 
-**`business_channels`** — per-business generic contacts (one row per lead)
-- FKs: `business_id → businesses(id)`, `lead_id → leads(id)` (CASCADE)
-- `generic_emails jsonb default '[]'`, `generic_phones jsonb default '[]'`
-- `instagram_url`, `facebook_url`, `tiktok_url`, `linkedin_company_url`, `twitter_url`, `youtube_url`, `whatsapp_business`
-- `updated_at` + trigger; unique index on `lead_id` for upsert
+`src/lib/outreach-prompts.server.ts`:
+- `PROMPT_VERSION = 1`.
+- Exports `buildOutreachPrompt({ lead, dm, channel, sequenceStep, demoUrl, version })` returning `{ system, user, context }`.
+- Implements the exact template provided (offer, lead, recipient, channel rules, output rules, follow-up rules, JSON-only output).
+- Derives all template variables from `leads` row + `raw`/`brand_dna_raw`/`instagram_raw`/`website_modern_*`/reviews/owner responses; safe fallbacks for missing fields.
+- `context` returned is what gets persisted to `generation_context`.
 
-**Outreach status (for /inbox)** — add nullable columns to `leads`:
-- `outreach_status text` (`null` | `ready` | `sent` | `replied` | `not_interested`)
-- `last_action_at timestamptz`
-- `last_action_note text`
+## 3. AI generation endpoint
 
-Standard GRANTs + permissive `Open access` policy on both new tables (consistent with existing schema).
+`src/routes/api/public/outreach/generate.ts` (POST):
+- Body: `{ leadId, dmContactId | "business_generic", channel, sequenceStep, model?: "gemini"|"claude", recipientHandle?, recipientType, promptVersion? }`.
+- Loads lead (full row incl. raw JSON columns), dm_contact (if any), business_channels (for generic).
+- Computes `demo_url` from lead's `lovableUrl`/website-package output.
+- Builds prompt via the module above.
+- Default: Lovable AI Gateway `google/gemini-3-flash-preview` via `fetchWithRetry` (response_format JSON object).
+- If `model="claude"`: Anthropic API direct using `ANTHROPIC_API_KEY` (model `claude-sonnet-4-6`), same retry helper. If key missing, return structured 200 error `{ ok:false, error:"ANTHROPIC_API_KEY not configured" }`.
+- Parses JSON safely (reuse `extractJson` from `fetch-retry.ts`).
+- Upserts a row in `outreach_drafts` (unique-ish key: `lead_id + dm_contact_id + channel + sequence_step`; handle generic recipients with `dm_contact_id NULL` matched by `recipient_handle`). Returns `{ draft }`.
+- Never exposes API keys. All env reads inside handler.
 
-## 2. Lead detail page (`/leads/$id`) — additive panel
+Secret handling: if `ANTHROPIC_API_KEY` not yet present, the UI's "Premium Regenerate (Claude)" button surfaces the error toast; user can add the secret via Settings. Lovable AI is the default path and works out of the box.
 
-**New section above the existing Decision Makers list:** "Business Channels" card
-- Auto-seeds from `leads.raw` on first open (emails, phones, instagram/facebook URLs from compass output) — saved via upsert to `business_channels`
-- Editable: chip input for emails/phones, plain inputs for socials
-- Save → toast
+## 4. Sequence auto-generation
 
-**Per-DM addition:** below each existing decision-maker card render a compact `DmContactsCard`
-- If `dm_contacts` row exists: show chips for each filled channel (email/phone/WA/LinkedIn/IG/FB/Twitter) + source/confidence badge
-- "Add/Edit Contact Details" button → opens `DmContactModal`
+`src/routes/api/public/outreach/approve.ts` (POST `{ draftId }`):
+- Marks draft status=approved.
+- If `sequence_step === 0` and no existing followups for that (lead, dm, channel), inserts placeholder rows for steps 1–4 with `scheduled_for` = now + 3d/7d/14d/30d, `status="draft"`, empty body, then kicks off generation for each (fire-and-forget loop inside handler using the same generator function, awaited so worker doesn't drop). Returns counts.
 
-**`DmContactModal`** (sonner toasts):
-- Tabs: **Manual fields** | **Quick paste**
-- Manual fields: stacked inputs for all `dm_contacts` columns, `source` + `confidence` selects, notes textarea
-- Quick paste tab: textarea + "Parse" button. Regex extractors:
-  - emails → first match → `work_email`, second → `personal_email`
-  - phones (E.164-ish / US patterns) → `phone`, then `whatsapp`
-  - `linkedin.com/in/<slug>` → `linkedin_url` + derive first/last name from slug if name empty
-  - `instagram.com/<handle>` → `instagram_handle`
-  - `facebook.com/<path>` → `facebook_url`
-  - `twitter.com|x.com/<handle>` → `twitter_handle`
-- LinkedIn paste in the manual `linkedin_url` field also runs slug→name extraction on blur
-- Save = upsert keyed on `decision_maker_id`
+## 5. Drafts CRUD helpers (client-safe)
 
-## 3. New route `/inbox`
+`src/lib/outreach-db.ts`:
+- `listDraftsForLead(leadId)`, `listDraftsByStatus()`, `updateDraft(id, patch)`, `setStatus(id, status)`, `deleteDraft`.
+- Uses public Supabase client. No service-role keys.
 
-`src/routes/inbox.tsx` — table view of qualified Hot leads.
+## 6. Lead detail UI
 
-**Query**: leads where `leadTier in ('Hot','Warm')` AND `passed=true` (current qualified set), joined client-side with counts from `dm_contacts` and existing `decision_makers`.
+`src/routes/leads.$id.tsx`: add a new "Outreach Plan" section between Contact Intel and existing detail blocks.
 
-**Columns**: Business · City · Score · Contact Status (🔴/🟡/🟢) · DMs with contacts (`x / y`) · Outreach Status · Last Action · row click → `/leads/$id`
+Component `src/components/outreach-plan-card.tsx`:
+- Enumerates rows = [each DM × each filled channel from `dm_contacts`] ∪ [business_channels generic email(s), Instagram, Facebook → respective channels].
+- For each row, loads existing draft (step 0). Shows draft card per spec: header (recipient, role, channel, "Generated by X · Nm ago"), body preview, actions `[Edit] [Regenerate (Gemini)] [Premium (Claude)] [Approve] [Skip]`.
+- Edit = inline textarea with subject (email only) + body, Save patches row.
+- "Generate all drafts for this lead" bulk button: iterates rows sequentially with a small concurrency limit (2) using the generate endpoint, with toast progress.
 
-**Contact Status derivation**:
-- 🔴 `No contacts` — 0 DMs have any filled channel AND `business_channels` empty
-- 🟡 `Has contacts, no outreach` — has channels, `outreach_status` null/`ready`
-- 🟢 `Sent` — `outreach_status = 'sent'`
-- 💬 `Replied` — `outreach_status = 'replied'`
-- ❌ `Not interested` — `outreach_status = 'not_interested'`
+## 7. /outreach Kanban
 
-**Filter chips** above the table mapped to the statuses above. Quick-action menu per row to set `outreach_status` + auto-stamp `last_action_at`.
+`src/routes/outreach.tsx`:
+- Columns: Draft, Approved, Scheduled (`scheduled_for > now AND status in (draft|approved)`), Sent, Replied.
+- Fetches all drafts joined with lead title + dm name.
+- Card: business name, channel icon, recipient name, first 100 chars, scheduled time.
+- Drag-and-drop using existing `@dnd-kit` if installed; otherwise simple status-change dropdown on each card (avoid adding new deps unless already present — will check `package.json` in build phase and prefer the existing solution; fallback is per-card status select to keep this scope tight if no DnD lib is present).
+- Click card → Dialog with full subject/body editor + Save / Mark Sent / Mark Replied / Delete.
+- Filters: lead (search), channel (multiselect), sequence step.
+- Sidebar entry "Outreach" added to `src/components/app-sidebar.tsx`.
 
-## 4. Sidebar
+## 8. Reliability & guardrails
 
-Add a single "Inbox" entry (with `Inbox` lucide icon) to the existing workspace items list in `src/components/app-sidebar.tsx`. No other sidebar changes.
+- All AI fetches go through `fetchWithRetry` with timeout + 1 retry.
+- JSON parsing uses `extractJson` fallback; on parse failure return 200 with `{ ok:false }` and persist nothing (no half-written drafts).
+- All routes under `/api/public/*` validate body shape, never echo secrets, and load `supabaseAdmin` lazily inside the handler when writing.
+- Does not touch `/search`, `/contacts`, `/leads/index`, or any existing scoring/enrichment code paths.
 
-## 5. Files touched / added
+## Technical Notes
 
-**New**
-- `supabase/migrations/<ts>_contact_hub.sql` (via migration tool)
-- `src/lib/contact-hub-db.ts` — typed CRUD helpers (`upsertDmContact`, `getDmContactsForLead`, `upsertBusinessChannels`, `getBusinessChannels`, `setOutreachStatus`, `getInboxLeads`)
-- `src/lib/contact-parse.ts` — pure regex/parse helpers (emails, phones, social URLs, LinkedIn slug → name)
-- `src/components/business-channels-card.tsx`
-- `src/components/dm-contacts-card.tsx`
-- `src/components/dm-contact-modal.tsx`
-- `src/routes/inbox.tsx`
+- Lovable AI default model: `google/gemini-3-flash-preview` (chat default).
+- Anthropic call: `https://api.anthropic.com/v1/messages`, header `x-api-key`, `anthropic-version: 2023-06-01`, body uses `system` + `messages`, expects JSON-only response (parsed defensively).
+- `recipientHandle` is whatever the channel actually targets (email address, LinkedIn URL, IG handle, etc.) — persisted for later sending phase.
+- Followup placeholder rows are generated immediately so they show up as "Scheduled" in Kanban even before regeneration completes.
 
-**Edited (additive only)**
-- `src/routes/leads.$id.tsx` — render `<BusinessChannelsCard leadId raw>` above DM list; render `<DmContactsCard dm leadId>` under each existing DM card
-- `src/components/app-sidebar.tsx` — append "Inbox" item
+## Out of scope (Phase 4 hooks left in place)
 
-No changes to `/api/public/leads/start`, `/api/public/auto-enrich`, scoring, enrichment runner, or existing Contact Intelligence panel.
-
-## Technical notes
-
-- All DB access uses the browser Supabase client (matches existing patterns; open RLS).
-- Validation with zod on modal save (email/url shape, length caps).
-- `Business Channels` upsert keyed on `lead_id` (unique index ensures idempotent auto-seed).
-- `dm_contacts` upsert keyed on `decision_maker_id`.
-- LinkedIn slug parse: split on `-`, capitalize tokens, ignore trailing numeric/random suffixes (`john-smith-1a2b` → John Smith).
-- Phone regex tuned for US + intl `+\d{8,15}`; first match → phone, second distinct → whatsapp.
-- Inbox row count: single query for qualified leads, then one batched `dm_contacts` count query grouped by `lead_id` to avoid N+1.
-- Outreach status changes write `last_action_at = now()` and a short note (`"Marked sent"` etc.) for the Last Action column.
+- Actual sending (Send button currently just sets `status='sent'` + `sent_at=now()`).
+- Reply detection / webhook ingestion.
+- A/B comparison UI for prompt versions (versioning field is recorded; UI swap can come later).

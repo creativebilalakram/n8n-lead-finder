@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as RunsRouteImport } from './routes/runs'
+import { Route as OutreachRouteImport } from './routes/outreach'
 import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as ContactsRouteImport } from './routes/contacts'
 import { Route as IndexRouteImport } from './routes/index'
@@ -29,6 +30,8 @@ import { Route as ContactsDecisionMakersRouteImport } from './routes/contacts.de
 import { Route as ApiPublicAutoEnrichRouteImport } from './routes/api/public/auto-enrich'
 import { Route as ApiPublicWebsiteAnalyzeRouteImport } from './routes/api/public/website.analyze'
 import { Route as ApiPublicWebsitePackageRebuildRouteImport } from './routes/api/public/website-package.rebuild'
+import { Route as ApiPublicOutreachGenerateRouteImport } from './routes/api/public/outreach.generate'
+import { Route as ApiPublicOutreachApproveRouteImport } from './routes/api/public/outreach.approve'
 import { Route as ApiPublicLeadsStatusRouteImport } from './routes/api/public/leads.status'
 import { Route as ApiPublicLeadsStartRouteImport } from './routes/api/public/leads.start'
 import { Route as ApiPublicInstagramAnalyzeRouteImport } from './routes/api/public/instagram.analyze'
@@ -52,6 +55,11 @@ const SearchRoute = SearchRouteImport.update({
 const RunsRoute = RunsRouteImport.update({
   id: '/runs',
   path: '/runs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OutreachRoute = OutreachRouteImport.update({
+  id: '/outreach',
+  path: '/outreach',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InboxRoute = InboxRouteImport.update({
@@ -140,6 +148,18 @@ const ApiPublicWebsitePackageRebuildRoute =
     path: '/api/public/website-package/rebuild',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicOutreachGenerateRoute =
+  ApiPublicOutreachGenerateRouteImport.update({
+    id: '/api/public/outreach/generate',
+    path: '/api/public/outreach/generate',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicOutreachApproveRoute =
+  ApiPublicOutreachApproveRouteImport.update({
+    id: '/api/public/outreach/approve',
+    path: '/api/public/outreach/approve',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicLeadsStatusRoute = ApiPublicLeadsStatusRouteImport.update({
   id: '/api/public/leads/status',
   path: '/api/public/leads/status',
@@ -191,6 +211,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/contacts': typeof ContactsRouteWithChildren
   '/inbox': typeof InboxRoute
+  '/outreach': typeof OutreachRoute
   '/runs': typeof RunsRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
@@ -215,12 +236,15 @@ export interface FileRoutesByFullPath {
   '/api/public/instagram/analyze': typeof ApiPublicInstagramAnalyzeRoute
   '/api/public/leads/start': typeof ApiPublicLeadsStartRoute
   '/api/public/leads/status': typeof ApiPublicLeadsStatusRoute
+  '/api/public/outreach/approve': typeof ApiPublicOutreachApproveRoute
+  '/api/public/outreach/generate': typeof ApiPublicOutreachGenerateRoute
   '/api/public/website-package/rebuild': typeof ApiPublicWebsitePackageRebuildRoute
   '/api/public/website/analyze': typeof ApiPublicWebsiteAnalyzeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/inbox': typeof InboxRoute
+  '/outreach': typeof OutreachRoute
   '/runs': typeof RunsRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
@@ -245,6 +269,8 @@ export interface FileRoutesByTo {
   '/api/public/instagram/analyze': typeof ApiPublicInstagramAnalyzeRoute
   '/api/public/leads/start': typeof ApiPublicLeadsStartRoute
   '/api/public/leads/status': typeof ApiPublicLeadsStatusRoute
+  '/api/public/outreach/approve': typeof ApiPublicOutreachApproveRoute
+  '/api/public/outreach/generate': typeof ApiPublicOutreachGenerateRoute
   '/api/public/website-package/rebuild': typeof ApiPublicWebsitePackageRebuildRoute
   '/api/public/website/analyze': typeof ApiPublicWebsiteAnalyzeRoute
 }
@@ -253,6 +279,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/contacts': typeof ContactsRouteWithChildren
   '/inbox': typeof InboxRoute
+  '/outreach': typeof OutreachRoute
   '/runs': typeof RunsRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
@@ -277,6 +304,8 @@ export interface FileRoutesById {
   '/api/public/instagram/analyze': typeof ApiPublicInstagramAnalyzeRoute
   '/api/public/leads/start': typeof ApiPublicLeadsStartRoute
   '/api/public/leads/status': typeof ApiPublicLeadsStatusRoute
+  '/api/public/outreach/approve': typeof ApiPublicOutreachApproveRoute
+  '/api/public/outreach/generate': typeof ApiPublicOutreachGenerateRoute
   '/api/public/website-package/rebuild': typeof ApiPublicWebsitePackageRebuildRoute
   '/api/public/website/analyze': typeof ApiPublicWebsiteAnalyzeRoute
 }
@@ -286,6 +315,7 @@ export interface FileRouteTypes {
     | '/'
     | '/contacts'
     | '/inbox'
+    | '/outreach'
     | '/runs'
     | '/search'
     | '/settings'
@@ -310,12 +340,15 @@ export interface FileRouteTypes {
     | '/api/public/instagram/analyze'
     | '/api/public/leads/start'
     | '/api/public/leads/status'
+    | '/api/public/outreach/approve'
+    | '/api/public/outreach/generate'
     | '/api/public/website-package/rebuild'
     | '/api/public/website/analyze'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/inbox'
+    | '/outreach'
     | '/runs'
     | '/search'
     | '/settings'
@@ -340,6 +373,8 @@ export interface FileRouteTypes {
     | '/api/public/instagram/analyze'
     | '/api/public/leads/start'
     | '/api/public/leads/status'
+    | '/api/public/outreach/approve'
+    | '/api/public/outreach/generate'
     | '/api/public/website-package/rebuild'
     | '/api/public/website/analyze'
   id:
@@ -347,6 +382,7 @@ export interface FileRouteTypes {
     | '/'
     | '/contacts'
     | '/inbox'
+    | '/outreach'
     | '/runs'
     | '/search'
     | '/settings'
@@ -371,6 +407,8 @@ export interface FileRouteTypes {
     | '/api/public/instagram/analyze'
     | '/api/public/leads/start'
     | '/api/public/leads/status'
+    | '/api/public/outreach/approve'
+    | '/api/public/outreach/generate'
     | '/api/public/website-package/rebuild'
     | '/api/public/website/analyze'
   fileRoutesById: FileRoutesById
@@ -379,6 +417,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ContactsRoute: typeof ContactsRouteWithChildren
   InboxRoute: typeof InboxRoute
+  OutreachRoute: typeof OutreachRoute
   RunsRoute: typeof RunsRoute
   SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRoute
@@ -397,6 +436,8 @@ export interface RootRouteChildren {
   ApiPublicInstagramAnalyzeRoute: typeof ApiPublicInstagramAnalyzeRoute
   ApiPublicLeadsStartRoute: typeof ApiPublicLeadsStartRoute
   ApiPublicLeadsStatusRoute: typeof ApiPublicLeadsStatusRoute
+  ApiPublicOutreachApproveRoute: typeof ApiPublicOutreachApproveRoute
+  ApiPublicOutreachGenerateRoute: typeof ApiPublicOutreachGenerateRoute
   ApiPublicWebsitePackageRebuildRoute: typeof ApiPublicWebsitePackageRebuildRoute
   ApiPublicWebsiteAnalyzeRoute: typeof ApiPublicWebsiteAnalyzeRoute
 }
@@ -422,6 +463,13 @@ declare module '@tanstack/react-router' {
       path: '/runs'
       fullPath: '/runs'
       preLoaderRoute: typeof RunsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/outreach': {
+      id: '/outreach'
+      path: '/outreach'
+      fullPath: '/outreach'
+      preLoaderRoute: typeof OutreachRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/inbox': {
@@ -543,6 +591,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicWebsitePackageRebuildRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/outreach/generate': {
+      id: '/api/public/outreach/generate'
+      path: '/api/public/outreach/generate'
+      fullPath: '/api/public/outreach/generate'
+      preLoaderRoute: typeof ApiPublicOutreachGenerateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/outreach/approve': {
+      id: '/api/public/outreach/approve'
+      path: '/api/public/outreach/approve'
+      fullPath: '/api/public/outreach/approve'
+      preLoaderRoute: typeof ApiPublicOutreachApproveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/leads/status': {
       id: '/api/public/leads/status'
       path: '/api/public/leads/status'
@@ -635,6 +697,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ContactsRoute: ContactsRouteWithChildren,
   InboxRoute: InboxRoute,
+  OutreachRoute: OutreachRoute,
   RunsRoute: RunsRoute,
   SearchRoute: SearchRoute,
   SettingsRoute: SettingsRoute,
@@ -653,6 +716,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicInstagramAnalyzeRoute: ApiPublicInstagramAnalyzeRoute,
   ApiPublicLeadsStartRoute: ApiPublicLeadsStartRoute,
   ApiPublicLeadsStatusRoute: ApiPublicLeadsStatusRoute,
+  ApiPublicOutreachApproveRoute: ApiPublicOutreachApproveRoute,
+  ApiPublicOutreachGenerateRoute: ApiPublicOutreachGenerateRoute,
   ApiPublicWebsitePackageRebuildRoute: ApiPublicWebsitePackageRebuildRoute,
   ApiPublicWebsiteAnalyzeRoute: ApiPublicWebsiteAnalyzeRoute,
 }

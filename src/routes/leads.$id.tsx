@@ -38,6 +38,7 @@ import { acquireLovableOpenLock, openLovableTabOnce } from "@/lib/lovable-open";
 import { ContactIntelPanel } from "@/components/contact-intel-panel";
 import { BusinessChannelsCard } from "@/components/business-channels-card";
 import { DmContactHubCard } from "@/components/dm-contact-hub-card";
+import { OutreachPlanCard } from "@/components/outreach-plan-card";
 
 export const Route = createFileRoute("/leads/$id")({
   head: () => ({ meta: [{ title: "Lead detail — LeadForge" }] }),
@@ -512,6 +513,9 @@ function LeadDetailPage() {
 
       {/* Per-DM contact hub — manual ContactOut entry */}
       <DmContactHubCard leadId={id} />
+
+      {/* AI Outreach drafter */}
+      <OutreachPlanCard leadId={id} />
 
       {/* Rejection reasons */}
       {Array.isArray(lead.rejection_reasons) && (lead.rejection_reasons as unknown[]).length > 0 ? (
