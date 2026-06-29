@@ -390,72 +390,35 @@ export async function runEmailsStep(opts: {
   steps = await updateStep(opts.jobId, steps, "emails", {
     status: "running",
     startedAt: new Date().toISOString(),
+    note: "Primary: HarvestAPI profile scraper (batched, higher hit-rate)",
   });
 
-  let emailsFound = 0;
-  const noEmailDMs: Array<{ id: string; url: string }> = [];
-  for (const dm of opts.dms) {
-    const url = dm.person_profile_url;
-    if (!url) continue;
-    const run = await runApifyActorAsync<Json>(
-      "anchor~linkedin-to-email",
-      { startUrls: [{ url, id: "1" }] },
-      { token: apifyToken, maxWaitMs: 180_000, pollIntervalMs: 6_000 },
-    );
-    if (!run.ok) { noEmailDMs.push({ id: dm.id, url }); continue; }
-    const emails: Array<{ email: string; confidence?: string }> = [];
-    for (const item of run.items) {
-      const e = (item.email || item.foundEmail || item.workEmail) as string | undefined;
-      if (typeof e === "string" && e.includes("@")) emails.push({ email: e, confidence: (item.confidence as string) || undefined });
-      const arr = item.emails as unknown;
-      if (Array.isArray(arr)) {
-        for (const v of arr) {
-          if (typeof v === "string" && v.includes("@")) emails.push({ email: v });
-          else if (v && typeof v === "object" && typeof (v as Json).email === "string") emails.push({ email: (v as Json).email as string, confidence: (v as Json).confidence as string | undefined });
-        }
-      }
-    }
-    if (emails.length) {
-      const rows = emails.map((e) => ({
-        decision_maker_id: dm.id,
-        business_id: opts.businessId,
-        email: e.email,
-        confidence: e.confidence ?? null,
-        raw: e,
-      }));
-      const ins = await sb("linkedin_emails", {
-        method: "POST",
-        headers: { Prefer: "resolution=merge-duplicates,return=representation" },
-        body: JSON.stringify(rows),
-      });
-      if (ins.ok) emailsFound += emails.length;
-    } else {
-      noEmailDMs.push({ id: dm.id, url });
-    }
-  }
+  const norm = (s: string) => s.toLowerCase().replace(/\/+$/, "").replace(/^https?:\/\/(www\.)?/, "");
+  const dmsWithUrl = opts.dms.filter((d): d is { id: string; person_profile_url: string } => !!d.person_profile_url);
 
-  let fallbackEmailsFound = 0;
-  let fallbackError: string | null = null;
-  if (noEmailDMs.length) {
-    steps = await updateStep(opts.jobId, steps, "emails", {
-      note: `Primary actor returned no email for ${noEmailDMs.length} profile(s) — trying HarvestAPI fallback`,
-    });
+  // PRIMARY: HarvestAPI batched profile scraper ($10/1k, higher hit rate
+  // than anchor~linkedin-to-email and far more cost-efficient as a batch).
+  let primaryEmailsFound = 0;
+  let primaryError: string | null = null;
+  const noEmailDMs: Array<{ id: string; url: string }> = [];
+  if (dmsWithUrl.length) {
     const harvest = await runApifyActorAsync<Json>(
       "harvestapi~linkedin-profile-scraper",
       {
         profileScraperMode: "Profile details + email search ($10 per 1k)",
-        queries: noEmailDMs.map((d) => d.url),
+        queries: dmsWithUrl.map((d) => d.person_profile_url),
       },
       { token: apifyToken, maxWaitMs: 240_000, pollIntervalMs: 6_000 },
     );
     if (!harvest.ok) {
-      fallbackError = harvest.error;
+      primaryError = harvest.error;
+      for (const d of dmsWithUrl) noEmailDMs.push({ id: d.id, url: d.person_profile_url });
     } else {
-      const norm = (s: string) => s.toLowerCase().replace(/\/+$/, "").replace(/^https?:\/\/(www\.)?/, "");
+      const foundIds = new Set<string>();
       for (const item of harvest.items) {
         const itemUrl = (item.linkedinUrl || item.profileUrl || item.url || item.input || item.query) as string | undefined;
         const match = itemUrl
-          ? noEmailDMs.find((d) => norm(d.url) === norm(String(itemUrl)) || norm(String(itemUrl)).includes(norm(d.url)) || norm(d.url).includes(norm(String(itemUrl))))
+          ? dmsWithUrl.find((d) => norm(d.person_profile_url) === norm(String(itemUrl)) || norm(String(itemUrl)).includes(norm(d.person_profile_url)) || norm(d.person_profile_url).includes(norm(String(itemUrl))))
           : null;
         const dmId = match?.id;
         const collected: Array<{ email: string; confidence?: string }> = [];
@@ -473,7 +436,7 @@ export async function runEmailsStep(opts: {
           decision_maker_id: dmId,
           business_id: opts.businessId,
           email: c.email,
-          confidence: c.confidence ?? "harvestapi-fallback",
+          confidence: c.confidence ?? "harvestapi-primary",
           raw: { ...c, source: "harvestapi~linkedin-profile-scraper" },
         }));
         const ins = await sb("linkedin_emails", {
@@ -481,22 +444,70 @@ export async function runEmailsStep(opts: {
           headers: { Prefer: "resolution=merge-duplicates,return=representation" },
           body: JSON.stringify(rows),
         });
-        if (ins.ok) fallbackEmailsFound += collected.length;
+        if (ins.ok) {
+          primaryEmailsFound += collected.length;
+          foundIds.add(dmId);
+        }
       }
+      for (const d of dmsWithUrl) {
+        if (!foundIds.has(d.id)) noEmailDMs.push({ id: d.id, url: d.person_profile_url });
+      }
+    }
+  }
+
+  // FALLBACK: anchor~linkedin-to-email per remaining profile.
+  let fallbackEmailsFound = 0;
+  if (noEmailDMs.length) {
+    steps = await updateStep(opts.jobId, steps, "emails", {
+      note: `HarvestAPI returned no email for ${noEmailDMs.length} profile(s) — trying anchor~linkedin-to-email fallback`,
+    });
+    for (const dm of noEmailDMs) {
+      const run = await runApifyActorAsync<Json>(
+        "anchor~linkedin-to-email",
+        { startUrls: [{ url: dm.url, id: "1" }] },
+        { token: apifyToken, maxWaitMs: 180_000, pollIntervalMs: 6_000 },
+      );
+      if (!run.ok) continue;
+      const emails: Array<{ email: string; confidence?: string }> = [];
+      for (const item of run.items) {
+        const e = (item.email || item.foundEmail || item.workEmail) as string | undefined;
+        if (typeof e === "string" && e.includes("@")) emails.push({ email: e, confidence: (item.confidence as string) || undefined });
+        const arr = item.emails as unknown;
+        if (Array.isArray(arr)) {
+          for (const v of arr) {
+            if (typeof v === "string" && v.includes("@")) emails.push({ email: v });
+            else if (v && typeof v === "object" && typeof (v as Json).email === "string") emails.push({ email: (v as Json).email as string, confidence: (v as Json).confidence as string | undefined });
+          }
+        }
+      }
+      if (!emails.length) continue;
+      const rows = emails.map((e) => ({
+        decision_maker_id: dm.id,
+        business_id: opts.businessId,
+        email: e.email,
+        confidence: e.confidence ?? "anchor-fallback",
+        raw: { ...e, source: "anchor~linkedin-to-email" },
+      }));
+      const ins = await sb("linkedin_emails", {
+        method: "POST",
+        headers: { Prefer: "resolution=merge-duplicates,return=representation" },
+        body: JSON.stringify(rows),
+      });
+      if (ins.ok) fallbackEmailsFound += emails.length;
     }
   }
 
   steps = await updateStep(opts.jobId, steps, "emails", {
     status: "completed",
     finishedAt: new Date().toISOString(),
-    counts: { emails: emailsFound + fallbackEmailsFound, primary: emailsFound, fallback: fallbackEmailsFound },
-    note: fallbackError
-      ? `Fallback (HarvestAPI) failed: ${fallbackError}`
+    counts: { emails: primaryEmailsFound + fallbackEmailsFound, primary: primaryEmailsFound, fallback: fallbackEmailsFound },
+    note: primaryError
+      ? `Primary (HarvestAPI) failed: ${primaryError}${fallbackEmailsFound ? ` — recovered ${fallbackEmailsFound} via anchor fallback` : ""}`
       : fallbackEmailsFound > 0
-        ? `Recovered ${fallbackEmailsFound} email(s) via HarvestAPI fallback`
+        ? `Recovered ${fallbackEmailsFound} email(s) via anchor fallback`
         : noEmailDMs.length && fallbackEmailsFound === 0
-          ? `Neither primary nor HarvestAPI fallback found emails for ${noEmailDMs.length} profile(s)`
+          ? `No emails found for ${noEmailDMs.length} profile(s) (HarvestAPI + anchor both empty)`
           : null,
   });
-  return { steps, emailsFound, fallbackEmailsFound };
+  return { steps, emailsFound: primaryEmailsFound, fallbackEmailsFound };
 }
