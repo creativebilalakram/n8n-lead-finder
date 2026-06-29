@@ -3,6 +3,16 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import type { Lead } from "./lead-types";
 import { computeAdjustedScore } from "./score-adjust";
+import {
+  scoreRating,
+  scoreReviews,
+  scoreOwner,
+  scoreDataDepth,
+  scoreOpportunity,
+  getSocialCount,
+  getContactCount,
+  hasValue,
+} from "./lead-scoring";
 
 export type FilterSettings = {
   minReviews: number;
@@ -199,10 +209,29 @@ export function evaluateLead(lead: Lead, s: FilterSettings): Evaluation {
 
 export function applyFiltersToLead(lead: Lead, s: FilterSettings): Lead {
   const e = evaluateLead(lead, s);
-  // Re-rank live: outdated websites get a bigger opportunity bonus, so the
-  // displayed score and tier reflect website modernity at render time instead
-  // of the stale value stored at scrape-time.
-  const base = typeof lead.leadScore === "number" ? lead.leadScore : 0;
+  // Live re-score from raw data using the user's CURRENT settings so the
+  // displayed score stays in sync with the Settings page (reviews band,
+  // rating band, active-owner threshold) instead of the value frozen at
+  // scrape time.
+  const j = lead as Record<string, unknown>;
+  const reviewsCount = Number(j.reviewsCount ?? 0);
+  const totalScore = Number(j.totalScore ?? 0);
+  const ownerDate = getOwnerUpdateDate(j);
+
+  let base = 0;
+  base += s.reviewsEnabled ? scoreReviews(reviewsCount, s.minReviews, s.maxReviews) : 0;
+  base += s.ratingEnabled ? scoreRating(totalScore, s.minRating, s.maxRating) : 0;
+  base += s.ownerEnabled ? scoreOwner(ownerDate, s.activeOwnerDays) : 0;
+  base += scoreDataDepth(j);
+  base += scoreOpportunity(j);
+
+  const socialCount = getSocialCount(j);
+  const contactCount = getContactCount(j);
+  base += socialCount > 0 ? Math.min(10, socialCount * 2) : -3;
+  base += contactCount > 0 ? Math.min(10, contactCount * 2) : -3;
+  if (hasValue(j.bookingLinks)) base += 6;
+  if (Array.isArray(j.reviewsTags) && (j.reviewsTags as unknown[]).length > 0) base += 4;
+
   const websiteScore = (lead as Record<string, unknown>).websiteModernScore as
     | number
     | null
