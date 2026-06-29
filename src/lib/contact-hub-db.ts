@@ -49,15 +49,41 @@ export async function getDmContactsForLead(leadId: string): Promise<DmContact[]>
 }
 
 export async function upsertDmContact(
-  input: Partial<DmContact> & { decision_maker_id: string; lead_id: string },
+  input: Partial<DmContact> & { decision_maker_id: string | null; lead_id: string },
 ): Promise<DmContact> {
+  // If we have a row id, update by id. If we have a decision_maker_id, upsert on it.
+  // Otherwise (standalone / custom contact with no DM), plain insert.
+  if (input.id) {
+    const { data, error } = await supabase
+      .from("dm_contacts")
+      .update(input as never)
+      .eq("id", input.id)
+      .select("*")
+      .single();
+    if (error) throw error;
+    return data as unknown as DmContact;
+  }
+  if (input.decision_maker_id) {
+    const { data, error } = await supabase
+      .from("dm_contacts")
+      .upsert(input as never, { onConflict: "decision_maker_id" })
+      .select("*")
+      .single();
+    if (error) throw error;
+    return data as unknown as DmContact;
+  }
   const { data, error } = await supabase
     .from("dm_contacts")
-    .upsert(input as never, { onConflict: "decision_maker_id" })
+    .insert({ ...input, decision_maker_id: null } as never)
     .select("*")
     .single();
   if (error) throw error;
   return data as unknown as DmContact;
+}
+
+export async function deleteDmContact(id: string): Promise<void> {
+  const { error } = await supabase.from("dm_contacts").delete().eq("id", id);
+  if (error) throw error;
 }
 
 export async function getBusinessChannels(leadId: string): Promise<BusinessChannels | null> {

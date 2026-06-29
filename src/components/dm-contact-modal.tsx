@@ -15,7 +15,7 @@ type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   leadId: string;
-  decisionMakerId: string;
+  decisionMakerId: string | null;
   defaults: Partial<DmContact>;
   existing: DmContact | null;
   onSaved: (c: DmContact) => void;
@@ -108,9 +108,10 @@ export function DmContactModal({
     try {
       const saved = await upsertDmContact({
         ...state,
+        id: existing?.id,
         decision_maker_id: decisionMakerId,
         lead_id: leadId,
-      });
+      } as Parameters<typeof upsertDmContact>[0]);
       toast.success("Contact saved");
       onSaved(saved);
       onOpenChange(false);
