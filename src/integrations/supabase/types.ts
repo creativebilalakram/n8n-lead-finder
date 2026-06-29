@@ -569,6 +569,87 @@ export type Database = {
           },
         ]
       }
+      outreach_drafts: {
+        Row: {
+          ai_model: string | null
+          ai_prompt_version: number | null
+          channel: string
+          created_at: string
+          demo_url: string | null
+          dm_contact_id: string | null
+          generation_context: Json | null
+          id: string
+          lead_id: string
+          message_body: string
+          recipient_handle: string | null
+          recipient_type: string
+          reply_received_at: string | null
+          scheduled_for: string | null
+          sent_at: string | null
+          sequence_step: number
+          status: string
+          subject: string | null
+          updated_at: string
+        }
+        Insert: {
+          ai_model?: string | null
+          ai_prompt_version?: number | null
+          channel: string
+          created_at?: string
+          demo_url?: string | null
+          dm_contact_id?: string | null
+          generation_context?: Json | null
+          id?: string
+          lead_id: string
+          message_body?: string
+          recipient_handle?: string | null
+          recipient_type: string
+          reply_received_at?: string | null
+          scheduled_for?: string | null
+          sent_at?: string | null
+          sequence_step?: number
+          status?: string
+          subject?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ai_model?: string | null
+          ai_prompt_version?: number | null
+          channel?: string
+          created_at?: string
+          demo_url?: string | null
+          dm_contact_id?: string | null
+          generation_context?: Json | null
+          id?: string
+          lead_id?: string
+          message_body?: string
+          recipient_handle?: string | null
+          recipient_type?: string
+          reply_received_at?: string | null
+          scheduled_for?: string | null
+          sent_at?: string | null
+          sequence_step?: number
+          status?: string
+          subject?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outreach_drafts_dm_contact_id_fkey"
+            columns: ["dm_contact_id"]
+            isOneToOne: false
+            referencedRelation: "dm_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outreach_drafts_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       search_runs: {
         Row: {
           apify_finished_at: string | null
