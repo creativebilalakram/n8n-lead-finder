@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { runApifyActorAsync } from "@/lib/apify-async.server";
-import { filterAndScore, normalizeBusinessKey, type DMCandidate } from "@/lib/decision-maker-score";
+import { filterAndScore, normalizeBusinessKey } from "@/lib/decision-maker-score";
+import { discoverDecisionMakers, pickCompanyUrl } from "@/lib/contacts-pipeline.server";
 
 type Json = Record<string, unknown>;
 
@@ -236,35 +237,33 @@ async function runPipeline(businessId: string, jobId: string, businessName: stri
   }
 
   // Step 2: decision-maker-finder
+  const companyUrl = pickCompanyUrl(firstLinkedIn, hints.linkedinHints);
+  const willSmartRoute = Boolean(companyUrl);
   steps = await updateStep(jobId, steps, "decision_makers", {
     status: "running",
     startedAt: new Date().toISOString(),
-    linkedinSource: linkedInSource || (firstLinkedIn ? "website" : "name-only"),
-    note: firstLinkedIn
+    linkedinSource: willSmartRoute
+      ? "linkedin-company-employees"
+      : linkedInSource || (firstLinkedIn ? "website" : "name-only"),
+    smartRouting: willSmartRoute,
+    companyUrl,
+    note: willSmartRoute
+      ? `Smart routing: fetching current employees of ${companyUrl}`
+      : firstLinkedIn
       ? linkedInSource === "website"
-        ? `Using company LinkedIn found on website`
-        : `Website had no LinkedIn — falling back to ${linkedInSource}`
-      : `No company LinkedIn anywhere — searching by business name only`,
+        ? "Fallback: decision-maker-finder using website LinkedIn hint"
+        : `Fallback: decision-maker-finder using ${linkedInSource}`
+      : "Fallback: decision-maker-finder by business name (no company LinkedIn anywhere)",
   });
-  const companies = [businessName];
-  if (firstLinkedIn) companies.push(firstLinkedIn);
-  // Add a couple of additional hints (deduped) so the actor has more to chew on
-  for (const h of hints.linkedinHints.slice(0, 3)) {
-    if (!companies.includes(h.url)) companies.push(h.url);
-  }
-  const dmRun = await runApifyActorAsync<DMCandidate>(
-    "piotrv1001~linkedin-decision-maker-finder",
-    {
-      companies,
-      maxPersonsPerCompany: 5,
-      titles: ["CEO","CTO","Founder","Owner","Marketing","Social Media Handler ("],
-    },
-    { token: apifyToken, maxWaitMs: 240_000, pollIntervalMs: 6_000 },
-  );
+  const dmRun = await discoverDecisionMakers({
+    businessName,
+    firstLinkedIn,
+    hints: hints.linkedinHints,
+  });
   let scored: ReturnType<typeof filterAndScore> = [];
   let insertedDMs: Json[] = [];
   if (dmRun.ok) {
-    scored = filterAndScore(dmRun.items);
+    scored = filterAndScore(dmRun.candidates);
     if (scored.length) {
       const rows = scored.map((p) => ({
         business_id: businessId,
@@ -274,7 +273,7 @@ async function runPipeline(businessId: string, jobId: string, businessName: stri
         confidence: p.confidence ?? null,
         decision_maker_score: p.decisionMakerScore,
         priority: p.priority,
-        raw: p,
+        raw: { ...p, _discoverySource: dmRun.source },
       }));
       const ins = await sb("decision_makers", {
         method: "POST",
@@ -286,13 +285,20 @@ async function runPipeline(businessId: string, jobId: string, businessName: stri
     steps = await updateStep(jobId, steps, "decision_makers", {
       status: "completed",
       finishedAt: new Date().toISOString(),
-      counts: { found: dmRun.items.length, kept: scored.length },
-      note: scored.length === 0
-        ? "No qualifying decision makers — try a different LinkedIn company URL"
-        : null,
+      counts: { found: dmRun.rawCount, kept: scored.length },
+      discoverySource: dmRun.source,
+      companyUrl: dmRun.companyUrl,
+      note:
+        scored.length === 0
+          ? dmRun.source === "linkedin-company-employees"
+            ? "Company employees fetched but none matched decision-maker filters"
+            : "No qualifying decision makers — try a different LinkedIn company URL"
+          : dmRun.source === "linkedin-company-employees"
+            ? `Smart routing succeeded — pulled ${dmRun.rawCount} current employees, kept ${scored.length}`
+            : `Fallback finder returned ${dmRun.rawCount} candidates, kept ${scored.length}`,
     });
   } else {
-    steps = await updateStep(jobId, steps, "decision_makers", { status: "failed", error: dmRun.error, finishedAt: new Date().toISOString() });
+    steps = await updateStep(jobId, steps, "decision_makers", { status: "failed", error: dmRun.error || "Discovery failed", discoverySource: dmRun.source, finishedAt: new Date().toISOString() });
   }
 
   // Step 3: linkedin-to-email per kept person

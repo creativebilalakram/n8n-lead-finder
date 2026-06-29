@@ -227,14 +227,20 @@ export function ContactIntelPanel({ leadId, businessName, website }: Props) {
             />
           </div>
           {(["website", "decision_makers", "emails"] as const).map((k) => {
-            const st = (steps as Record<string, { note?: string | null; reason?: string | null; linkedinSource?: string | null }>)[k];
+            const st = (steps as Record<string, { note?: string | null; reason?: string | null; linkedinSource?: string | null; smartRouting?: boolean | null; discoverySource?: string | null }>)[k];
             const msg = st?.note || st?.reason;
-            if (!msg) return null;
+            const isSmart = k === "decision_makers" && (st?.smartRouting || st?.discoverySource === "linkedin-company-employees" || st?.linkedinSource === "linkedin-company-employees");
+            if (!msg && !isSmart) return null;
             return (
-              <div key={k} className="rounded-md border border-indigo-100 bg-indigo-50/60 px-2.5 py-1 text-[10.5px] text-indigo-800">
+              <div key={k} className={`rounded-md border px-2.5 py-1 text-[10.5px] ${isSmart ? "border-emerald-200 bg-emerald-50/70 text-emerald-900" : "border-indigo-100 bg-indigo-50/60 text-indigo-800"}`}>
                 <span className="font-semibold">{labelFor(k)}:</span> {msg}
+                {isSmart && (
+                  <span className="ml-1 rounded-full bg-emerald-600 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white">
+                    Smart routing
+                  </span>
+                )}
                 {st?.linkedinSource && (
-                  <span className="ml-1 rounded-full bg-white px-1.5 py-0.5 text-[9px] font-semibold text-indigo-700 ring-1 ring-indigo-200">
+                  <span className={`ml-1 rounded-full bg-white px-1.5 py-0.5 text-[9px] font-semibold ring-1 ${isSmart ? "text-emerald-700 ring-emerald-200" : "text-indigo-700 ring-indigo-200"}`}>
                     source: {st.linkedinSource}
                   </span>
                 )}

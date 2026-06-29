@@ -66,6 +66,108 @@ export function rankLinkedIns(urls: string[]): string[] {
 
 export type LinkedInHint = { url: string; source: string };
 
+// ────────────────────────────────────────────────────────────────────────────
+// Smart routing helper: prefer company-employees actor when we have a
+// LinkedIn /company/ URL; otherwise fall back to decision-maker-finder.
+// ────────────────────────────────────────────────────────────────────────────
+export type DiscoveryResult = {
+  ok: boolean;
+  candidates: DMCandidate[];
+  source: "linkedin-company-employees" | "decision-maker-finder";
+  companyUrl: string | null;
+  rawCount: number;
+  error?: string;
+};
+
+export function pickCompanyUrl(firstLinkedIn: string, hints: LinkedInHint[]): string | null {
+  if (firstLinkedIn && /linkedin\.com\/company\//i.test(firstLinkedIn)) return firstLinkedIn;
+  const fromHints = hints.find((h) => /linkedin\.com\/company\//i.test(h.url));
+  return fromHints?.url || null;
+}
+
+function mapCompanyEmployee(it: Json): DMCandidate | null {
+  const get = (...keys: string[]) => {
+    for (const k of keys) {
+      const v = (it as Json)[k];
+      if (typeof v === "string" && v.trim()) return v.trim();
+    }
+    return "";
+  };
+  const first = get("firstName", "first_name");
+  const last = get("lastName", "last_name");
+  const fullFromParts = [first, last].filter(Boolean).join(" ").trim();
+  const name = get("name", "fullName") || fullFromParts;
+  const positionObj = (it as Json).currentPosition || (it as Json).position;
+  const positionTitle =
+    (positionObj && typeof positionObj === "object" && typeof (positionObj as Json).title === "string"
+      ? ((positionObj as Json).title as string)
+      : "") || "";
+  const title = get("headline", "title", "occupation", "jobTitle") || positionTitle;
+  let url = get("linkedinUrl", "profileUrl", "url", "publicProfileUrl");
+  if (!url) {
+    const pid = get("publicIdentifier", "username");
+    if (pid) url = `https://www.linkedin.com/in/${pid}`;
+  }
+  if (!name && !url) return null;
+  return {
+    personName: name || undefined,
+    personTitle: title || undefined,
+    personProfileUrl: url || undefined,
+    confidence: "high", // company-employees results are first-party current employees
+    ...it,
+  };
+}
+
+export async function discoverDecisionMakers(opts: {
+  businessName: string;
+  firstLinkedIn: string;
+  hints: LinkedInHint[];
+}): Promise<DiscoveryResult> {
+  const { apifyToken } = env();
+  const companyUrl = pickCompanyUrl(opts.firstLinkedIn, opts.hints);
+
+  // Smart path: company employees
+  if (companyUrl) {
+    const run = await runApifyActorAsync<Json>(
+      "harvestapi~linkedin-company-employees",
+      {
+        companies: [companyUrl],
+        maxItems: 10,
+        profileScraperMode: "Full + email search ($12 per 1k)",
+        recentlyChangedJobs: false,
+      },
+      { token: apifyToken, maxWaitMs: 240_000, pollIntervalMs: 6_000 },
+    );
+    if (run.ok) {
+      const candidates = run.items
+        .map(mapCompanyEmployee)
+        .filter((c): c is DMCandidate => Boolean(c));
+      return {
+        ok: true,
+        candidates,
+        source: "linkedin-company-employees",
+        companyUrl,
+        rawCount: run.items.length,
+      };
+    }
+    // fall through to fallback if smart actor fails
+  }
+
+  // Fallback: decision-maker-finder
+  const companies = [opts.businessName];
+  if (opts.firstLinkedIn && !companies.includes(opts.firstLinkedIn)) companies.push(opts.firstLinkedIn);
+  for (const h of opts.hints.slice(0, 3)) if (!companies.includes(h.url)) companies.push(h.url);
+  const dmRun = await runApifyActorAsync<DMCandidate>(
+    "piotrv1001~linkedin-decision-maker-finder",
+    { companies, maxPersonsPerCompany: 5, titles: ["CEO","CTO","Founder","Owner","Marketing","Social Media Handler ("] },
+    { token: apifyToken, maxWaitMs: 240_000, pollIntervalMs: 6_000 },
+  );
+  if (!dmRun.ok) {
+    return { ok: false, candidates: [], source: "decision-maker-finder", companyUrl, rawCount: 0, error: dmRun.error };
+  }
+  return { ok: true, candidates: dmRun.items, source: "decision-maker-finder", companyUrl, rawCount: dmRun.items.length };
+}
+
 export async function gatherLeadHints(leadId: string | null) {
   if (!leadId) return { linkedinHints: [] as LinkedInHint[], instagramUrl: null as string | null, websiteFromLead: null as string | null };
   const res = await sb(`leads?id=eq.${leadId}&select=raw,brand_dna_raw,instagram_raw,instagram_url,website`);
@@ -193,30 +295,33 @@ export async function runDecisionMakersStep(opts: {
   linkedInSource: string;
   hints: LinkedInHint[];
 }): Promise<{ steps: Json; insertedDMs: Json[] }> {
-  const { apifyToken } = env();
   let { steps } = opts;
+  const companyUrl = pickCompanyUrl(opts.firstLinkedIn, opts.hints);
+  const willSmartRoute = Boolean(companyUrl);
   steps = await updateStep(opts.jobId, steps, "decision_makers", {
     status: "running",
     startedAt: new Date().toISOString(),
-    linkedinSource: opts.linkedInSource || (opts.firstLinkedIn ? "website" : "name-only"),
-    note: opts.firstLinkedIn
+    linkedinSource: willSmartRoute
+      ? "linkedin-company-employees"
+      : opts.linkedInSource || (opts.firstLinkedIn ? "website" : "name-only"),
+    smartRouting: willSmartRoute,
+    companyUrl: companyUrl,
+    note: willSmartRoute
+      ? `Smart routing: fetching current employees of ${companyUrl}`
+      : opts.firstLinkedIn
       ? opts.linkedInSource === "website"
-        ? "Using company LinkedIn found on website"
-        : `Website had no LinkedIn — falling back to ${opts.linkedInSource}`
-      : "No company LinkedIn anywhere — searching by business name only",
+        ? "Fallback: decision-maker-finder using website LinkedIn hint"
+        : `Fallback: decision-maker-finder using ${opts.linkedInSource}`
+      : "Fallback: decision-maker-finder by business name (no company LinkedIn anywhere)",
   });
-  const companies = [opts.businessName];
-  if (opts.firstLinkedIn) companies.push(opts.firstLinkedIn);
-  for (const h of opts.hints.slice(0, 3)) if (!companies.includes(h.url)) companies.push(h.url);
-
-  const dmRun = await runApifyActorAsync<DMCandidate>(
-    "piotrv1001~linkedin-decision-maker-finder",
-    { companies, maxPersonsPerCompany: 5, titles: ["CEO","CTO","Founder","Owner","Marketing","Social Media Handler ("] },
-    { token: apifyToken, maxWaitMs: 240_000, pollIntervalMs: 6_000 },
-  );
+  const dmRun = await discoverDecisionMakers({
+    businessName: opts.businessName,
+    firstLinkedIn: opts.firstLinkedIn,
+    hints: opts.hints,
+  });
   let insertedDMs: Json[] = [];
   if (dmRun.ok) {
-    const scored = filterAndScore(dmRun.items);
+    const scored = filterAndScore(dmRun.candidates);
     if (scored.length) {
       const rows = scored.map((p) => ({
         business_id: opts.businessId,
@@ -226,7 +331,7 @@ export async function runDecisionMakersStep(opts: {
         confidence: p.confidence ?? null,
         decision_maker_score: p.decisionMakerScore,
         priority: p.priority,
-        raw: p,
+        raw: { ...p, _discoverySource: dmRun.source },
       }));
       const ins = await sb("decision_makers", {
         method: "POST",
@@ -238,13 +343,23 @@ export async function runDecisionMakersStep(opts: {
     steps = await updateStep(opts.jobId, steps, "decision_makers", {
       status: "completed",
       finishedAt: new Date().toISOString(),
-      counts: { found: dmRun.items.length, kept: scored.length },
-      note: scored.length === 0 ? "No qualifying decision makers — try a different LinkedIn company URL" : null,
+      counts: { found: dmRun.rawCount, kept: scored.length },
+      discoverySource: dmRun.source,
+      companyUrl: dmRun.companyUrl,
+      note:
+        scored.length === 0
+          ? dmRun.source === "linkedin-company-employees"
+            ? "Company employees fetched but none matched decision-maker filters"
+            : "No qualifying decision makers — try a different LinkedIn company URL"
+          : dmRun.source === "linkedin-company-employees"
+            ? `Smart routing succeeded — pulled ${dmRun.rawCount} current employees, kept ${scored.length}`
+            : `Fallback finder returned ${dmRun.rawCount} candidates, kept ${scored.length}`,
     });
   } else {
     steps = await updateStep(opts.jobId, steps, "decision_makers", {
       status: "failed",
-      error: dmRun.error,
+      error: dmRun.error || "Discovery failed",
+      discoverySource: dmRun.source,
       finishedAt: new Date().toISOString(),
     });
   }
