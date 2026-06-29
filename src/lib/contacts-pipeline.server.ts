@@ -376,13 +376,45 @@ export async function runEmailsStep(opts: {
   steps: Json;
   businessId: string;
   dms: Array<{ id: string; person_profile_url: string | null }>;
+  /**
+   * When true (default), DMs that already have at least one row in
+   * `linkedin_emails` are auto-skipped — so retries don't waste Apify
+   * credits re-resolving contacts whose email we already have. Callers
+   * that want to force a re-lookup (e.g. user clicked "Re-find email"
+   * on a specific person) should pass `false`.
+   */
+  skipExisting?: boolean;
 }): Promise<{ steps: Json; emailsFound: number; fallbackEmailsFound: number }> {
   const { apifyToken } = env();
   let { steps } = opts;
-  if (opts.dms.length === 0) {
+  const skipExisting = opts.skipExisting !== false;
+
+  // Auto-skip DMs that already have an email recorded, unless caller
+  // explicitly opted out. Applied here so EVERY entry path (auto-run,
+  // step rerun, single-DM rerun without skipExisting=false) benefits.
+  let workingDms = opts.dms;
+  let autoSkipped = 0;
+  if (skipExisting && workingDms.length) {
+    const existing = await sb(
+      `linkedin_emails?business_id=eq.${opts.businessId}&select=decision_maker_id`,
+    );
+    if (existing.ok) {
+      const rows = (await existing.json()) as Array<{ decision_maker_id: string }>;
+      const have = new Set(rows.map((r) => r.decision_maker_id));
+      const before = workingDms.length;
+      workingDms = workingDms.filter((d) => !have.has(d.id));
+      autoSkipped = before - workingDms.length;
+    }
+  }
+
+  if (workingDms.length === 0) {
     steps = await updateStep(opts.jobId, steps, "emails", {
       status: "skipped",
-      reason: "No decision makers to resolve emails for",
+      reason:
+        autoSkipped > 0
+          ? `All ${autoSkipped} decision maker(s) already have an email — nothing to resolve`
+          : "No decision makers to resolve emails for",
+      autoSkipped,
       finishedAt: new Date().toISOString(),
     });
     return { steps, emailsFound: 0, fallbackEmailsFound: 0 };
@@ -390,7 +422,10 @@ export async function runEmailsStep(opts: {
   steps = await updateStep(opts.jobId, steps, "emails", {
     status: "running",
     startedAt: new Date().toISOString(),
-    note: "Primary: snipercoder bulk LinkedIn email finder (batched)",
+    note: autoSkipped > 0
+      ? `Skipping ${autoSkipped} DM(s) that already have an email — primary: snipercoder bulk LinkedIn email finder`
+      : "Primary: snipercoder bulk LinkedIn email finder (batched)",
+    autoSkipped,
   });
 
   const norm = (s: string) => s.toLowerCase().replace(/\/+$/, "").replace(/^https?:\/\/(www\.)?/, "");
@@ -401,7 +436,9 @@ export async function runEmailsStep(opts: {
     const m = String(u).toLowerCase().match(/linkedin\.com\/(?:in|pub)\/([^/?#]+)/);
     return m ? m[1].replace(/\/+$/, "") : "";
   };
-  const dmsWithUrl = opts.dms.filter((d): d is { id: string; person_profile_url: string } => !!d.person_profile_url);
+  const dmsWithUrl = workingDms.filter(
+    (d): d is { id: string; person_profile_url: string } => !!d.person_profile_url,
+  );
 
   // Build a handle → dm index used by every provider for robust matching.
   const handleIndex = new Map<string, { id: string; person_profile_url: string }>();
@@ -409,29 +446,69 @@ export async function runEmailsStep(opts: {
     const h = handleOf(d.person_profile_url);
     if (h) handleIndex.set(h, d);
   }
-  // Match an arbitrary actor item back to one of our DMs.
-  const matchItemToDM = (item: Json): { id: string; person_profile_url: string } | undefined => {
-    const itemUrl = (item.linkedinUrl ||
+  // Deep-scan an item for ANY linkedin handle, then match against our DMs.
+  // Actors vary wildly in field names (snipercoder uses
+  // `linkedin_url_or_id`, HarvestAPI uses `linkedinUrl`, some nest under
+  // `profile.*` or `input.*`). Walking the JSON catches them all.
+  const collectHandles = (node: unknown, out: Set<string>) => {
+    if (node == null) return;
+    if (typeof node === "string") {
+      const h = handleOf(node);
+      if (h) out.add(h);
+      return;
+    }
+    if (Array.isArray(node)) {
+      for (const v of node) collectHandles(v, out);
+      return;
+    }
+    if (typeof node === "object") {
+      for (const v of Object.values(node as Json)) collectHandles(v, out);
+    }
+  };
+  const matchItemToDM = (item: Json, fallbackIndex?: number): { id: string; person_profile_url: string } | undefined => {
+    // 1) Try the obvious top-level URL fields first (cheapest path).
+    const topUrl = (item.linkedinUrl ||
       item.linkedin_url ||
       item.profileUrl ||
       item.url ||
       item.input ||
       item.query ||
       item.linkedin_url_or_id) as string | undefined;
-    let match = itemUrl ? handleIndex.get(handleOf(String(itemUrl))) : undefined;
-    if (!match && itemUrl) {
+    let match = topUrl ? handleIndex.get(handleOf(String(topUrl))) : undefined;
+    if (match) return match;
+    // 2) publicIdentifier / username as plain handle.
+    const pid = (item.publicIdentifier || item.username) as string | undefined;
+    if (pid) {
+      match = handleIndex.get(String(pid).toLowerCase().replace(/\/+$/, ""));
+      if (match) return match;
+    }
+    // 3) Deep scan — covers any nested URL field across actors.
+    const handles = new Set<string>();
+    collectHandles(item, handles);
+    for (const h of handles) {
+      const hit = handleIndex.get(h);
+      if (hit) return hit;
+    }
+    // 4) Loose URL contains-match as a last resort.
+    if (topUrl) {
       match = dmsWithUrl.find(
         (d) =>
-          norm(d.person_profile_url) === norm(String(itemUrl)) ||
-          norm(String(itemUrl)).includes(norm(d.person_profile_url)) ||
-          norm(d.person_profile_url).includes(norm(String(itemUrl))),
+          norm(d.person_profile_url) === norm(String(topUrl)) ||
+          norm(String(topUrl)).includes(norm(d.person_profile_url)) ||
+          norm(d.person_profile_url).includes(norm(String(topUrl))),
       );
+      if (match) return match;
     }
-    if (!match) {
-      const pid = (item.publicIdentifier || item.username) as string | undefined;
-      if (pid) match = handleIndex.get(String(pid).toLowerCase().replace(/\/+$/, ""));
+    // 5) Positional fallback — many bulk actors return items in input
+    // order. Only safe when the run was 1 input per DM and the counts line up.
+    if (
+      fallbackIndex != null &&
+      fallbackIndex >= 0 &&
+      fallbackIndex < dmsWithUrl.length
+    ) {
+      return dmsWithUrl[fallbackIndex];
     }
-    return match;
+    return undefined;
   };
   // Pull any email-looking values out of a (potentially nested) actor item.
   const extractEmails = (item: Json): Array<{ email: string; confidence?: string }> => {
@@ -492,8 +569,12 @@ export async function runEmailsStep(opts: {
       primaryError = sniper.error;
     } else {
       primaryItemCount = sniper.items.length;
-      for (const item of sniper.items) {
-        const match = matchItemToDM(item);
+      // snipercoder returns items in input order — use index as a robust
+      // last-resort match when key names don't line up.
+      const usePositional = sniper.items.length === dmsWithUrl.length;
+      for (let i = 0; i < sniper.items.length; i++) {
+        const item = sniper.items[i];
+        const match = matchItemToDM(item, usePositional ? i : undefined);
         if (!match) continue;
         primaryMatchedDMs++;
         const emails = extractEmails(item);
@@ -542,8 +623,13 @@ export async function runEmailsStep(opts: {
       secondaryError = harvest.error;
     } else {
       secondaryItemCount = harvest.items.length;
-      for (const item of harvest.items) {
-        const match = matchItemToDM(item);
+      const usePositional = harvest.items.length === afterPrimary.length;
+      for (let i = 0; i < harvest.items.length; i++) {
+        const item = harvest.items[i];
+        // For positional fallback, map index back to afterPrimary list.
+        const posMatch = usePositional ? afterPrimary[i] : undefined;
+        let match = matchItemToDM(item);
+        if (!match && posMatch) match = posMatch;
         if (!match || !remaining.has(match.id)) continue;
         secondaryMatchedDMs++;
         const emails = extractEmails(item);

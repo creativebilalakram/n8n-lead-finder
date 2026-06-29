@@ -81,6 +81,10 @@ async function runStep(opts: {
     const dmRes = await sb(`decision_makers?business_id=eq.${opts.businessId}&select=id,person_profile_url`);
     const dms = (dmRes.ok ? ((await dmRes.json()) as Json[]) : []) as Array<{ id: string; person_profile_url: string | null }>;
     let target = dms.filter((d) => !!d.person_profile_url);
+    // Explicit single-/multi-DM retry from the UI button always forces
+    // a re-lookup (even if an email already exists), but bulk step retries
+    // auto-skip DMs that are already resolved.
+    const explicit = Boolean(opts.dmIds && opts.dmIds.length);
     if (opts.dmIds && opts.dmIds.length) {
       const want = new Set(opts.dmIds);
       target = target.filter((d) => want.has(d.id));
@@ -91,7 +95,13 @@ async function runStep(opts: {
       const have = new Set(existing.map((e) => e.decision_maker_id));
       target = target.filter((d) => !have.has(d.id));
     }
-    const r = await runEmailsStep({ jobId: opts.jobId, steps, businessId: opts.businessId, dms: target });
+    const r = await runEmailsStep({
+      jobId: opts.jobId,
+      steps,
+      businessId: opts.businessId,
+      dms: target,
+      skipExisting: !explicit, // explicit per-DM clicks force a re-lookup
+    });
     steps = r.steps;
   }
 
