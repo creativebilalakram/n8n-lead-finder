@@ -4,6 +4,7 @@ import {
   runBrandAnalysis,
   runInstagramAnalysis,
 } from "@/lib/enrichment-runner.server";
+import { runContactScraperAndMerge } from "@/lib/business-channels.server";
 
 // Background-style orchestrator: given a qualified leadId, automatically
 // runs website screenshot+modernity scoring; if score < 7, additionally
@@ -141,6 +142,26 @@ export const Route = createFileRoute("/api/public/auto-enrich")({
               });
             }
           }
+          // Even without a website, merge whatever signals we have
+          // (GBP + Instagram + Brand DNA) into business_channels.
+          try {
+            const c = await runContactScraperAndMerge(leadId);
+            steps.push({
+              step: "channels.sync",
+              status: c.ok ? "ok" : "error",
+              detail: c.ok
+                ? `emails=${c.counts.emails} phones=${c.counts.phones} socials=${c.counts.socials} dropped=${c.counts.dropped}`
+                : c.error,
+              at: new Date().toISOString(),
+            });
+          } catch (e) {
+            steps.push({
+              step: "channels.sync",
+              status: "error",
+              detail: e instanceof Error ? e.message : String(e),
+              at: new Date().toISOString(),
+            });
+          }
           await patchLead(supabaseUrl, serviceKey, leadId, {
             auto_enrich_status: "done",
             auto_enrich_finished_at: new Date().toISOString(),
@@ -268,6 +289,29 @@ export const Route = createFileRoute("/api/public/auto-enrich")({
           });
           await persistSteps();
         }
+
+        // Always run channels.sync: contact-info-scraper on the website +
+        // merge with all signals (GBP/IG/Brand). Runs for every lead with a
+        // website, regardless of website score.
+        try {
+          const c = await runContactScraperAndMerge(leadId);
+          steps.push({
+            step: "channels.sync",
+            status: c.ok ? "ok" : "error",
+            detail: c.ok
+              ? `emails=${c.counts.emails} phones=${c.counts.phones} socials=${c.counts.socials} dropped=${c.counts.dropped}`
+              : c.error,
+            at: new Date().toISOString(),
+          });
+        } catch (e) {
+          steps.push({
+            step: "channels.sync",
+            status: "error",
+            detail: e instanceof Error ? e.message : String(e),
+            at: new Date().toISOString(),
+          });
+        }
+        await persistSteps();
 
         const firstError = steps.find((step) => step.status === "error");
         if (firstError) {
