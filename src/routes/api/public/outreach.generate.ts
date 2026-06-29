@@ -27,29 +27,50 @@ async function pgRead(
   return res.json();
 }
 
-async function pgUpsert(
+async function pgInsert(
   url: string,
   key: string,
   table: string,
   row: Record<string, unknown>,
-  conflict: string,
 ): Promise<Record<string, unknown> | null> {
-  const res = await fetch(
-    `${url}/rest/v1/${table}?on_conflict=${encodeURIComponent(conflict)}`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: key,
-        Authorization: `Bearer ${key}`,
-        Prefer: "return=representation,resolution=merge-duplicates",
-      },
-      body: JSON.stringify(row),
+  const res = await fetch(`${url}/rest/v1/${table}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: key,
+      Authorization: `Bearer ${key}`,
+      Prefer: "return=representation",
     },
-  );
+    body: JSON.stringify(row),
+  });
   if (!res.ok) {
     const t = await res.text().catch(() => "");
-    throw new Error(`PG upsert ${res.status}: ${t.slice(0, 300)}`);
+    throw new Error(`PG insert ${res.status}: ${t.slice(0, 300)}`);
+  }
+  const rows = (await res.json()) as Record<string, unknown>[];
+  return rows[0] ?? null;
+}
+
+async function pgPatch(
+  url: string,
+  key: string,
+  table: string,
+  filter: string,
+  row: Record<string, unknown>,
+): Promise<Record<string, unknown> | null> {
+  const res = await fetch(`${url}/rest/v1/${table}?${filter}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: key,
+      Authorization: `Bearer ${key}`,
+      Prefer: "return=representation",
+    },
+    body: JSON.stringify(row),
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    throw new Error(`PG patch ${res.status}: ${t.slice(0, 300)}`);
   }
   const rows = (await res.json()) as Record<string, unknown>[];
   return rows[0] ?? null;
