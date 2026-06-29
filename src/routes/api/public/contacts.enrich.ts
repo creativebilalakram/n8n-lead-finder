@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { runApifyActorAsync } from "@/lib/apify-async.server";
-import { filterAndScore, normalizeBusinessKey, type DMCandidate } from "@/lib/decision-maker-score";
+import { filterAndScore, normalizeBusinessKey } from "@/lib/decision-maker-score";
 import { discoverDecisionMakers, pickCompanyUrl } from "@/lib/contacts-pipeline.server";
 
 type Json = Record<string, unknown>;
