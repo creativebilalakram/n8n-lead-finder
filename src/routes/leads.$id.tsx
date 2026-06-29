@@ -36,6 +36,8 @@ import { extractBrandDnaInsights, extractInstagramFromPayload } from "@/lib/bran
 import { triggerAutoEnrichLead } from "@/lib/auto-enrich";
 import { acquireLovableOpenLock, openLovableTabOnce } from "@/lib/lovable-open";
 import { ContactIntelPanel } from "@/components/contact-intel-panel";
+import { BusinessChannelsCard } from "@/components/business-channels-card";
+import { DmContactHubCard } from "@/components/dm-contact-hub-card";
 
 export const Route = createFileRoute("/leads/$id")({
   head: () => ({ meta: [{ title: "Lead detail — LeadForge" }] }),
@@ -498,12 +500,18 @@ function LeadDetailPage() {
         </ActorPanel>
       </div>
 
+      {/* Business-level channels (info@/contact@, socials) */}
+      <BusinessChannelsCard leadId={id} raw={lead.raw} />
+
       {/* Contact Intelligence — prefilled from this lead */}
       <ContactIntelPanel
         leadId={id}
         businessName={((lead.title as string | null) || "").trim()}
         website={(lead.website as string | null) || null}
       />
+
+      {/* Per-DM contact hub — manual ContactOut entry */}
+      <DmContactHubCard leadId={id} />
 
       {/* Rejection reasons */}
       {Array.isArray(lead.rejection_reasons) && (lead.rejection_reasons as unknown[]).length > 0 ? (
