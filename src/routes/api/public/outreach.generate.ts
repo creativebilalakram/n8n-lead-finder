@@ -27,29 +27,50 @@ async function pgRead(
   return res.json();
 }
 
-async function pgUpsert(
+async function pgInsert(
   url: string,
   key: string,
   table: string,
   row: Record<string, unknown>,
-  conflict: string,
 ): Promise<Record<string, unknown> | null> {
-  const res = await fetch(
-    `${url}/rest/v1/${table}?on_conflict=${encodeURIComponent(conflict)}`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: key,
-        Authorization: `Bearer ${key}`,
-        Prefer: "return=representation,resolution=merge-duplicates",
-      },
-      body: JSON.stringify(row),
+  const res = await fetch(`${url}/rest/v1/${table}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: key,
+      Authorization: `Bearer ${key}`,
+      Prefer: "return=representation",
     },
-  );
+    body: JSON.stringify(row),
+  });
   if (!res.ok) {
     const t = await res.text().catch(() => "");
-    throw new Error(`PG upsert ${res.status}: ${t.slice(0, 300)}`);
+    throw new Error(`PG insert ${res.status}: ${t.slice(0, 300)}`);
+  }
+  const rows = (await res.json()) as Record<string, unknown>[];
+  return rows[0] ?? null;
+}
+
+async function pgPatch(
+  url: string,
+  key: string,
+  table: string,
+  filter: string,
+  row: Record<string, unknown>,
+): Promise<Record<string, unknown> | null> {
+  const res = await fetch(`${url}/rest/v1/${table}?${filter}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: key,
+      Authorization: `Bearer ${key}`,
+      Prefer: "return=representation",
+    },
+    body: JSON.stringify(row),
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    throw new Error(`PG patch ${res.status}: ${t.slice(0, 300)}`);
   }
   const rows = (await res.json()) as Record<string, unknown>[];
   return rows[0] ?? null;
@@ -215,15 +236,34 @@ export const Route = createFileRoute("/api/public/outreach/generate")({
           updated_at: new Date().toISOString(),
         };
 
-        // Upsert: when there's a DM, use the dm-unique index; for generic the
-        // handle-unique index. We always include enough fields to satisfy both.
-        const conflict = isGeneric
-          ? "lead_id,channel,recipient_handle,sequence_step"
-          : "lead_id,dm_contact_id,channel,sequence_step";
-
+        // Manual upsert: the table has PARTIAL unique indexes (WHERE
+        // dm_contact_id IS NULL/NOT NULL), which PostgREST's on_conflict
+        // cannot infer. Look up existing row by the logical unique key, then
+        // PATCH or INSERT accordingly.
         let draft: Record<string, unknown> | null = null;
         try {
-          draft = await pgUpsert(supabaseUrl, serviceKey, "outreach_drafts", row, conflict);
+          const handleFilter = recipientHandle == null
+            ? "recipient_handle=is.null"
+            : `recipient_handle=eq.${encodeURIComponent(recipientHandle)}`;
+          const lookupFilter = isGeneric
+            ? `lead_id=eq.${leadId}&dm_contact_id=is.null&channel=eq.${encodeURIComponent(channel)}&${handleFilter}&sequence_step=eq.${sequenceStep}`
+            : `lead_id=eq.${leadId}&dm_contact_id=eq.${dmContactId}&channel=eq.${encodeURIComponent(channel)}&sequence_step=eq.${sequenceStep}`;
+          const existing = (await pgRead(
+            supabaseUrl,
+            serviceKey,
+            `outreach_drafts?${lookupFilter}&select=id&limit=1`,
+          )) as Array<{ id: string }>;
+          if (existing[0]?.id) {
+            draft = await pgPatch(
+              supabaseUrl,
+              serviceKey,
+              "outreach_drafts",
+              `id=eq.${existing[0].id}`,
+              row,
+            );
+          } else {
+            draft = await pgInsert(supabaseUrl, serviceKey, "outreach_drafts", row);
+          }
         } catch (e) {
           return Response.json({ ok: false, error: e instanceof Error ? e.message : String(e) }, { status: 200 });
         }
