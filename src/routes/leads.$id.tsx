@@ -75,6 +75,7 @@ function LeadDetailPage() {
   const [analyzing, setAnalyzing] = useState<null | "website" | "instagram" | "brand">(null);
   const [reRunning, setReRunning] = useState(false);
   const [openingLovable, setOpeningLovable] = useState(false);
+  const [customUrl, setCustomUrl] = useState("");
 
   const websiteScore = (lead?.website_modern_score as number | null) ?? null;
   const brandScore = (lead?.brand_dna_score as number | null) ?? null;
@@ -111,9 +112,17 @@ function LeadDetailPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ leadId: id, ...body }),
       });
-      const json = await res.json();
+      const text = await res.text();
+      let json: { error?: string; score?: number; label?: string } = {};
+      try { json = text ? JSON.parse(text) : {}; } catch {
+        throw new Error(
+          res.ok
+            ? "Server returned non-JSON response (likely gateway timeout). Try again."
+            : `HTTP ${res.status} — ${text.slice(0, 120) || "no body"}`,
+        );
+      }
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
-      toast.success(`${kind} ${json.score}/10 · ${json.label}`);
+      toast.success(`${kind} ${json.score ?? "?"}/10 · ${json.label ?? ""}`);
       await refetch();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Analysis failed");
@@ -131,6 +140,22 @@ function LeadDetailPage() {
     }
     setOpeningLovable(true);
     void markClicked(id).catch(() => {});
+    // If user supplied a custom URL, skip the whole brief pipeline and just
+    // open that URL directly.
+    const override = customUrl.trim();
+    if (override) {
+      const normalized = /^https?:\/\//i.test(override) ? override : `https://${override}`;
+      const opened = openLovableTabOnce(normalized, openKey);
+      if (!opened) {
+        toast.success("Ready", {
+          description: "If a new tab didn't open, click here to launch it.",
+          action: { label: "Open", onClick: () => openLovableTabOnce(normalized, `${openKey}:manual:${Date.now()}`) },
+        });
+      }
+      setOpeningLovable(false);
+      releaseOpenLock();
+      return;
+    }
     let pkg: WebsiteDataPackage | null = null;
     const progress = toast.loading(
       "Preparing complete brief — running any missing enrichment (website, brand, Instagram)…",
@@ -319,13 +344,20 @@ function LeadDetailPage() {
         </div>
 
         <div className="mt-5 flex flex-wrap gap-2">
+          <input
+            type="url"
+            value={customUrl}
+            onChange={(e) => setCustomUrl(e.target.value)}
+            placeholder="Optional: paste a URL to open directly (skips brief)"
+            className="h-10 min-w-[280px] flex-1 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+          />
           <button
             onClick={openInLovable}
             disabled={openingLovable}
             className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-indigo-500/30 hover:shadow-lg disabled:cursor-wait disabled:opacity-80"
           >
             {openingLovable ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            {openingLovable ? "Preparing…" : "Open in Lovable"}
+            {openingLovable ? "Preparing…" : customUrl.trim() ? "Open URL" : "Open in Lovable"}
             {!openingLovable && <ExternalLink className="h-3.5 w-3.5" />}
           </button>
           <Link
