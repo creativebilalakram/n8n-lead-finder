@@ -214,7 +214,7 @@ export function BusinessChannelsCard({ leadId, businessId, raw }: Props) {
         business_id: businessId ?? state.business_id ?? null,
         // Persist current source map so chips survive reload.
         ...({ sources } as object),
-      } as Partial<BusinessChannels>);
+      } as Partial<BusinessChannels> & { lead_id: string });
       setExistingId(saved.id);
       setState(saved);
       toast.success("Business channels saved");
