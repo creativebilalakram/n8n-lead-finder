@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { runApifyActorAsync } from "@/lib/apify-async.server";
 import { filterAndScore, normalizeBusinessKey } from "@/lib/decision-maker-score";
-import { discoverDecisionMakers, pickCompanyUrl } from "@/lib/contacts-pipeline.server";
+import { discoverDecisionMakers, pickCompanyUrl, runEmailsStep } from "@/lib/contacts-pipeline.server";
 
 type Json = Record<string, unknown>;
 
