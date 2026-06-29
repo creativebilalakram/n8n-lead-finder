@@ -511,30 +511,53 @@ export async function runEmailsStep(opts: {
     return undefined;
   };
   // Pull any email-looking values out of a (potentially nested) actor item.
+  // Different Apify actors use inconsistent field names. The snipercoder
+  // actor, for example, returns numeric CSV-style keys like `04_Email`, so we
+  // scan the full payload instead of trusting only canonical names.
   const extractEmails = (item: Json): Array<{ email: string; confidence?: string }> => {
-    const out: Array<{ email: string; confidence?: string }> = [];
+    const out = new Map<string, { email: string; confidence?: string }>();
+    const add = (email: string, confidence?: string) => {
+      const clean = email.trim().replace(/[),;\]}'">]+$/g, "");
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) return;
+      out.set(clean.toLowerCase(), { email: clean, confidence });
+    };
     const single = (item.email ||
       item.foundEmail ||
       item.workEmail ||
       item.personalEmail ||
       item.found_email ||
-      item.work_email) as string | undefined;
-    if (typeof single === "string" && single.includes("@")) out.push({ email: single });
-    for (const key of ["emails", "found_emails", "verified_emails"]) {
+      item.work_email ||
+      item["04_Email"]) as string | undefined;
+    if (typeof single === "string" && single.includes("@")) add(single);
+    for (const key of ["emails", "found_emails", "verified_emails", "04_Email"]) {
       const arr = (item as Json)[key];
       if (Array.isArray(arr)) {
         for (const v of arr) {
-          if (typeof v === "string" && v.includes("@")) out.push({ email: v });
+          if (typeof v === "string" && v.includes("@")) add(v);
           else if (v && typeof v === "object" && typeof (v as Json).email === "string") {
-            out.push({
-              email: (v as Json).email as string,
-              confidence: (v as Json).confidence as string | undefined,
-            });
+            add((v as Json).email as string, (v as Json).confidence as string | undefined);
           }
         }
       }
     }
-    return out;
+    const scan = (node: unknown) => {
+      if (node == null) return;
+      if (typeof node === "string") {
+        for (const m of node.matchAll(/[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/g)) {
+          add(m[0]);
+        }
+        return;
+      }
+      if (Array.isArray(node)) {
+        for (const v of node) scan(v);
+        return;
+      }
+      if (typeof node === "object") {
+        for (const v of Object.values(node as Json)) scan(v);
+      }
+    };
+    scan(item);
+    return [...out.values()];
   };
   const insertEmails = async (dmId: string, source: string, label: string, items: Array<{ email: string; confidence?: string }>) => {
     if (!items.length) return 0;
