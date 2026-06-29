@@ -115,12 +115,18 @@ export const Route = createFileRoute("/api/public/contacts/rerun")({
           return Response.json({ error: "step must be one of: website, decision_makers, emails" }, { status: 400 });
         }
 
-        // Don't stack runs.
-        const open = await sb(`contact_jobs?business_id=eq.${businessId}&status=eq.running&select=id`);
+        // Don't stack runs — but auto-clear stuck "running" rows (>5 min old)
+        // so a dead Worker session never blocks a retry.
+        const staleCutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+        const open = await sb(`contact_jobs?business_id=eq.${businessId}&status=eq.running&started_at=gte.${staleCutoff}&select=id`);
         const openRows = open.ok ? ((await open.json()) as Json[]) : [];
         if (openRows[0]) {
           return Response.json({ businessId, jobId: openRows[0].id, alreadyRunning: true });
         }
+        await sb(`contact_jobs?business_id=eq.${businessId}&status=eq.running`, {
+          method: "PATCH",
+          body: JSON.stringify({ status: "failed", error: "Stuck job auto-cleared", finished_at: new Date().toISOString() }),
+        }).catch(() => {});
 
         const job = await createRerunJob(businessId, step);
         await sb(`businesses?id=eq.${businessId}`, {
@@ -128,14 +134,16 @@ export const Route = createFileRoute("/api/public/contacts/rerun")({
           body: JSON.stringify({ enrichment_status: "running", updated_at: new Date().toISOString() }),
         }).catch(() => {});
 
-        runStep({ businessId, jobId: job.id as string, step, scope: body.scope, dmIds: body.dmIds }).catch(async (e) => {
+        // Await — detached promises get killed on Workers after the response is sent.
+        try {
+          await runStep({ businessId, jobId: job.id as string, step, scope: body.scope, dmIds: body.dmIds });
+        } catch (e) {
           await patchJob(job.id as string, {
             status: "failed",
             error: String((e as Error)?.message || e),
             finished_at: new Date().toISOString(),
           });
-        });
-
+        }
         return Response.json({ businessId, jobId: job.id, step });
       },
     },

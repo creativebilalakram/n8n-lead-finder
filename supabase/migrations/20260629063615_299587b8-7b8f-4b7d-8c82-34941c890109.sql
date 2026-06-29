@@ -1,0 +1,1 @@
+UPDATE public.contact_jobs SET status = 'failed', error = 'Worker terminated before pipeline started (fire-and-forget bug)', finished_at = now() WHERE status = 'running' AND finished_at IS NULL AND started_at < now() - interval '2 minutes';

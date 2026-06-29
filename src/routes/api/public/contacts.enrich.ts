@@ -444,12 +444,20 @@ export const Route = createFileRoute("/api/public/contacts/enrich")({
         const biz = await upsertBusiness(name, website, body.leadId ?? null);
         if (!biz) return Response.json({ error: "Failed to upsert business" }, { status: 500 });
 
-        // Don't start a second job if one is already running
-        const open = await sb(`contact_jobs?business_id=eq.${biz.id}&status=eq.running&select=id`);
+        // Don't start a second job if one is already running — but treat
+        // jobs older than 5 minutes as dead (Worker likely terminated mid-run)
+        // so users aren't blocked forever by a stuck row.
+        const staleCutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+        const open = await sb(`contact_jobs?business_id=eq.${biz.id}&status=eq.running&started_at=gte.${staleCutoff}&select=id`);
         const openRows = open.ok ? ((await open.json()) as Json[]) : [];
         if (openRows[0]) {
           return Response.json({ businessId: biz.id, jobId: openRows[0].id, alreadyRunning: true });
         }
+        // Mark any older "running" rows for this business as failed so the UI updates.
+        await sb(`contact_jobs?business_id=eq.${biz.id}&status=eq.running`, {
+          method: "PATCH",
+          body: JSON.stringify({ status: "failed", error: "Stuck job auto-cleared", finished_at: new Date().toISOString() }),
+        }).catch(() => {});
 
         const job = await createJob(biz.id as string);
         await sb(`businesses?id=eq.${biz.id}`, {
@@ -457,11 +465,18 @@ export const Route = createFileRoute("/api/public/contacts/enrich")({
           body: JSON.stringify({ enrichment_status: "running", updated_at: new Date().toISOString() }),
         }).catch(() => {});
 
-        // Fire-and-forget; client polls /contacts/status
-        runPipeline(biz.id as string, job.id as string, name, website, body.leadId ?? null).catch(async (e) => {
-          await patchJob(job.id as string, { status: "failed", error: String((e as Error)?.message || e), finished_at: new Date().toISOString() });
-        });
-
+        // IMPORTANT: must `await` on Cloudflare Workers — a detached promise
+        // gets killed the moment the response is sent, which is why jobs were
+        // stuck with all steps "pending" and Apify never saw a run.
+        try {
+          await runPipeline(biz.id as string, job.id as string, name, website, body.leadId ?? null);
+        } catch (e) {
+          await patchJob(job.id as string, {
+            status: "failed",
+            error: String((e as Error)?.message || e),
+            finished_at: new Date().toISOString(),
+          });
+        }
         return Response.json({ businessId: biz.id, jobId: job.id });
       },
     },
