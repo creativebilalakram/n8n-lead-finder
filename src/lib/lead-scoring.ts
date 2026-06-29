@@ -71,30 +71,43 @@ function getContactCount(j: AnyRec): number {
   if (Array.isArray(j.linkedIns)) n += (j.linkedIns as unknown[]).length;
   return n;
 }
-function scoreRating(r: number): number {
-  if (r >= 4.6 && r <= 4.8) return 30;
-  if (r >= 4.2 && r < 4.6) return 22;
-  if (r > 4.8) return 10;
-  if (r < 4.2) return -20;
+// Rating buckets derived from the user's allowed band [min, max].
+// Sweet spot is the upper half of the band; lower half still scores well;
+// above max = inflated/fake-risk; below min = poor reputation.
+export function scoreRating(r: number, min: number, max: number): number {
+  if (!Number.isFinite(r) || r <= 0) return 0;
+  const mid = (min + max) / 2;
+  if (r >= mid && r <= max) return 30;
+  if (r >= min && r < mid) return 22;
+  if (r > max) return 10;
+  if (r < min) return -20;
   return 0;
 }
-function scoreReviews(c: number): number {
-  if (c >= 20 && c <= 50) return 30;
-  if (c > 50 && c <= 150) return 25;
-  if (c < 20) return -25;
-  if (c > 150) return -15;
+// Reviews buckets derived from [min, max]. Lower third of the allowed band
+// is the sweet spot (newer / hungrier businesses), upper band still good,
+// outside the band penalised proportionally.
+export function scoreReviews(c: number, min: number, max: number): number {
+  if (!Number.isFinite(c)) return 0;
+  const third = Math.max(1, (max - min) / 3);
+  if (c >= min && c <= min + third) return 30;
+  if (c > min + third && c <= max) return 25;
+  if (c < min) return -25;
+  if (c > max) return -15;
   return 0;
 }
-function scoreOwner(d: Date | null): number {
+// Owner-activity buckets derived from the user's `activeOwnerDays` threshold D.
+// ≤D/4 fresh, ≤D/2 recent, ≤D still active, ≤2D stale, else dead.
+export function scoreOwner(d: Date | null, activeOwnerDays: number): number {
   const days = daysAgo(d);
   if (days === null) return 0;
-  if (days <= 14) return 20;
-  if (days <= 30) return 16;
-  if (days <= 60) return 12;
-  if (days <= 120) return 5;
+  const D = Math.max(1, activeOwnerDays);
+  if (days <= D * 0.25) return 20;
+  if (days <= D * 0.5) return 16;
+  if (days <= D) return 12;
+  if (days <= D * 2) return 5;
   return -5;
 }
-function scoreDataDepth(j: AnyRec): number {
+export function scoreDataDepth(j: AnyRec): number {
   let s = 0;
   if (hasValue(j.website)) s += 8;
   if (hasValue(j.phone) || hasValue(j.phones)) s += 8;
@@ -105,7 +118,7 @@ function scoreDataDepth(j: AnyRec): number {
   if (toNumber(j.imagesCount) > 20) s += 3;
   return s;
 }
-function scoreOpportunity(j: AnyRec): number {
+export function scoreOpportunity(j: AnyRec): number {
   const cat = normalizeText(j.categoryName);
   const cats = Array.isArray(j.categories) ? (j.categories as unknown[]).map(normalizeText) : [];
   const combined = [cat, ...cats].join(" | ");
@@ -114,6 +127,7 @@ function scoreOpportunity(j: AnyRec): number {
   for (const k of hot) if (combined.includes(k)) s += 4;
   return s;
 }
+export { getSocialCount, getContactCount, getOwnerUpdateDate, hasValue, toNumber };
 function getRedFlags(j: AnyRec, reviews: number, rating: number, owner: Date | null, cfg: ScoreConfig): string[] {
   const f: string[] = [];
   if (reviews < cfg.reviewsMin) f.push("low_reviews");
@@ -144,9 +158,9 @@ export function scoreLeads(items: AnyRec[], cfg: ScoreConfig): AnyRec[] {
     let leadScore = 0;
     const reasons: string[] = [];
 
-    leadScore += scoreReviews(reviewsCount);
-    leadScore += scoreRating(totalScore);
-    leadScore += scoreOwner(ownerDate);
+    leadScore += scoreReviews(reviewsCount, cfg.reviewsMin, cfg.reviewsMax);
+    leadScore += scoreRating(totalScore, cfg.ratingMin, cfg.ratingMax);
+    leadScore += scoreOwner(ownerDate, cfg.activeOwnerDays);
     leadScore += scoreDataDepth(j);
     leadScore += scoreOpportunity(j);
 
