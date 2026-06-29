@@ -344,13 +344,20 @@ function LeadDetailPage() {
         </div>
 
         <div className="mt-5 flex flex-wrap gap-2">
+          <input
+            type="url"
+            value={customUrl}
+            onChange={(e) => setCustomUrl(e.target.value)}
+            placeholder="Optional: paste a URL to open directly (skips brief)"
+            className="h-10 min-w-[280px] flex-1 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+          />
           <button
             onClick={openInLovable}
             disabled={openingLovable}
             className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-indigo-500/30 hover:shadow-lg disabled:cursor-wait disabled:opacity-80"
           >
             {openingLovable ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            {openingLovable ? "Preparing…" : "Open in Lovable"}
+            {openingLovable ? "Preparing…" : customUrl.trim() ? "Open URL" : "Open in Lovable"}
             {!openingLovable && <ExternalLink className="h-3.5 w-3.5" />}
           </button>
           <Link
