@@ -23,10 +23,8 @@ export const BLACKLIST_KEYWORDS = [
 ];
 
 export function scoreCandidate(p: DMCandidate): number {
-  const name = (p.personName || "").toLowerCase();
   const title = (p.personTitle || "").toLowerCase();
   let s = 0;
-  if (name.includes("alecia hardy")) s += 100;
   if (title.includes("owner")) s += 90;
   if (title.includes("founder")) s += 85;
   if (title.includes("ceo")) s += 80;
@@ -56,7 +54,6 @@ export function filterAndScore(people: DMCandidate[]): Array<DMCandidate & { dec
     const title = (p.personTitle || "").toLowerCase();
     const conf = (p.confidence || "").toLowerCase();
     if (!name) return false;
-    if (name.includes("alecia hardy")) return true;
     if (BLACKLIST_KEYWORDS.some((k) => title.includes(k))) return false;
     if ((conf === "high" || conf === "medium") && RELEVANT_KEYWORDS.some((k) => title.includes(k))) return true;
     return false;

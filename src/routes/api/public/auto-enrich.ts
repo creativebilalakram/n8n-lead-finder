@@ -60,7 +60,7 @@ export const Route = createFileRoute("/api/public/auto-enrich")({
 
         // 1) Load lead
         const getRes = await fetch(
-          `${supabaseUrl}/rest/v1/leads?id=eq.${leadId}&select=id,website,lead_score,lead_tier,passed,auto_enrich_status,auto_enrich_started_at,auto_enrich_finished_at,website_modern_score`,
+          `${supabaseUrl}/rest/v1/leads?id=eq.${leadId}&select=id,website,instagram_url,lead_score,lead_tier,passed,auto_enrich_status,auto_enrich_started_at,auto_enrich_finished_at,website_modern_score`,
           { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
         );
         if (!getRes.ok) return Response.json({ error: "Lead fetch failed" }, { status: 502 });
@@ -108,21 +108,50 @@ export const Route = createFileRoute("/api/public/auto-enrich")({
         });
 
         const website = (lead.website as string | null)?.trim() || null;
+        const instagramUrl = ((lead as Record<string, unknown>).instagram_url as string | null)?.trim?.() || null;
 
-        // No website → record and exit cleanly.
+        // No website → still try Instagram-only enrichment (common for
+        // local salons/clinics with IG-only presence) before exiting.
         if (!website) {
           steps.push({
             step: "website",
             status: "skipped",
-            detail: "No website found",
+            detail: instagramUrl
+              ? "No website — falling back to Instagram-only enrichment"
+              : "No website found",
             at: new Date().toISOString(),
           });
+          if (instagramUrl) {
+            try {
+              const r = await runInstagramAnalysis(leadId);
+              steps.push({
+                step: "instagram.analyze",
+                status: r.ok ? "ok" : "error",
+                detail: r.ok
+                  ? `score=${(r.data?.score as number | undefined) ?? "?"}`
+                  : r.error || `HTTP ${r.status}`,
+                at: new Date().toISOString(),
+              });
+            } catch (e) {
+              steps.push({
+                step: "instagram.analyze",
+                status: "error",
+                detail: e instanceof Error ? e.message : String(e),
+                at: new Date().toISOString(),
+              });
+            }
+          }
           await patchLead(supabaseUrl, serviceKey, leadId, {
             auto_enrich_status: "done",
             auto_enrich_finished_at: new Date().toISOString(),
             auto_enrich_steps: steps,
           });
-          return Response.json({ leadId, status: "done", note: "no_website", steps });
+          return Response.json({
+            leadId,
+            status: "done",
+            note: instagramUrl ? "no_website_ig_only" : "no_website",
+            steps,
+          });
         }
 
         // 4) Website analysis (screenshot + AI modernity score) — called
