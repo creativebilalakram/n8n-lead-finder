@@ -390,7 +390,7 @@ export async function runEmailsStep(opts: {
   steps = await updateStep(opts.jobId, steps, "emails", {
     status: "running",
     startedAt: new Date().toISOString(),
-    note: "Primary: HarvestAPI profile scraper (batched, higher hit-rate)",
+    note: "Primary: snipercoder bulk LinkedIn email finder (batched)",
   });
 
   const norm = (s: string) => s.toLowerCase().replace(/\/+$/, "").replace(/^https?:\/\/(www\.)?/, "");
@@ -403,92 +403,115 @@ export async function runEmailsStep(opts: {
   };
   const dmsWithUrl = opts.dms.filter((d): d is { id: string; person_profile_url: string } => !!d.person_profile_url);
 
-  // PRIMARY: HarvestAPI batched profile scraper ($10/1k, higher hit rate
-  // than anchor~linkedin-to-email and far more cost-efficient as a batch).
+  // Build a handle → dm index used by every provider for robust matching.
+  const handleIndex = new Map<string, { id: string; person_profile_url: string }>();
+  for (const d of dmsWithUrl) {
+    const h = handleOf(d.person_profile_url);
+    if (h) handleIndex.set(h, d);
+  }
+  // Match an arbitrary actor item back to one of our DMs.
+  const matchItemToDM = (item: Json): { id: string; person_profile_url: string } | undefined => {
+    const itemUrl = (item.linkedinUrl ||
+      item.linkedin_url ||
+      item.profileUrl ||
+      item.url ||
+      item.input ||
+      item.query ||
+      item.linkedin_url_or_id) as string | undefined;
+    let match = itemUrl ? handleIndex.get(handleOf(String(itemUrl))) : undefined;
+    if (!match && itemUrl) {
+      match = dmsWithUrl.find(
+        (d) =>
+          norm(d.person_profile_url) === norm(String(itemUrl)) ||
+          norm(String(itemUrl)).includes(norm(d.person_profile_url)) ||
+          norm(d.person_profile_url).includes(norm(String(itemUrl))),
+      );
+    }
+    if (!match) {
+      const pid = (item.publicIdentifier || item.username) as string | undefined;
+      if (pid) match = handleIndex.get(String(pid).toLowerCase().replace(/\/+$/, ""));
+    }
+    return match;
+  };
+  // Pull any email-looking values out of a (potentially nested) actor item.
+  const extractEmails = (item: Json): Array<{ email: string; confidence?: string }> => {
+    const out: Array<{ email: string; confidence?: string }> = [];
+    const single = (item.email ||
+      item.foundEmail ||
+      item.workEmail ||
+      item.personalEmail ||
+      item.found_email ||
+      item.work_email) as string | undefined;
+    if (typeof single === "string" && single.includes("@")) out.push({ email: single });
+    for (const key of ["emails", "found_emails", "verified_emails"]) {
+      const arr = (item as Json)[key];
+      if (Array.isArray(arr)) {
+        for (const v of arr) {
+          if (typeof v === "string" && v.includes("@")) out.push({ email: v });
+          else if (v && typeof v === "object" && typeof (v as Json).email === "string") {
+            out.push({
+              email: (v as Json).email as string,
+              confidence: (v as Json).confidence as string | undefined,
+            });
+          }
+        }
+      }
+    }
+    return out;
+  };
+  const insertEmails = async (dmId: string, source: string, label: string, items: Array<{ email: string; confidence?: string }>) => {
+    if (!items.length) return 0;
+    const rows = items.map((c) => ({
+      decision_maker_id: dmId,
+      business_id: opts.businessId,
+      email: c.email,
+      confidence: c.confidence ?? label,
+      raw: { ...c, source },
+    }));
+    const ins = await sb("linkedin_emails", {
+      method: "POST",
+      headers: { Prefer: "resolution=merge-duplicates,return=representation" },
+      body: JSON.stringify(rows),
+    });
+    return ins.ok ? items.length : 0;
+  };
+
+  // ── PRIMARY: snipercoder~bulk-linkedin-email-finder (batched) ──────────
   let primaryEmailsFound = 0;
   let primaryError: string | null = null;
   let primaryItemCount = 0;
   let primaryMatchedDMs = 0;
-  const noEmailDMs: Array<{ id: string; url: string }> = [];
+  const remaining = new Map(dmsWithUrl.map((d) => [d.id, d] as const));
   if (dmsWithUrl.length) {
-    const harvest = await runApifyActorAsync<Json>(
-      "harvestapi~linkedin-profile-scraper",
-      {
-        profileScraperMode: "Profile details + email search ($10 per 1k)",
-        queries: dmsWithUrl.map((d) => d.person_profile_url),
-      },
+    const sniper = await runApifyActorAsync<Json>(
+      "snipercoder~bulk-linkedin-email-finder",
+      { linkedin_url_or_ids: dmsWithUrl.map((d) => d.person_profile_url) },
       { token: apifyToken, maxWaitMs: 240_000, pollIntervalMs: 6_000 },
     );
-    if (!harvest.ok) {
-      primaryError = harvest.error;
-      for (const d of dmsWithUrl) noEmailDMs.push({ id: d.id, url: d.person_profile_url });
+    if (!sniper.ok) {
+      primaryError = sniper.error;
     } else {
-      primaryItemCount = harvest.items.length;
-      const foundIds = new Set<string>();
-      // Build handle → dm index for robust matching
-      const handleIndex = new Map<string, { id: string; person_profile_url: string }>();
-      for (const d of dmsWithUrl) {
-        const h = handleOf(d.person_profile_url);
-        if (h) handleIndex.set(h, d);
-      }
-      for (const item of harvest.items) {
-        const itemUrl = (item.linkedinUrl || item.profileUrl || item.url || item.input || item.query) as string | undefined;
-        // Try handle-based match first (most robust), then URL fuzzy match.
-        let match = itemUrl ? handleIndex.get(handleOf(String(itemUrl))) : undefined;
-        if (!match && itemUrl) {
-          match = dmsWithUrl.find(
-            (d) =>
-              norm(d.person_profile_url) === norm(String(itemUrl)) ||
-              norm(String(itemUrl)).includes(norm(d.person_profile_url)) ||
-              norm(d.person_profile_url).includes(norm(String(itemUrl))),
-          );
+      primaryItemCount = sniper.items.length;
+      for (const item of sniper.items) {
+        const match = matchItemToDM(item);
+        if (!match) continue;
+        primaryMatchedDMs++;
+        const emails = extractEmails(item);
+        if (!emails.length) continue;
+        const added = await insertEmails(match.id, "snipercoder~bulk-linkedin-email-finder", "snipercoder-primary", emails);
+        if (added) {
+          primaryEmailsFound += added;
+          remaining.delete(match.id);
         }
-        // Last resort: if HarvestAPI returns publicIdentifier separately
-        if (!match) {
-          const pid = (item.publicIdentifier || item.username) as string | undefined;
-          if (pid) match = handleIndex.get(String(pid).toLowerCase().replace(/\/+$/, ""));
-        }
-        const dmId = match?.id;
-        if (dmId) primaryMatchedDMs++;
-        const collected: Array<{ email: string; confidence?: string }> = [];
-        const e = (item.email || item.foundEmail || item.workEmail || item.personalEmail) as string | undefined;
-        if (typeof e === "string" && e.includes("@")) collected.push({ email: e });
-        const arr = item.emails as unknown;
-        if (Array.isArray(arr)) {
-          for (const v of arr) {
-            if (typeof v === "string" && v.includes("@")) collected.push({ email: v });
-            else if (v && typeof v === "object" && typeof (v as Json).email === "string") collected.push({ email: (v as Json).email as string, confidence: (v as Json).confidence as string | undefined });
-          }
-        }
-        if (!collected.length || !dmId) continue;
-        const rows = collected.map((c) => ({
-          decision_maker_id: dmId,
-          business_id: opts.businessId,
-          email: c.email,
-          confidence: c.confidence ?? "harvestapi-primary",
-          raw: { ...c, source: "harvestapi~linkedin-profile-scraper" },
-        }));
-        const ins = await sb("linkedin_emails", {
-          method: "POST",
-          headers: { Prefer: "resolution=merge-duplicates,return=representation" },
-          body: JSON.stringify(rows),
-        });
-        if (ins.ok) {
-          primaryEmailsFound += collected.length;
-          foundIds.add(dmId);
-        }
-      }
-      for (const d of dmsWithUrl) {
-        if (!foundIds.has(d.id)) noEmailDMs.push({ id: d.id, url: d.person_profile_url });
       }
     }
   }
+  const afterPrimary = [...remaining.values()];
 
-  // Visibility: persist HarvestAPI stats to the step BEFORE running the
-  // anchor fallback so the UI can show whether HarvestAPI actually fired.
+  // Persist primary stats BEFORE running fallbacks so the UI sees it ran.
   steps = await updateStep(opts.jobId, steps, "emails", {
     primary: {
-      actor: "harvestapi~linkedin-profile-scraper",
+      actor: "snipercoder~bulk-linkedin-email-finder",
       ok: !primaryError,
       error: primaryError,
       itemsReturned: primaryItemCount,
@@ -498,61 +521,100 @@ export async function runEmailsStep(opts: {
     },
   });
 
-  // FALLBACK: anchor~linkedin-to-email per remaining profile.
-  let fallbackEmailsFound = 0;
-  if (noEmailDMs.length) {
+  // ── SECONDARY: HarvestAPI batched profile scraper ──────────────────────
+  let secondaryEmailsFound = 0;
+  let secondaryError: string | null = null;
+  let secondaryItemCount = 0;
+  let secondaryMatchedDMs = 0;
+  if (afterPrimary.length) {
     steps = await updateStep(opts.jobId, steps, "emails", {
-      note: primaryError
-        ? `HarvestAPI failed (${primaryError}) — trying anchor~linkedin-to-email fallback for ${noEmailDMs.length} profile(s)`
-        : `HarvestAPI returned ${primaryItemCount} item(s), matched ${primaryMatchedDMs}/${dmsWithUrl.length} DMs, ${primaryEmailsFound} email(s) — trying anchor fallback for ${noEmailDMs.length} remaining`,
+      note: `Primary returned ${primaryEmailsFound} email(s) — falling back to HarvestAPI for ${afterPrimary.length} profile(s)`,
     });
-    for (const dm of noEmailDMs) {
+    const harvest = await runApifyActorAsync<Json>(
+      "harvestapi~linkedin-profile-scraper",
+      {
+        profileScraperMode: "Profile details + email search ($10 per 1k)",
+        queries: afterPrimary.map((d) => d.person_profile_url),
+      },
+      { token: apifyToken, maxWaitMs: 240_000, pollIntervalMs: 6_000 },
+    );
+    if (!harvest.ok) {
+      secondaryError = harvest.error;
+    } else {
+      secondaryItemCount = harvest.items.length;
+      for (const item of harvest.items) {
+        const match = matchItemToDM(item);
+        if (!match || !remaining.has(match.id)) continue;
+        secondaryMatchedDMs++;
+        const emails = extractEmails(item);
+        if (!emails.length) continue;
+        const added = await insertEmails(match.id, "harvestapi~linkedin-profile-scraper", "harvestapi-secondary", emails);
+        if (added) {
+          secondaryEmailsFound += added;
+          remaining.delete(match.id);
+        }
+      }
+    }
+  }
+  steps = await updateStep(opts.jobId, steps, "emails", {
+    secondary: {
+      actor: "harvestapi~linkedin-profile-scraper",
+      ran: afterPrimary.length > 0,
+      ok: !secondaryError,
+      error: secondaryError,
+      itemsReturned: secondaryItemCount,
+      matchedDMs: secondaryMatchedDMs,
+      emailsFound: secondaryEmailsFound,
+      profilesQueried: afterPrimary.length,
+    },
+  });
+
+  // ── TERTIARY: anchor~linkedin-to-email per remaining profile ───────────
+  let tertiaryEmailsFound = 0;
+  const afterSecondary = [...remaining.values()];
+  if (afterSecondary.length) {
+    steps = await updateStep(opts.jobId, steps, "emails", {
+      note: `${afterSecondary.length} profile(s) still missing — trying anchor~linkedin-to-email last`,
+    });
+    for (const dm of afterSecondary) {
       const run = await runApifyActorAsync<Json>(
         "anchor~linkedin-to-email",
-        { startUrls: [{ url: dm.url, id: "1" }] },
+        { startUrls: [{ url: dm.person_profile_url, id: "1" }] },
         { token: apifyToken, maxWaitMs: 180_000, pollIntervalMs: 6_000 },
       );
       if (!run.ok) continue;
-      const emails: Array<{ email: string; confidence?: string }> = [];
-      for (const item of run.items) {
-        const e = (item.email || item.foundEmail || item.workEmail) as string | undefined;
-        if (typeof e === "string" && e.includes("@")) emails.push({ email: e, confidence: (item.confidence as string) || undefined });
-        const arr = item.emails as unknown;
-        if (Array.isArray(arr)) {
-          for (const v of arr) {
-            if (typeof v === "string" && v.includes("@")) emails.push({ email: v });
-            else if (v && typeof v === "object" && typeof (v as Json).email === "string") emails.push({ email: (v as Json).email as string, confidence: (v as Json).confidence as string | undefined });
-          }
-        }
+      const all: Array<{ email: string; confidence?: string }> = [];
+      for (const item of run.items) all.push(...extractEmails(item));
+      if (!all.length) continue;
+      const added = await insertEmails(dm.id, "anchor~linkedin-to-email", "anchor-tertiary", all);
+      if (added) {
+        tertiaryEmailsFound += added;
+        remaining.delete(dm.id);
       }
-      if (!emails.length) continue;
-      const rows = emails.map((e) => ({
-        decision_maker_id: dm.id,
-        business_id: opts.businessId,
-        email: e.email,
-        confidence: e.confidence ?? "anchor-fallback",
-        raw: { ...e, source: "anchor~linkedin-to-email" },
-      }));
-      const ins = await sb("linkedin_emails", {
-        method: "POST",
-        headers: { Prefer: "resolution=merge-duplicates,return=representation" },
-        body: JSON.stringify(rows),
-      });
-      if (ins.ok) fallbackEmailsFound += emails.length;
     }
   }
 
+  const totalFound = primaryEmailsFound + secondaryEmailsFound + tertiaryEmailsFound;
+  const stillMissing = remaining.size;
   steps = await updateStep(opts.jobId, steps, "emails", {
     status: "completed",
     finishedAt: new Date().toISOString(),
-    counts: { emails: primaryEmailsFound + fallbackEmailsFound, primary: primaryEmailsFound, fallback: fallbackEmailsFound },
-    note: primaryError
-      ? `Primary (HarvestAPI) failed: ${primaryError}${fallbackEmailsFound ? ` — recovered ${fallbackEmailsFound} via anchor fallback` : ""}`
-      : fallbackEmailsFound > 0
-        ? `Recovered ${fallbackEmailsFound} email(s) via anchor fallback`
-        : noEmailDMs.length && fallbackEmailsFound === 0
-          ? `HarvestAPI ran (${primaryItemCount} items, matched ${primaryMatchedDMs}/${dmsWithUrl.length}) + anchor fallback both returned 0 emails for ${noEmailDMs.length} profile(s)`
-          : null,
+    counts: {
+      emails: totalFound,
+      primary: primaryEmailsFound,
+      secondary: secondaryEmailsFound,
+      tertiary: tertiaryEmailsFound,
+    },
+    tertiary: {
+      actor: "anchor~linkedin-to-email",
+      ran: afterSecondary.length > 0,
+      emailsFound: tertiaryEmailsFound,
+      profilesQueried: afterSecondary.length,
+    },
+    note:
+      totalFound > 0
+        ? `Found ${totalFound} email(s) — primary ${primaryEmailsFound}, secondary ${secondaryEmailsFound}, tertiary ${tertiaryEmailsFound}${stillMissing ? `; still missing ${stillMissing}` : ""}`
+        : `All three providers returned 0 emails for ${dmsWithUrl.length} profile(s)`,
   });
-  return { steps, emailsFound: primaryEmailsFound, fallbackEmailsFound };
+  return { steps, emailsFound: primaryEmailsFound, fallbackEmailsFound: secondaryEmailsFound + tertiaryEmailsFound };
 }
