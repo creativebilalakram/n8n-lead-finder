@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as RunsRouteImport } from './routes/runs'
+import { Route as OutreachRouteImport } from './routes/outreach'
 import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as ContactsRouteImport } from './routes/contacts'
 import { Route as IndexRouteImport } from './routes/index'
@@ -54,6 +55,11 @@ const SearchRoute = SearchRouteImport.update({
 const RunsRoute = RunsRouteImport.update({
   id: '/runs',
   path: '/runs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OutreachRoute = OutreachRouteImport.update({
+  id: '/outreach',
+  path: '/outreach',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InboxRoute = InboxRouteImport.update({
@@ -205,6 +211,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/contacts': typeof ContactsRouteWithChildren
   '/inbox': typeof InboxRoute
+  '/outreach': typeof OutreachRoute
   '/runs': typeof RunsRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
@@ -237,6 +244,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/inbox': typeof InboxRoute
+  '/outreach': typeof OutreachRoute
   '/runs': typeof RunsRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
@@ -271,6 +279,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/contacts': typeof ContactsRouteWithChildren
   '/inbox': typeof InboxRoute
+  '/outreach': typeof OutreachRoute
   '/runs': typeof RunsRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
@@ -306,6 +315,7 @@ export interface FileRouteTypes {
     | '/'
     | '/contacts'
     | '/inbox'
+    | '/outreach'
     | '/runs'
     | '/search'
     | '/settings'
@@ -338,6 +348,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/inbox'
+    | '/outreach'
     | '/runs'
     | '/search'
     | '/settings'
@@ -371,6 +382,7 @@ export interface FileRouteTypes {
     | '/'
     | '/contacts'
     | '/inbox'
+    | '/outreach'
     | '/runs'
     | '/search'
     | '/settings'
@@ -405,6 +417,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ContactsRoute: typeof ContactsRouteWithChildren
   InboxRoute: typeof InboxRoute
+  OutreachRoute: typeof OutreachRoute
   RunsRoute: typeof RunsRoute
   SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRoute
@@ -450,6 +463,13 @@ declare module '@tanstack/react-router' {
       path: '/runs'
       fullPath: '/runs'
       preLoaderRoute: typeof RunsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/outreach': {
+      id: '/outreach'
+      path: '/outreach'
+      fullPath: '/outreach'
+      preLoaderRoute: typeof OutreachRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/inbox': {
@@ -677,6 +697,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ContactsRoute: ContactsRouteWithChildren,
   InboxRoute: InboxRoute,
+  OutreachRoute: OutreachRoute,
   RunsRoute: RunsRoute,
   SearchRoute: SearchRoute,
   SettingsRoute: SettingsRoute,
