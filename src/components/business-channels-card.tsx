@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Save, Sparkles, Phone, Mail, Instagram, Facebook, Globe, Youtube, Music2, Linkedin, MessageCircle, RefreshCw, ShieldCheck, Search } from "lucide-react";
+import { Loader2, Save, Sparkles, Phone, Mail, Instagram, Facebook, Globe, Youtube, Music2, Linkedin, MessageCircle, ShieldCheck, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
